@@ -1,0 +1,32 @@
+# This is the BeamMP-Server config file.
+# Help & Documentation: `https://docs.beammp.com/server/server-maintenance/`
+# IMPORTANT: Fill in the AuthKey with the key you got from `https://keymaster.beammp.com/` on the left under "Keys"
+[General]
+Port = 30814
+# AuthKey has to be filled out in order to run the server
+AuthKey = ""
+# Whether to allow guests
+AllowGuests = true
+# Whether to log chat messages in the console / log
+LogChat = true
+Debug = false
+# The IP address to bind the server to, this is NOT related to your public IP. Can be used if your machine has multiple network interfaces
+IP = "::"
+Private = false
+# Whether to allow unconnected clients to get the public server information without joining
+InformationPacket = true
+Name = "K BNG M Server [Node #3327] - Freeroam [By Kinan]"
+# Add custom identifying tags to your server to make it easier to find. Format should be TagA,TagB,TagC. Note the comma seperation.
+Tags = "Freeroam,KBnG,Kinan,BeamMP"
+MaxCars = 50
+MaxPlayers = 10
+Map = "/levels/gridmap_v2/info.json"
+Description = "Welcome to K BNG M Server! Powered by Kinan (@raed713). Enjoy a smooth, secure multiplayer session!"
+ResourceFolder = "Resources"
+
+[Misc]
+# Hides the periodic update message which notifies you of a new server version. You should really keep this on and always update as soon as possible. For more information visit https://wiki.beammp.com/en/home/server-maintenance#updating-the-server. An update message will always appear at startup regardless.
+ImScaredOfUpdates = false
+# Specifies the time between update reminders. You can use any of "s, min, h, d" at the end to specify the units seconds, minutes, hours or days. So 30d or 0.5min will print the update message every 30 days or half a minute.
+UpdateReminderTime = "30s"
+
