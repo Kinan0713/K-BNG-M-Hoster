@@ -1,5 +1,4 @@
-**Important — License & Usage:** By downloading, installing, or using this software you accept the Proprietary End‑User License Agreement in [LICENSE](./LICENSE). You may only run the unmodified software; edit the authorized Configuration Files (e.g., ServerConfig.toml) as described in the docs; and add user mod archives to Resources/Client/ for client mod syncing.
-All other modifications, reverse‑engineering, redistribution, reuploads, resale, removal of attribution, or access to internal scripts is strictly forbidden. For legal notices: Kinan0713@users.noreply.github.com
+Here is the full, updated `README.md` code reflecting the new project name **K BNG M Hoster** (*Kinan BeamNG Multiplayer Hoster*):
 
 # 🚗 K BNG M HOSTER
 
@@ -13,7 +12,7 @@ All other modifications, reverse‑engineering, redistribution, reuploads, resal
 
 ## 📌 What is K BNG M Hoster?
 
-**K BNG M Hoster** (*Kinan BeamNG Multiplayer Hoster*) is an all-in-one automation utility designed to make hosting, configuring, and joining BeamMP multiplayer servers effortless. Built entirely from scratch by Kinan, it handles process execution, automates background server management, and streamlines the direct connection workflow so you and your friends can drive together in seconds.
+**K BNG M Hoster** (*Kinan BeamNG Multiplayer Hoster*) is an all-in-one automation utility designed to make hosting, configuring, and joining BeamMP multiplayer servers effortless. Built entirely from scratch by **Kinan**, it handles process execution, automates background server management, and streamlines the direct connection workflow so you and your friends can drive together in seconds.
 
 ### ✨ Key Features
 
@@ -22,6 +21,7 @@ All other modifications, reverse‑engineering, redistribution, reuploads, resal
 * **Seamless Mod Syncing:** Load custom vehicles and maps directly through client resources.
 * **One-Click Launch:** Start the host via `K_BNG_M_Hoster.exe`.
 * **Session-Aware Lifecycle (v0.3):** The server starts with your game session and stops automatically the moment the session ends.
+* **One-Click Launch:** Pre-configured script execution via `Play_BeamMP.bat`.
 
 ---
 
@@ -169,20 +169,6 @@ Resources/Client/
 *All original code, tools, scripts, and rights belong strictly and exclusively to Kinan.*
 * **Official Discord:** [Innocent BeamMP Server Community](https://discord.gg/2FxsJvKr4a)
 
-## Legal / License
+```
 
-This project is distributed under a proprietary EULA. By using this software you agree to the terms set in [LICENSE](./LICENSE).
-
-Summary of permitted actions:
-- Running the unmodified packaged software.
-- Editing authorized configuration files (ServerConfig.toml, .env) only as instructed.
-- Adding mod archive files to Resources/Client/ to enable mod syncing.
-
-Strictly prohibited:
-- Modifying source code or scripts that are not explicitly authorized.
-- Reverse‑engineering, decompilation, or extraction of internal logic.
-- Reuploading, mirroring, forking, redistributing, or selling the Software.
-- Removing, altering, or obscuring author attribution (Kinan / @raed713).
-- Accessing Internal Scripts or proprietary files not explicitly permitted.
-
-For permissions, DMCA, or legal inquiries: Kinan0713@users.noreply.github.com
+```
