@@ -1,13 +1,15 @@
-
 ```markdown
+> [!IMPORTANT]
+>
+
 <div align="center">
 
 ```text
-██   ██  ██████  ███    ██  ██████   ███    ███     ██   ██ ██████  ███████ ████████ ██�...
-██  ██   ██   ██ ████   ██ ██        ████  ████     ██   ██ ██    ██ ██         ██    ██      ██   ██ 
-█████    ██████  ██ ██  ██ ██   ███  ██ ████ ██     ███████ ██    ██ ███████    ██    ███�...
-██  ██   ██   ██ ██  ██ ██ ██    ██  ██  ██  ██     ██   ██ ██    ██      ██    ██    ██      ██   ██ 
-██   ██  ██████  ██   ████  ██████   ██      ██     ██   ██  ██████  ███████    ██    ██████��...
+██  ██  ██████  ███   ██  ██████   ███   ███    ██  ██ ██████  ███████ ████████ ██...
+██  ██  ██  ██ ████   ██ ██        ████  ████   ██  ██ ██   ██ ██       ██   ██   ██  ██ 
+█████    ██████  ██ ██  ██ ██  ███  ██ ████ ██   ███████ ██   ██ ███████    ██   ███...
+██  ██  ██  ██ ██  ██ ██ ██   ██  ██  ██  ██   ██  ██ ██   ██     ██   ██   ██    ██  ██ 
+██   ██  ██████  ██  ████  ██████   ██     ██   ██  ██  ██████  ███████    ██   ██████...
 
 ```
 
@@ -18,8 +20,6 @@
 ### ⚡ **The All-In-One Automated BeamMP Hosting & Joining Tool** ⚡
 
 *Solely created and developed by **Kinan** (`@raed713`)*
-
----
 
 ---
 
@@ -70,8 +70,6 @@ AuthKey = "YOUR_KEY_HERE"
 ## 🌐 Server Launch & Connection Methods
 
 Choose **one** of the two hosting methods below depending on how you want players to connect:
-
----
 
 ### 🔹 METHOD A: Tailscale (Private / No Port Forwarding)
 
@@ -140,9 +138,11 @@ To load custom vehicles, maps, or physics mods onto your server:
 
 ## 🛠️ Troubleshooting & FAQ
 
+> [!NOTE]
 > **"Invalid ZIP File" Pop-up?**
 > Ignore this message! BeamNG scans files while BeamMP streams them in real time. Simply let the progress bar finish loading.
 
+> [!WARNING]
 > **Server Window Closes Instantly?**
 
 ---
@@ -150,21 +150,28 @@ To load custom vehicles, maps, or physics mods onto your server:
 ## 👑 Credits & Ownership
 
 * **Sole Developer & Creator:** **Kinan** (`@raed713`)
-*All original code, tools, scripts, and rights belong strictly and exclusively to Kinan.*
+* **Note:** *All original code, tools, scripts, and rights belong strictly and exclusively to Kinan.*
 * **Official Discord:** [Innocent BeamMP Server Community](https://discord.gg/2FxsJvKr4a)
 
+---
 
-## Legal / License
+## ⚖️ Legal / License
 
-This project is distributed under a proprietary EULA. By using this software you agree to the terms set in [LICENSE](./LICENSE).
+This project is distributed under a proprietary EULA. By using this software you agree to the terms set in [LICENSE](https://www.google.com/search?q=./LICENSE).
 
-Summary of permitted actions:
-- Running the unmodified packaged software.
+**Summary of permitted actions:**
 
-Strictly prohibited:
-- Modifying source code or scripts that are not explicitly authorized.
-- Reverse‑engineering, decompilation, or extraction of internal logic.
-- Reuploading, mirroring, forking, redistributing, or selling the Software.
-- Removing, altering, or obscuring author attribution (Kinan / @raed713).
-- Accessing Internal Scripts or proprietary files not explicitly permitted.
+* Running the unmodified packaged software.
 
+**Strictly prohibited:**
+
+* Modifying source code or scripts that are not explicitly authorized.
+* Reverse‑engineering, decompilation, or extraction of internal logic.
+* Reuploading, mirroring, forking, redistributing, or selling the Software.
+* Removing, altering, or obscuring author attribution (Kinan / `@raed713`).
+* Accessing internal scripts or proprietary files not explicitly permitted.
+
+
+```
+
+```
