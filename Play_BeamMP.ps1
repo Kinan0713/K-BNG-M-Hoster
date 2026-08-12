@@ -307,6 +307,7 @@ function Show-SetupWizard {
         if ($_ -match '^\s*Name\s*=') { 'Name = "K BNG M Server"' }
         elseif ($_ -match '^\s*Port\s*=') { "Port = $port" }
         elseif ($_ -match '^\s*MaxPlayers\s*=') { 'MaxPlayers = 10' }
+        elseif ($_ -match '^\s*IP\s*=') { 'IP = "0.0.0.0"' }
         else { $_ }
     }
     Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
@@ -512,6 +513,18 @@ function Get-ConnectionInfo {
         } catch { }
     }
     return [pscustomobject]@{ Port = $port; Tailscale = $tail; Public = $public }
+}
+
+# Returns $true if we can reach our own server over IPv4 loopback (127.0.0.1).
+function Test-Loopback([int]$Port) {
+    try {
+        $c = New-Object System.Net.Sockets.TcpClient
+        $iar = $c.BeginConnect('127.0.0.1', $Port, $null, $null)
+        $ok = $iar.AsyncWaitHandle.WaitOne(3000, $false)
+        if ($ok -and $c.Connected) { $c.Close(); return $true }
+        $c.Close()
+        return $false
+    } catch { return $false }
 }
 
 # ---------------------------------------------------------------------------------------
@@ -768,6 +781,39 @@ if (-not $ready) {
 }
 Write-Log "Server is live (PID $($server.Id))"
 
+# Self-check: make sure the server can be reached over IPv4 (127.0.0.1).
+# If not, the config may still be binding IPv6-only (IP = "::") - fix it and restart.
+if (-not (Test-Loopback $serverPort)) {
+    Write-Host ""
+    Write-Host "  I can't reach my own server over IPv4. Fixing the bind address and restarting..." -ForegroundColor Yellow
+    Write-Log "Loopback check failed - rewriting IP to 0.0.0.0"
+    $cfgPath = $ServerDir + 'ServerConfig.toml'
+    $lines = @(Get-Content -LiteralPath $cfgPath) | ForEach-Object {
+        if ($_ -match '^\s*IP\s*=') { 'IP = "0.0.0.0"' } else { $_ }
+    }
+    Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
+    Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+    $server = Start-Process -FilePath ($ServerDir + 'BeamMP-Server.exe') -WorkingDirectory $ServerDir -WindowStyle Minimized -PassThru
+    $ready = $false
+    for ($i = 0; $i -lt 40; $i++) {
+        if ($server.HasExited) { break }
+        if (Get-NetTCPConnection -LocalPort $serverPort -State Listen -ErrorAction SilentlyContinue) { $ready = $true; break }
+        Start-Sleep -Seconds 1
+    }
+    if (-not $ready) {
+        Write-Host "  The server still did not start after the fix. Check Help / Fix Problems." -ForegroundColor Red
+        Show-ServerDiagnostics
+        Read-Host "Press Enter to return to the main menu"
+        exit 1
+    }
+    if (Test-Loopback $serverPort) {
+        Write-Host "  Fixed! Your server is now reachable on 127.0.0.1:$serverPort." -ForegroundColor Green
+    } else {
+        Write-Host "  Warning: the server is running but 127.0.0.1 could not be reached. Check Help / Fix Problems -> firewall." -ForegroundColor Yellow
+    }
+}
+
 # Watchdog (kills the server with the session)
 $watchdogCmd = '$seen=$false; $t0=[datetime]::Now; while($true){ $running=[bool](Get-Process -Name BeamMP-Launcher -ErrorAction SilentlyContinue); if($running){$seen=$true}; if($seen -and -not $running){Stop-Process -Id ' + $server.Id + ' -Force -ErrorAction SilentlyContinue; break}; if(-not (Get-Process -Id ' + $server.Id + ' -ErrorAction SilentlyContinue)){break}; if(-not $seen -and ([datetime]::Now-$t0).TotalMinutes -gt 60){break}; Start-Sleep -Seconds 2 }'
 Start-Process powershell -WindowStyle Hidden -ArgumentList ('-NoProfile -Command "' + $watchdogCmd + '"') | Out-Null
@@ -840,17 +886,18 @@ Write-Host "=================================================================" -
 Write-Host "    Server Name : $serverName"
 Write-Host "    Port        : $serverPort"
 Write-Host ""
-Write-Host "    Tell your friends how to join:" -ForegroundColor Cyan
+Write-Host "    How to connect:" -ForegroundColor Cyan
 $conn = Get-ConnectionInfo
 $copyLine = "127.0.0.1:$($conn.Port)"
+Write-Host "      THIS PC (test now): 127.0.0.1:$($conn.Port)"
 if ($conn.Tailscale) {
-    Write-Host "      Method A (same WiFi / Tailscale): $($conn.Tailscale):$($conn.Port)"
+    Write-Host "      Same WiFi / Tailscale: $($conn.Tailscale):$($conn.Port)"
     $copyLine = "$($conn.Tailscale):$($conn.Port)"
 }
 if ($conn.Public) {
-    Write-Host "      Method B (anywhere, internet): $($conn.Public):$($conn.Port)"
+    Write-Host "      Anywhere (internet): $($conn.Public):$($conn.Port)"
 } else {
-    Write-Host "      Method B (anywhere, internet): (could not detect your public IP)"
+    Write-Host "      Anywhere (internet): (could not detect your public IP)"
 }
 Write-Host ""
 Write-Host "      Press C at any time to copy the connection line to your clipboard."
