@@ -2,7 +2,7 @@
 # Help & Documentation: `https://docs.beammp.com/server/server-maintenance/`
 # IMPORTANT: Fill in the AuthKey with the key you got from `https://keymaster.beammp.com/` on the left under "Keys"
 [General]
-Port = 30814
+Port = 30813
 # AuthKey has to be filled out in order to run the server
 AuthKey = ""
 # Whether to allow guests
