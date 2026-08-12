@@ -1,15 +1,14 @@
-```markdown
-> [!IMPORTANT]
->
+Here is the full, updated `README.md` code reflecting the new project name **K BNG M Hoster** (*Kinan BeamNG Multiplayer Hoster*):
 
+```markdown
 <div align="center">
 
 ```text
-██  ██  ██████  ███   ██  ██████   ███   ███    ██  ██ ██████  ███████ ████████ ██...
-██  ██  ██  ██ ████   ██ ██        ████  ████   ██  ██ ██   ██ ██       ██   ██   ██  ██ 
-█████    ██████  ██ ██  ██ ██  ███  ██ ████ ██   ███████ ██   ██ ███████    ██   ███...
-██  ██  ██  ██ ██  ██ ██ ██   ██  ██  ██  ██   ██  ██ ██   ██     ██   ██   ██    ██  ██ 
-██   ██  ██████  ██  ████  ██████   ██     ██   ██  ██  ██████  ███████    ██   ██████...
+██   ██  ██████  ███    ██  ██████   ███    ███     ██   ██ ██████  ███████ ████████ ███████ ██████  
+██  ██   ██   ██ ████   ██ ██        ████  ████     ██   ██ ██    ██ ██         ██    ██      ██   ██ 
+█████    ██████  ██ ██  ██ ██   ███  ██ ████ ██     ███████ ██    ██ ███████    ██    █████   ██████  
+██  ██   ██   ██ ██  ██ ██ ██    ██  ██  ██  ██     ██   ██ ██    ██      ██    ██    ██      ██   ██ 
+██   ██  ██████  ██   ████  ██████   ██      ██     ██   ██  ██████  ███████    ██    ███████ ██   ██ 
 
 ```
 
@@ -23,9 +22,11 @@
 
 ---
 
+---
+
 ## 📌 What is K BNG M Hoster?
 
-**K BNG M Hoster** (*Kinan BeamNG Multiplayer Hoster*) is an all-in-one automation utility designed to make hosting, configuring, and joining BeamMP multiplayer servers effortless. Built entirely from scratch by Kinan, it handles process execution, automates background server management, and streamlines the direct connection workflow so you and your friends can drive together in seconds.
+**K BNG M Hoster** (*Kinan BeamNG Multiplayer Hoster*) is an all-in-one automation utility designed to make hosting, configuring, and joining BeamMP multiplayer servers effortless. Built entirely from scratch by **Kinan**, it handles process execution, automates background server management, and streamlines the direct connection workflow so you and your friends can drive together in seconds.
 
 ### ✨ Key Features
 
@@ -70,6 +71,8 @@ AuthKey = "YOUR_KEY_HERE"
 ## 🌐 Server Launch & Connection Methods
 
 Choose **one** of the two hosting methods below depending on how you want players to connect:
+
+---
 
 ### 🔹 METHOD A: Tailscale (Private / No Port Forwarding)
 
@@ -138,11 +141,9 @@ To load custom vehicles, maps, or physics mods onto your server:
 
 ## 🛠️ Troubleshooting & FAQ
 
-> [!NOTE]
 > **"Invalid ZIP File" Pop-up?**
 > Ignore this message! BeamNG scans files while BeamMP streams them in real time. Simply let the progress bar finish loading.
 
-> [!WARNING]
 > **Server Window Closes Instantly?**
 
 ---
@@ -150,27 +151,8 @@ To load custom vehicles, maps, or physics mods onto your server:
 ## 👑 Credits & Ownership
 
 * **Sole Developer & Creator:** **Kinan** (`@raed713`)
-* **Note:** *All original code, tools, scripts, and rights belong strictly and exclusively to Kinan.*
+*All original code, tools, scripts, and rights belong strictly and exclusively to Kinan.*
 * **Official Discord:** [Innocent BeamMP Server Community](https://discord.gg/2FxsJvKr4a)
-
----
-
-## ⚖️ Legal / License
-
-This project is distributed under a proprietary EULA. By using this software you agree to the terms set in [LICENSE](https://www.google.com/search?q=./LICENSE).
-
-**Summary of permitted actions:**
-
-* Running the unmodified packaged software.
-
-**Strictly prohibited:**
-
-* Modifying source code or scripts that are not explicitly authorized.
-* Reverse‑engineering, decompilation, or extraction of internal logic.
-* Reuploading, mirroring, forking, redistributing, or selling the Software.
-* Removing, altering, or obscuring author attribution (Kinan / `@raed713`).
-* Accessing internal scripts or proprietary files not explicitly permitted.
-
 
 ```
 
