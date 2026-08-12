@@ -1,17 +1,14 @@
-```markdown
-> [!IMPORTANT]
-> **License & Usage:** By downloading, installing, or using this software you accept the Proprietary End‑User License Agreement in [LICENSE](./LICENSE). You may only run the unmodified software; edit the authorized Configuration Files (e.g., `ServerConfig.toml`) as described in the docs; and add user mod archives to `Resources/Client/` for client mod syncing.
->
-> All other modifications, reverse‑engineering, redistribution, reuploads, resale, removal of attribution, or access to internal scripts is strictly forbidden. For legal notices: behindtheshadows95@gmail.com
+Here is the full, updated `README.md` code reflecting the new project name **K BNG M Hoster** (*Kinan BeamNG Multiplayer Hoster*):
 
+```markdown
 <div align="center">
 
 ```text
-██  ██  ██████  ███   ██  ██████   ███   ███    ██  ██ ██████  ███████ ████████ ██...
-██  ██  ██  ██ ████   ██ ██        ████  ████   ██  ██ ██   ██ ██       ██   ██   ██  ██ 
-█████    ██████  ██ ██  ██ ██  ███  ██ ████ ██   ███████ ██   ██ ███████    ██   ███...
-██  ██  ██  ██ ██  ██ ██ ██   ██  ██  ██  ██   ██  ██ ██   ██     ██   ██   ██    ██  ██ 
-██   ██  ██████  ██  ████  ██████   ██     ██   ██  ██  ██████  ███████    ██   ██████...
+██   ██  ██████  ███    ██  ██████   ███    ███     ██   ██ ██████  ███████ ████████ ███████ ██████  
+██  ██   ██   ██ ████   ██ ██        ████  ████     ██   ██ ██    ██ ██         ██    ██      ██   ██ 
+█████    ██████  ██ ██  ██ ██   ███  ██ ████ ██     ███████ ██    ██ ███████    ██    █████   ██████  
+██  ██   ██   ██ ██  ██ ██ ██    ██  ██  ██  ██     ██   ██ ██    ██      ██    ██    ██      ██   ██ 
+██   ██  ██████  ██   ████  ██████   ██      ██     ██   ██  ██████  ███████    ██    ███████ ██   ██ 
 
 ```
 
@@ -25,16 +22,18 @@
 
 ---
 
+---
+
 ## 📌 What is K BNG M Hoster?
 
-**K BNG M Hoster** (*Kinan BeamNG Multiplayer Hoster*) is an all-in-one automation utility designed to make hosting, configuring, and joining BeamMP multiplayer servers effortless. Built entirely from scratch by Kinan, it handles process execution, automates background server management, and streamlines the direct connection workflow so you and your friends can drive together in seconds.
+**K BNG M Hoster** (*Kinan BeamNG Multiplayer Hoster*) is an all-in-one automation utility designed to make hosting, configuring, and joining BeamMP multiplayer servers effortless. Built entirely from scratch by **Kinan**, it handles process execution, automates background server management, and streamlines the direct connection workflow so you and your friends can drive together in seconds.
 
 ### ✨ Key Features
 
 * **Zero-Stress Automation:** Handles server startup and process management automatically.
 * **Flexible Hosting Options:** Full support for both **Tailscale (No Port Forwarding)** and **Public Port Forwarding**.
 * **Seamless Mod Syncing:** Load custom vehicles and maps directly through client resources.
-* **One-Click Launch:** Start the host via `K_BNG_M_Hoster.exe`.
+* **One-Click Launch:** Pre-configured script execution via `Play_BeamMP.bat`.
 
 ---
 
@@ -77,6 +76,8 @@ AuthKey = "YOUR_KEY_HERE"
 
 Choose **one** of the two hosting methods below depending on how you want players to connect:
 
+---
+
 ### 🔹 METHOD A: Tailscale (Private / No Port Forwarding)
 
 *Best for playing privately with a group of friends without altering router settings.*
@@ -84,7 +85,7 @@ Choose **one** of the two hosting methods below depending on how you want player
 #### 🛠️ Host Setup & Connection
 
 1. Launch **Tailscale** on your PC.
-2. Right‑click **`K_BNG_M_Hoster.exe`** and choose **"Run as administrator"** to start the host *(recommended)*.
+2. Double-click **`Play_BeamMP.bat`** to start the host script.
 3. Open **BeamNG.drive**.
 4. Go to: `More...` ➔ `BeamMP` ➔ `Direct Connect`
 5. Connect using:
@@ -121,7 +122,7 @@ Port = 30814
 ```
 
 
-3. Run **`K_BNG_M_Hoster.exe`** to launch the server. Right‑click the exe and choose **"Run as administrator"**.
+3. Double-click **`Play_BeamMP.bat`** to launch the server.
 4. Open **BeamNG.drive** and connect via `Direct Connect` (`127.0.0.1:30814`).
 
 #### 👥 How Friends Join
@@ -143,17 +144,15 @@ Resources/Client/
 
 
 2. Drop your mod `.zip` files directly into this directory.
-3. Restart the server by running `K_BNG_M_Hoster.exe` again to sync mods automatically with everyone who joins *(right‑click → Run as administrator if needed)*.
+3. Restart the server via `Play_BeamMP.bat` to sync mods automatically with everyone who joins.
 
 ---
 
 ## 🛠️ Troubleshooting & FAQ
 
-> [!NOTE]
 > **"Invalid ZIP File" Pop-up?**
 > Ignore this message! BeamNG scans files while BeamMP streams them in real time. Simply let the progress bar finish loading.
 
-> [!WARNING]
 > **Server Window Closes Instantly?**
 > Check your `ServerConfig.toml` file. This usually happens if the `AuthKey` was pasted incorrectly or left blank.
 
@@ -162,30 +161,8 @@ Resources/Client/
 ## 👑 Credits & Ownership
 
 * **Sole Developer & Creator:** **Kinan** (`@raed713`)
-* **Note:** *All original code, tools, scripts, and rights belong strictly and exclusively to Kinan.*
+*All original code, tools, scripts, and rights belong strictly and exclusively to Kinan.*
 * **Official Discord:** [Innocent BeamMP Server Community](https://discord.gg/2FxsJvKr4a)
-
----
-
-## ⚖️ Legal / License
-
-This project is distributed under a proprietary EULA. By using this software you agree to the terms set in [LICENSE](https://www.google.com/search?q=./LICENSE).
-
-**Summary of permitted actions:**
-
-* Running the unmodified packaged software.
-* Editing authorized configuration files (`ServerConfig.toml`) only as instructed.
-* Adding mod archive files to `Resources/Client/` to enable mod syncing.
-
-**Strictly prohibited:**
-
-* Modifying source code or scripts that are not explicitly authorized.
-* Reverse‑engineering, decompilation, or extraction of internal logic.
-* Reuploading, mirroring, forking, redistributing, or selling the Software.
-* Removing, altering, or obscuring author attribution (Kinan / `@raed713`).
-* Accessing internal scripts or proprietary files not explicitly permitted.
-
-For permissions, DMCA, or legal inquiries: behindtheshadows95@gmail.com
 
 ```
 
