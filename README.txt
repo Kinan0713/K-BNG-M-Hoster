@@ -1,17 +1,5 @@
 Here is the full, updated `README.md` code reflecting the new project name **K BNG M Hoster** (*Kinan BeamNG Multiplayer Hoster*):
 
-```markdown
-<div align="center">
-
-```text
-██   ██  ██████  ███    ██  ██████   ███    ███     ██   ██ ██████  ███████ ████████ ███████ ██████  
-██  ██   ██   ██ ████   ██ ██        ████  ████     ██   ██ ██    ██ ██         ██    ██      ██   ██ 
-█████    ██████  ██ ██  ██ ██   ███  ██ ████ ██     ███████ ██    ██ ███████    ██    █████   ██████  
-██  ██   ██   ██ ██  ██ ██ ██    ██  ██  ██  ██     ██   ██ ██    ██      ██    ██    ██      ██   ██ 
-██   ██  ██████  ██   ████  ██████   ██      ██     ██   ██  ██████  ███████    ██    ███████ ██   ██ 
-
-```
-
 # 🚗 K BNG M HOSTER
 
 ### *(Kinan BeamNG Multiplayer Hoster)*
@@ -19,8 +7,6 @@ Here is the full, updated `README.md` code reflecting the new project name **K B
 ### ⚡ **The All-In-One Automated BeamMP Hosting & Joining Tool** ⚡
 
 *Solely created and developed by **Kinan** (`@raed713`)*
-
----
 
 ---
 
@@ -33,6 +19,7 @@ Here is the full, updated `README.md` code reflecting the new project name **K B
 * **Zero-Stress Automation:** Handles server startup and process management automatically.
 * **Flexible Hosting Options:** Full support for both **Tailscale (No Port Forwarding)** and **Public Port Forwarding**.
 * **Seamless Mod Syncing:** Load custom vehicles and maps directly through client resources.
+* **Session-Aware Lifecycle (v0.3):** The server starts with your game session and stops automatically the moment the session ends.
 
 ---
 
@@ -54,17 +41,20 @@ Before getting started, make sure you have the following downloads ready:
 
 1. Download **K BNG M Hoster** and extract the ZIP folder to your preferred location.
 
-### 2️⃣ Input Your Auth Key
+### 2️⃣ Input Your Auth Key *(Automatic — Recommended)*
+
 
 1. Go to [BeamMP Keymaster](https://keymaster.beammp.com) and generate a new key.
-```toml
-AuthKey = "YOUR_KEY_HERE"
-
+```
+```
+```
+BEAMMP_AUTHKEY=PASTE_YOUR_KEY_HERE
 ```
 
+>
 
-3. Replace `"YOUR_KEY_HERE"` with your generated key *(keep the quotation marks)*.
-4. Save (`Ctrl + S`) and close the file.
+### 3️⃣ Note on Ports
+
 
 ---
 
@@ -81,13 +71,11 @@ Choose **one** of the two hosting methods below depending on how you want player
 #### 🛠️ Host Setup & Connection
 
 1. Launch **Tailscale** on your PC.
-3. Open **BeamNG.drive**.
-4. Go to: `More...` ➔ `BeamMP` ➔ `Direct Connect`
-5. Connect using:
+3. Accept the license prompt, then the tool opens the BeamMP Launcher automatically.
+4. Open **BeamNG.drive**.
+5. Go to: `More...` ➔ `BeamMP` ➔ `Direct Connect`
+6. Connect using:
 * **IP Address:** `127.0.0.1`
-* **Port:** `30814`
-
-
 
 #### 👥 How Friends Join
 
@@ -96,9 +84,6 @@ Choose **one** of the two hosting methods below depending on how you want player
 3. Go to: `More...` ➔ `BeamMP` ➔ `Direct Connect`
 4. Connect using:
 * **IP Address:** Host's Tailscale IP (`100.x.x.x`)
-* **Port:** `30814`
-
-
 
 ---
 
@@ -108,20 +93,15 @@ Choose **one** of the two hosting methods below depending on how you want player
 
 #### 🛠️ Host Setup & Connection
 
-1. Access your router settings and forward port **`30814` (UDP & TCP)** to your local IP address.
 ```toml
 Private = false
-Port = 30814
-
+Port = 30813
 ```
-
-
-4. Open **BeamNG.drive** and connect via `Direct Connect` (`127.0.0.1:30814`).
+4. Open **BeamNG.drive** and connect via `Direct Connect` (`127.0.0.1:30813`).
 
 #### 👥 How Friends Join
 
 * **Option 1 (Server Browser):** Friends can search for your Server Name in the official BeamMP Server Browser.
-* **Option 2 (Direct Connect):** Friends go to `More...` ➔ `BeamMP` ➔ `Direct Connect` and enter your **Public IP** and Port `30814`.
 
 ---
 
@@ -131,11 +111,16 @@ To load custom vehicles, maps, or physics mods onto your server:
 
 1. Open the project folder and navigate to:
 ```text
-
 ```
-
-
 2. Drop your mod `.zip` files directly into this directory.
+
+
+---
+
+## 🔌 Optional: Discord Server Announcements
+
+1. Create a webhook in your Discord channel (`Channel Settings > Integrations > Webhooks`).
+4. The launcher posts an **`[ONLINE]`** embed when the server starts and an **`[OFFLINE]`** embed when it stops.
 
 ---
 
@@ -145,6 +130,8 @@ To load custom vehicles, maps, or physics mods onto your server:
 > Ignore this message! BeamNG scans files while BeamMP streams them in real time. Simply let the progress bar finish loading.
 
 > **Server Window Closes Instantly?**
+
+> **Tool says the server failed to start?**
 
 ---
 
