@@ -14,7 +14,7 @@ AllowGuests = true
 LogChat = true
 Debug = false
 # The IP address to bind the server to, this is NOT related to your public IP. Can be used if your machine has multiple network interfaces
-IP = "::"
+IP = "0.0.0.0"
 Private = false
 # Whether to allow unconnected clients to get the public server information without joining
 InformationPacket = true
