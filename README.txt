@@ -40,14 +40,17 @@ Before getting started, make sure you have the following downloads ready:
 
 1. Download **K BNG M Hoster** and extract the ZIP folder to your preferred location.
 
-### 2️⃣ Input Your Auth Key
+### 2️⃣ Input Your Auth Key *(Automatic — Recommended)*
+
 
 1. Go to [BeamMP Keymaster](https://keymaster.beammp.com) and generate a new key.
-```toml
-AuthKey = "YOUR_KEY_HERE"
 ```
-3. Replace `"YOUR_KEY_HERE"` with your generated key *(keep the quotation marks)*.
-4. Save (`Ctrl + S`) and close the file.
+```
+```
+BEAMMP_AUTHKEY=PASTE_YOUR_KEY_HERE
+```
+
+>
 
 ### 3️⃣ Note on Ports
 

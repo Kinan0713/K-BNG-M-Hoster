@@ -118,14 +118,23 @@ set "SERVER_PORT=30814"
 for /f "usebackq tokens=2 delims==" %%P in (`findstr /b /c:"Port" "%SERVER_DIR%ServerConfig.toml"`) do set "SERVER_PORT=%%P"
 
 :: ========================================================================================
-:: 7. REPAIR INVALID mods.json (BeamMP expects a JSON array, not "null")
+:: 7. AUTH KEY AUTO-INJECTION (from .env or the BEAMMP_AUTHKEY env var)
+:: Reads the key from the local .env file (or the BEAMMP_AUTHKEY environment variable)
+:: and writes it into ServerConfig.toml right before the server starts, so you never
+:: have to paste it manually. If both are missing, an already-set key in the config is
+:: left untouched.
+:: ========================================================================================
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$k = $env:BEAMMP_AUTHKEY; $src = 'BEAMMP_AUTHKEY env var'; $ef = '%SERVER_DIR%.env'; if (-not $k) { if (Test-Path -LiteralPath $ef) { $k = (Get-Content -LiteralPath $ef | Where-Object { $_ -match '^\s*BEAMMP_AUTHKEY\s*=' } | Select-Object -First 1) -replace '^\s*BEAMMP_AUTHKEY\s*=', ''; if ($k) { $k = $k.Trim().Trim([char]34, [char]39); $src = '.env file' } } }; $p = '%SERVER_DIR%ServerConfig.toml'; if ($k) { $c = Get-Content -LiteralPath $p; $c = $c | ForEach-Object { if ($_ -match '^\s*AuthKey\s*=') { 'AuthKey = ' + [char]34 + $k + [char]34 } else { $_ } }; Set-Content -LiteralPath $p -Value $c -Encoding UTF8; Write-Host ('[AUTH] AuthKey injected from ' + $src); Add-Content -LiteralPath '%SERVER_DIR%Logs\launcher.log' -Value ((Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + ' [AUTH] AuthKey injected from ' + $src) } else { $pat = '^\s*AuthKey\s*=\s*' + [char]34 + '[^' + [char]34 + ']+' + [char]34; $hasKey = Select-String -LiteralPath $p -Pattern $pat -Quiet; if (-not $hasKey) { Write-Host '[AUTH] No AuthKey found. Create a .env file next to the launcher with: BEAMMP_AUTHKEY=your_key_here  (or set the BEAMMP_AUTHKEY environment variable).' -ForegroundColor Yellow; Add-Content -LiteralPath '%SERVER_DIR%Logs\launcher.log' -Value ((Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + ' [AUTH] WARNING: no AuthKey found') } else { Write-Host '[AUTH] Using AuthKey already present in ServerConfig.toml.'; Add-Content -LiteralPath '%SERVER_DIR%Logs\launcher.log' -Value ((Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + ' [AUTH] Using existing AuthKey in ServerConfig.toml') } }"
+
+:: ========================================================================================
+:: 8. REPAIR INVALID mods.json (BeamMP expects a JSON array, not "null")
 :: ========================================================================================
 if exist "%SERVER_DIR%Resources\Client\mods.json" (
     powershell -NoProfile -Command "$p = '%SERVER_DIR%Resources\Client\mods.json'; $c = Get-Content -LiteralPath $p -Raw; if ($c -match '^\s*null\s*$') { Set-Content -LiteralPath $p -Value '[]' }"
 )
 
 :: ========================================================================================
-:: 8. START THE SERVER (capture PID so we can kill exactly this instance)
+:: 9. START THE SERVER (capture PID so we can kill exactly this instance)
 :: ========================================================================================
 echo [*] Starting BeamMP server...
 set "SERVER_PID="
@@ -139,7 +148,7 @@ if not defined SERVER_PID (
 )
 
 :: ========================================================================================
-:: 9. WAIT UNTIL THE SERVER IS ACTUALLY LISTENING (real "LIVE" check)
+:: 10. WAIT UNTIL THE SERVER IS ACTUALLY LISTENING (real "LIVE" check)
 :: ========================================================================================
 set /a WAIT_N=0
 :WAITPORT
@@ -165,14 +174,14 @@ exit /b 1
 echo [%date% %time%] Server is live (PID %SERVER_PID%) >> "%LOGFILE%"
 
 :: ========================================================================================
-:: 10. WATCHDOG: guarantee the server dies with the session even if this window is closed
+:: 11. WATCHDOG: guarantee the server dies with the session even if this window is closed
 :: Only fires after the launcher has been observed running once (so it never kills the
 :: server before the game session actually begins).
 :: ========================================================================================
 start "" /MIN powershell -NoProfile -Command "$seen = $false; while ($true) { $running = [bool](Get-Process -Name BeamMP-Launcher -ErrorAction SilentlyContinue); if ($running) { $seen = $true }; if ($seen -and -not $running) { Stop-Process -Id %SERVER_PID% -Force -ErrorAction SilentlyContinue; break }; Start-Sleep -Seconds 2 }"
 
 :: ========================================================================================
-:: 11. OPTIONAL DISCORD WEBHOOK (opt-in: only if webhook.txt exists next to the .exe)
+:: 12. OPTIONAL DISCORD WEBHOOK (opt-in: only if webhook.txt exists next to the .exe)
 :: ========================================================================================
 set "WEBHOOK_URL="
 if exist "%SERVER_DIR%webhook.txt" (
@@ -185,7 +194,7 @@ if defined WEBHOOK_URL (
 )
 
 :: ========================================================================================
-:: 12. LIVE UI
+:: 13. LIVE UI
 :: ========================================================================================
 color 0A
 cls
@@ -199,12 +208,12 @@ echo    Leave this window open. Closing it stops the server.
 echo =================================================================
 
 :: ========================================================================================
-:: 13. VOICE ANNOUNCEMENT (best-effort; skipped if System.Speech is unavailable)
+:: 14. VOICE ANNOUNCEMENT (best-effort; skipped if System.Speech is unavailable)
 :: ========================================================================================
 powershell -NoProfile -Command "try { Add-Type -AssemblyName System.Speech -ErrorAction Stop; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Speak('K BNG M Hoster is online.') } catch { }" >nul 2>&1
 
 :: ========================================================================================
-:: 14. LAUNCH THE GAME LAUNCHER AND WAIT FOR THE SESSION TO END
+:: 15. LAUNCH THE GAME LAUNCHER AND WAIT FOR THE SESSION TO END
 :: ========================================================================================
 start "" "%APPDATA%\BeamMP-Launcher\BeamMP-Launcher.exe"
 :WAITSESSION
@@ -214,7 +223,7 @@ timeout /t 5 /nobreak >nul
 goto WAITSESSION
 
 :: ========================================================================================
-:: 15. SESSION ENDED - STOP ONLY THIS SERVER INSTANCE
+:: 16. SESSION ENDED - STOP ONLY THIS SERVER INSTANCE
 :: ========================================================================================
 :SESSIONEND
 color 0C
