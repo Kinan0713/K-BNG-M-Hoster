@@ -108,11 +108,14 @@ powershell -NoProfile -Command "$scan = Get-ChildItem -LiteralPath '%SERVER_DIR%
 powershell -NoProfile -Command "Get-ChildItem -LiteralPath '%SERVER_DIR%Resources\Client' -Filter *.zip -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Length -eq 0 } | Remove-Item -Force -ErrorAction SilentlyContinue" >nul 2>&1
 
 :: ========================================================================================
-:: 6. STABLE SERVER NAME (read from config, no random node id)
+:: 6. STABLE SERVER NAME + PORT (read from config, no random node id)
 :: ========================================================================================
 set "SERVER_NAME="
 for /f "usebackq tokens=2 delims==" %%N in (`findstr /b /c:"Name" "%SERVER_DIR%ServerConfig.toml"`) do set "SERVER_NAME=%%N"
 if not defined SERVER_NAME set "SERVER_NAME=K BNG M Server"
+
+set "SERVER_PORT=30814"
+for /f "usebackq tokens=2 delims==" %%P in (`findstr /b /c:"Port" "%SERVER_DIR%ServerConfig.toml"`) do set "SERVER_PORT=%%P"
 
 :: ========================================================================================
 :: 7. REPAIR INVALID mods.json (BeamMP expects a JSON array, not "null")
@@ -142,12 +145,12 @@ set /a WAIT_N=0
 :WAITPORT
 set /a WAIT_N+=1
 if %WAIT_N% gtr 20 goto PORTFAIL
-powershell -NoProfile -Command "if (Get-NetTCPConnection -LocalPort 30814 -State Listen -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }" >nul 2>&1
+powershell -NoProfile -Command "if (Get-NetTCPConnection -LocalPort %SERVER_PORT% -State Listen -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }" >nul 2>&1
 if errorlevel 1 (
     timeout /t 1 /nobreak >nul
     goto WAITPORT
 )
-echo [OK] Server is listening on port 30814.
+echo [OK] Server is listening on port %SERVER_PORT%.
 goto SERVERLIVE
 
 :PORTFAIL
@@ -190,7 +193,7 @@ echo =================================================================
 echo    SERVER IS LIVE!
 echo    Server Name : %SERVER_NAME%
 echo    Creator     : Kinan (Discord: @raed713)
-echo    Port        : 30814
+echo    Port        : %SERVER_PORT%
 echo.
 echo    Leave this window open. Closing it stops the server.
 echo =================================================================
