@@ -8,3 +8,6 @@ Quarantine/
 
 # User's own webhook URL (never commit real URLs)
 webhook.txt
+
+# Local secrets (never commit your BeamMP AuthKey)
+.env

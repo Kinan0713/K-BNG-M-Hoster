@@ -197,14 +197,47 @@ if (Test-Path -LiteralPath $modsJson) {
 }
 
 # ---------------------------------------------------------------------------------------
-# 7. START THE SERVER (capture PID so we can kill exactly this instance)
+# 7. AUTH KEY AUTO-INJECTION (from .env or the BEAMMP_AUTHKEY env var)
+# Reads the key from the local .env file (or the BEAMMP_AUTHKEY environment variable)
+# and writes it into ServerConfig.toml right before the server starts, so you never
+# have to paste it manually. If both are missing, an already-set key is left untouched.
+# ---------------------------------------------------------------------------------------
+$authKey = $env:BEAMMP_AUTHKEY
+$authSource = 'BEAMMP_AUTHKEY env var'
+$envFile = $ServerDir + '.env'
+if (-not $authKey) {
+    if (Test-Path -LiteralPath $envFile) {
+        $authKey = Get-Content -LiteralPath $envFile | Where-Object { $_ -match '^\s*BEAMMP_AUTHKEY\s*=' } | Select-Object -First 1 |
+            ForEach-Object { ($_ -replace '^\s*BEAMMP_AUTHKEY\s*=', '').Trim().Trim('"', "'") }
+        if ($authKey) { $authSource = '.env file' }
+    }
+}
+$cfgPath = $ServerDir + 'ServerConfig.toml'
+if ($authKey) {
+    $lines = Get-Content -LiteralPath $cfgPath
+    $lines = $lines | ForEach-Object {
+        if ($_ -match '^\s*AuthKey\s*=') { 'AuthKey = "' + $authKey + '"' } else { $_ }
+    }
+    Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
+    Write-Host "[AUTH] AuthKey injected from $authSource"
+    Write-Log "AuthKey injected from $authSource"
+} elseif (Select-String -LiteralPath $cfgPath -Pattern '^\s*AuthKey\s*=\s*"[^"]+"' -Quiet) {
+    Write-Host "[AUTH] Using AuthKey already present in ServerConfig.toml."
+    Write-Log "Using existing AuthKey in ServerConfig.toml"
+} else {
+    Write-Host "[AUTH] No AuthKey found. Create a .env file next to the launcher with: BEAMMP_AUTHKEY=your_key_here  (or set the BEAMMP_AUTHKEY environment variable)." -ForegroundColor Yellow
+    Write-Log "WARNING: no AuthKey found"
+}
+
+# ---------------------------------------------------------------------------------------
+# 8. START THE SERVER (capture PID so we can kill exactly this instance)
 # ---------------------------------------------------------------------------------------
 Write-Host "[*] Starting BeamMP server..."
 $server = Start-Process -FilePath ($ServerDir + 'BeamMP-Server.exe') -WorkingDirectory $ServerDir -WindowStyle Minimized -PassThru
 Write-Log "Server process started (PID $($server.Id))"
 
 # ---------------------------------------------------------------------------------------
-# 8. WAIT UNTIL THE SERVER IS ACTUALLY LISTENING (real "LIVE" check)
+# 9. WAIT UNTIL THE SERVER IS ACTUALLY LISTENING (real "LIVE" check)
 # ---------------------------------------------------------------------------------------
 $ready = $false
 for ($i = 0; $i -lt 20; $i++) {
@@ -222,7 +255,7 @@ if (-not $ready) {
 Write-Log "Server is live (PID $($server.Id))"
 
 # ---------------------------------------------------------------------------------------
-# 9. WATCHDOG: guarantee the server dies with the session even if this window is closed
+# 10. WATCHDOG: guarantee the server dies with the session even if this window is closed
 # Only fires after the launcher has been observed running once (so it never kills the
 # server before the game session actually begins).
 # ---------------------------------------------------------------------------------------
@@ -230,12 +263,12 @@ $watchdogCmd = '$seen = $false; while ($true) { $running = [bool](Get-Process -N
 Start-Process powershell -WindowStyle Hidden -ArgumentList ('-NoProfile -Command "' + $watchdogCmd + '"') | Out-Null
 
 # ---------------------------------------------------------------------------------------
-# 10. OPTIONAL DISCORD WEBHOOK (opt-in via webhook.txt)
+# 11. OPTIONAL DISCORD WEBHOOK (opt-in via webhook.txt)
 # ---------------------------------------------------------------------------------------
 Send-Webhook 'K BNG M Hoster [ONLINE]' 'Server is now live.' 3066993
 
 # ---------------------------------------------------------------------------------------
-# 11. LIVE UI
+# 12. LIVE UI
 # ---------------------------------------------------------------------------------------
 Clear-Host
 Write-Host "=================================================================" -ForegroundColor Green
@@ -248,12 +281,12 @@ Write-Host "    Leave this window open. Closing it stops the server."
 Write-Host "=================================================================" -ForegroundColor Green
 
 # ---------------------------------------------------------------------------------------
-# 12. VOICE ANNOUNCEMENT (best-effort)
+# 13. VOICE ANNOUNCEMENT (best-effort)
 # ---------------------------------------------------------------------------------------
 Speak 'K BNG M Hoster is online.'
 
 # ---------------------------------------------------------------------------------------
-# 13. LAUNCH THE GAME LAUNCHER AND WAIT FOR THE SESSION TO END
+# 14. LAUNCH THE GAME LAUNCHER AND WAIT FOR THE SESSION TO END
 # ---------------------------------------------------------------------------------------
 Start-Process -FilePath $launcherPath | Out-Null
 while (Get-Process -Name 'BeamMP-Launcher' -ErrorAction SilentlyContinue) {
@@ -261,7 +294,7 @@ while (Get-Process -Name 'BeamMP-Launcher' -ErrorAction SilentlyContinue) {
 }
 
 # ---------------------------------------------------------------------------------------
-# 14. SESSION ENDED - STOP ONLY THIS SERVER INSTANCE
+# 15. SESSION ENDED - STOP ONLY THIS SERVER INSTANCE
 # ---------------------------------------------------------------------------------------
 Write-Host ""
 Write-Host "=================================================================" -ForegroundColor Red
