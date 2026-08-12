@@ -174,11 +174,15 @@ if (Test-Path -LiteralPath $clientDir) {
 }
 
 # ---------------------------------------------------------------------------------------
-# 5. STABLE SERVER NAME (read from config, no random node id)
+# 5. STABLE SERVER NAME + PORT (read from config, no random node id)
 # ---------------------------------------------------------------------------------------
 $serverName = 'K BNG M Server'
-$nameLine = Select-String -LiteralPath ($ServerDir + 'ServerConfig.toml') -Pattern '^\s*Name\s*=\s*"(.*)"' -ErrorAction SilentlyContinue | Select-Object -First 1
+$serverPort = 30814
+$cfgContent = Get-Content -LiteralPath ($ServerDir + 'ServerConfig.toml') -ErrorAction SilentlyContinue
+$nameLine = $cfgContent | Select-String -Pattern '^\s*Name\s*=\s*"(.*)"' | Select-Object -First 1
 if ($nameLine) { $serverName = $nameLine.Matches[0].Groups[1].Value }
+$portLine = $cfgContent | Select-String -Pattern '^\s*Port\s*=\s*(\d+)' | Select-Object -First 1
+if ($portLine) { $serverPort = [int]$portLine.Matches[0].Groups[1].Value }
 
 # ---------------------------------------------------------------------------------------
 # 6. REPAIR INVALID mods.json (BeamMP expects a JSON array, not "null")
@@ -205,7 +209,7 @@ Write-Log "Server process started (PID $($server.Id))"
 $ready = $false
 for ($i = 0; $i -lt 20; $i++) {
     if ($server.HasExited) { break }
-    if (Get-NetTCPConnection -LocalPort 30814 -State Listen -ErrorAction SilentlyContinue) { $ready = $true; break }
+    if (Get-NetTCPConnection -LocalPort $serverPort -State Listen -ErrorAction SilentlyContinue) { $ready = $true; break }
     Start-Sleep -Seconds 1
 }
 if (-not $ready) {
@@ -238,7 +242,7 @@ Write-Host "=================================================================" -
 Write-Host "    SERVER IS LIVE!" -ForegroundColor Green
 Write-Host "    Server Name : $serverName"
 Write-Host "    Creator     : Kinan (Discord: @raed713)"
-Write-Host "    Port        : 30814"
+Write-Host "    Port        : $serverPort"
 Write-Host ""
 Write-Host "    Leave this window open. Closing it stops the server."
 Write-Host "=================================================================" -ForegroundColor Green
