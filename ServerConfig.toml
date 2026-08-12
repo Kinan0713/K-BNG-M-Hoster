@@ -15,7 +15,7 @@ IP = "::"
 Private = false
 # Whether to allow unconnected clients to get the public server information without joining
 InformationPacket = true
-Name = "K BNG M Server [Node #3327] - Freeroam [By Kinan]"
+Name = "K BNG M Server [Node #4240] - Freeroam [By Kinan]"
 # Add custom identifying tags to your server to make it easier to find. Format should be TagA,TagB,TagC. Note the comma seperation.
 Tags = "Freeroam,KBnG,Kinan,BeamMP"
 MaxCars = 50
