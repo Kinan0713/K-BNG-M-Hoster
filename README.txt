@@ -1,3 +1,4 @@
+Here is the full, updated `README.md` code reflecting the new project name **K BNG M Hoster** (*Kinan BeamNG Multiplayer Hoster*):
 
 # 🚗 K BNG M HOSTER
 
@@ -11,7 +12,7 @@
 
 ## 📌 What is K BNG M Hoster?
 
-**K BNG M Hoster** (*Kinan BeamNG Multiplayer Hoster*) is an all-in-one automation utility designed to make hosting, configuring, and joining BeamMP multiplayer servers effortless. Built entirely from scratch by Kinan, it handles process execution, automates background server management, and streamlines the direct connection workflow so you and your friends can drive together in seconds.
+**K BNG M Hoster** (*Kinan BeamNG Multiplayer Hoster*) is an all-in-one automation utility designed to make hosting, configuring, and joining BeamMP multiplayer servers effortless. Built entirely from scratch by **Kinan**, it handles process execution, automates background server management, and streamlines the direct connection workflow so you and your friends can drive together in seconds.
 
 ### ✨ Key Features
 
@@ -140,17 +141,6 @@ To load custom vehicles, maps, or physics mods onto your server:
 *All original code, tools, scripts, and rights belong strictly and exclusively to Kinan.*
 * **Official Discord:** [Innocent BeamMP Server Community](https://discord.gg/2FxsJvKr4a)
 
-## Legal / License
+```
 
-This project is distributed under a proprietary EULA. By using this software you agree to the terms set in [LICENSE](./LICENSE).
-
-Summary of permitted actions:
-- Running the unmodified packaged software.
-
-Strictly prohibited:
-- Modifying source code or scripts that are not explicitly authorized.
-- Reverse‑engineering, decompilation, or extraction of internal logic.
-- Reuploading, mirroring, forking, redistributing, or selling the Software.
-- Removing, altering, or obscuring author attribution (Kinan / @raed713).
-- Accessing Internal Scripts or proprietary files not explicitly permitted.
-
+```
