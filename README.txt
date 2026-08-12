@@ -1,62 +1,170 @@
-===================================================================
-                       K BNG M HOSTER
-               Official BeamMP Hosting Tool
-         Join Discord: Innocent (discord.gg/2fxsJvKr4a)
-===================================================================
 
-[ 1. QUICK SETUP GUIDE ]
--------------------------------------------------------------------
-1. Get your free BeamMP Server Key:
-   --> https://keymaster.beammp.com
+```markdown
+<div align="center">
 
-   --> Find line: AuthKey = ""
-   --> Replace with: AuthKey = "YOUR_KEY_HERE"
+```text
+██   ██  ██████  ███    ██  ██████   ███    ███     ██   ██ ██████  ███████ ████████ ██�...
+██  ██   ██   ██ ████   ██ ██        ████  ████     ██   ██ ██    ██ ██         ██    ██      ██   ██ 
+█████    ██████  ██ ██  ██ ██   ███  ██ ████ ██     ███████ ██    ██ ███████    ██    ███�...
+██  ██   ██   ██ ██  ██ ██ ██    ██  ██  ██  ██     ██   ██ ██    ██      ██    ██    ██      ██   ██ 
+██   ██  ██████  ██   ████  ██████   ██      ██     ██   ██  ██████  ███████    ██    ██████��...
 
-3. Choose your preferred connection method below, then launch via
+```
+
+# 🚗 K BNG M HOSTER
+
+### *(Kinan BeamNG Multiplayer Hoster)*
+
+### ⚡ **The All-In-One Automated BeamMP Hosting & Joining Tool** ⚡
+
+*Solely created and developed by **Kinan** (`@raed713`)*
+
+---
+
+---
+
+## 📌 What is K BNG M Hoster?
+
+**K BNG M Hoster** (*Kinan BeamNG Multiplayer Hoster*) is an all-in-one automation utility designed to make hosting, configuring, and joining BeamMP multiplayer servers effortless. Built entirely from scratch by Kinan, it handles process execution, automates background server management, and streamlines the direct connection workflow so you and your friends can drive together in seconds.
+
+### ✨ Key Features
+
+* **Zero-Stress Automation:** Handles server startup and process management automatically.
+* **Flexible Hosting Options:** Full support for both **Tailscale (No Port Forwarding)** and **Public Port Forwarding**.
+* **Seamless Mod Syncing:** Load custom vehicles and maps directly through client resources.
+
+---
+
+## ⚡ Setup Requirements
+
+Before getting started, make sure you have the following downloads ready:
+
+| Requirement | Purpose | Download Link |
+| --- | --- | --- |
+| **BeamMP Keymaster** | Get your free server authentication key | [Keymaster Portal](https://keymaster.beammp.com) |
+| **BeamMP Client** | Official multiplayer client for BeamNG.drive | [Download Client](https://beammp.com) |
+| **Tailscale** *(Method A)* | Secure direct connection without changing router settings | [Download Tailscale](https://tailscale.com) |
+
+---
+
+## ⚙️ Step-by-Step Configuration Guide
+
+### 1️⃣ Extract & Open
+
+1. Download **K BNG M Hoster** and extract the ZIP folder to your preferred location.
+
+### 2️⃣ Input Your Auth Key
+
+1. Go to [BeamMP Keymaster](https://keymaster.beammp.com) and generate a new key.
+```toml
+AuthKey = "YOUR_KEY_HERE"
+
+```
 
 
-[ 2. CONNECTION METHODS ]
--------------------------------------------------------------------
-METHOD A: PUBLIC HOSTING (Router Port Forwarding)
-  • Forward Port: 30814 (Protocol: ALL / TCP+UDP) to your PC.
-  • Make sure Tailscale is turned OFF when using this method.
-  • Result: Friends can find and join your server directly from
-    the public BeamMP server list.
+3. Replace `"YOUR_KEY_HERE"` with your generated key *(keep the quotation marks)*.
+4. Save (`Ctrl + S`) and close the file.
 
-METHOD B: PRIVATE HOSTING (Via Tailscale)
-  • Download Tailscale (https://tailscale.com) and ensure you and
-    your friends are on the same network.
-  • Leave Tailscale running in the background.
-  • Result: Friends join using your Tailscale IP (100.x.x.x) on
-    port 30814 via Direct Connect.
+---
 
+## 🌐 Server Launch & Connection Methods
 
-[ 3. HOW TO JOIN YOUR OWN SERVER (FOR THE HOST) ]
--------------------------------------------------------------------
-1. Open BeamNG via the official BeamMP Launcher.
-2. Go to: Direct Connect.
-3. Enter IP : 127.0.0.1
-4. Enter Port: 30814
-5. Click Connect!
+Choose **one** of the two hosting methods below depending on how you want players to connect:
 
+---
 
-[ 4. ADDING MODS ]
--------------------------------------------------------------------
-• Drop any vehicle or map '.zip' files directly into:
+### 🔹 METHOD A: Tailscale (Private / No Port Forwarding)
+
+*Best for playing privately with a group of friends without altering router settings.*
+
+#### 🛠️ Host Setup & Connection
+
+1. Launch **Tailscale** on your PC.
+3. Open **BeamNG.drive**.
+4. Go to: `More...` ➔ `BeamMP` ➔ `Direct Connect`
+5. Connect using:
+* **IP Address:** `127.0.0.1`
+* **Port:** `30814`
 
 
-[ 5. TROUBLESHOOTING ]
--------------------------------------------------------------------
-• "Invalid ZIP file" error:
-  --> Ignore it! BeamNG automatically scans mods while downloading.
 
-• Server closes instantly:
-  --> Make sure your AuthKey is pasted correctly inside
+#### 👥 How Friends Join
 
-• Friends can't connect:
-  --> Check that Windows Firewall allowed network access for the
-      server, and double-check Port 30814 or Tailscale status.
+1. Ensure all friends are connected to the Host’s network inside **Tailscale**.
+2. Open BeamNG via the official **BeamMP Launcher**.
+3. Go to: `More...` ➔ `BeamMP` ➔ `Direct Connect`
+4. Connect using:
+* **IP Address:** Host's Tailscale IP (`100.x.x.x`)
+* **Port:** `30814`
 
-===================================================================
-Created by Kinan | Server Community: Innocent
-===================================================================
+
+
+---
+
+### 🔹 METHOD B: Port Forwarding (Public Server List)
+
+*Best for hosting publicly so anyone can find your server in the BeamMP Server Browser or join via your Public IP.*
+
+#### 🛠️ Host Setup & Connection
+
+1. Access your router settings and forward port **`30814` (UDP & TCP)** to your local IP address.
+```toml
+Private = false
+Port = 30814
+
+```
+
+
+4. Open **BeamNG.drive** and connect via `Direct Connect` (`127.0.0.1:30814`).
+
+#### 👥 How Friends Join
+
+* **Option 1 (Server Browser):** Friends can search for your Server Name in the official BeamMP Server Browser.
+* **Option 2 (Direct Connect):** Friends go to `More...` ➔ `BeamMP` ➔ `Direct Connect` and enter your **Public IP** and Port `30814`.
+
+---
+
+## 📦 Adding Custom Mods
+
+To load custom vehicles, maps, or physics mods onto your server:
+
+1. Open the project folder and navigate to:
+```text
+
+```
+
+
+2. Drop your mod `.zip` files directly into this directory.
+
+---
+
+## 🛠️ Troubleshooting & FAQ
+
+> **"Invalid ZIP File" Pop-up?**
+> Ignore this message! BeamNG scans files while BeamMP streams them in real time. Simply let the progress bar finish loading.
+
+> **Server Window Closes Instantly?**
+
+---
+
+## 👑 Credits & Ownership
+
+* **Sole Developer & Creator:** **Kinan** (`@raed713`)
+*All original code, tools, scripts, and rights belong strictly and exclusively to Kinan.*
+* **Official Discord:** [Innocent BeamMP Server Community](https://discord.gg/2FxsJvKr4a)
+
+
+## Legal / License
+
+This project is distributed under a proprietary EULA. By using this software you agree to the terms set in [LICENSE](./LICENSE).
+
+Summary of permitted actions:
+- Running the unmodified packaged software.
+
+Strictly prohibited:
+- Modifying source code or scripts that are not explicitly authorized.
+- Reverse‑engineering, decompilation, or extraction of internal logic.
+- Reuploading, mirroring, forking, redistributing, or selling the Software.
+- Removing, altering, or obscuring author attribution (Kinan / @raed713).
+- Accessing Internal Scripts or proprietary files not explicitly permitted.
+
