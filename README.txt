@@ -22,6 +22,10 @@ Here is the full, updated `README.md` code reflecting the new project name **K B
 * **One-Click Launch:** Start the host via `K_BNG_M_Hoster.exe`.
 * **Session-Aware Lifecycle (v0.3):** The server starts with your game session and stops automatically the moment the session ends.
 * **One-Click Launch:** Pre-configured script execution via `Play_BeamMP.bat`.
+* **Auto Diagnostics (v0.4):** If the server fails to start, the tool reads the server log and tells you exactly why — bad AuthKey, port already in use, missing Visual C++ runtime, or a bad map.
+* **Live Player Activity (v0.4):** Shows how many players are online (and who) while you host, with optional Discord join/leave notifications.
+* **Mod Manager (v0.4):** Manage your `Resources/Client/` mods from a simple menu — run `Play_BeamMP.bat mods`.
+* **Update Checker (v0.4):** Tells you when a newer official BeamMP-Server is available (checked once per day, never blocks startup).
 
 ---
 
@@ -68,6 +72,16 @@ BEAMMP_AUTHKEY=PASTE_YOUR_KEY_HERE
 ### 3️⃣ Note on Ports
 
 The server port is read from `Port` in `ServerConfig.toml`. Adjust the connection examples below (and your router/Tailscale rules) to match whatever port you set there.
+
+### 4️⃣ Utility Commands *(v0.4)*
+
+| Command | What it does |
+| --- | --- |
+| `Play_BeamMP.bat` | Start the server and host a session (default) |
+| `Play_BeamMP.bat mods` | Open the Mod Manager (list, disable, enable, scan mods) |
+| `Play_BeamMP.bat help` | Show usage |
+
+*(PowerShell users: `.\Play_BeamMP.ps1`, `.\Play_BeamMP.ps1 -Mods`, `.\Play_BeamMP.ps1 -Help`)*
 
 ---
 
@@ -137,6 +151,8 @@ Resources/Client/
 3. Restart the server by running `K_BNG_M_Hoster.exe` again to sync mods automatically with everyone who joins.
 
 > **Security note (v0.3):** On launch the tool scans `Resources/Client/` (including inside `.zip` mods) and moves any suspicious executable files (`*.exe`, `*.vbs`, `*.cmd`, `*.scr`, `*.pif`) to the `Quarantine/` folder. Everything it does is written to `Logs/launcher.log`.
+>
+> **Tip (v0.4):** Run `Play_BeamMP.bat mods` for a menu that lists your mods with sizes, lets you disable/enable them (moved to `Backups\mods\`), re-runs the security scan, and opens the folder in Explorer.
 
 ---
 
@@ -145,7 +161,7 @@ Resources/Client/
 1. Create a webhook in your Discord channel (`Channel Settings > Integrations > Webhooks`).
 2. Copy `webhook.example.txt` to `webhook.txt` next to the `.exe`.
 3. Paste your webhook URL into `webhook.txt` and save.
-4. The launcher posts an **`[ONLINE]`** embed when the server starts and an **`[OFFLINE]`** embed when it stops.
+4. The launcher posts an **`[ONLINE]`** embed when the server starts, an **`[OFFLINE]`** embed when it stops, and **join/leave** embeds when players enter or leave the server *(v0.4)*.
    Leave `webhook.txt` empty or deleted to disable this feature.
 
 ---
@@ -159,7 +175,7 @@ Resources/Client/
 > Check your `ServerConfig.toml` file. This usually happens if the `AuthKey` was pasted incorrectly or left blank. With the launcher, make sure your `.env` file contains a valid `BEAMMP_AUTHKEY=...` (or the `BEAMMP_AUTHKEY` environment variable is set).
 
 > **Tool says the server failed to start?**
-> The tool waits for the server to actually listen on the configured port before showing "SERVER IS LIVE!". If it reports failure, check that your `.env` `BEAMMP_AUTHKEY` (or the env var / manual `AuthKey`) is valid, that port `30813` isn't already in use, and that Windows Firewall allows `BeamMP-Server.exe`.
+> The tool waits for the server to actually listen on the configured port before showing "SERVER IS LIVE!". If it fails, it **auto-diagnoses the cause** *(v0.4)* — bad/empty AuthKey, port already in use, missing Visual C++ runtime, unreachable BeamMP backend, or a missing map — and shows you the exact fix. Also make sure Windows Firewall allows `BeamMP-Server.exe`.
 
 ---
 
