@@ -45,15 +45,25 @@ Before getting started, make sure you have the following downloads ready:
 2. Locate `ServerConfig.toml` inside the main folder.
 3. Open `ServerConfig.toml` using **Notepad** or your preferred text editor.
 
-### 2️⃣ Input Your Auth Key
+### 2️⃣ Input Your Auth Key *(Automatic — Recommended)*
+
+The launcher now injects your key automatically, so you **never have to paste it into `ServerConfig.toml` by hand**.
 
 1. Go to [BeamMP Keymaster](https://keymaster.beammp.com) and generate a new key.
-2. In `ServerConfig.toml`, find **Line 7**:
-```toml
-AuthKey = "YOUR_KEY_HERE"
+2. Copy `.env.example` to `.env` in the main folder:
 ```
-3. Replace `"YOUR_KEY_HERE"` with your generated key *(keep the quotation marks)*.
-4. Save (`Ctrl + S`) and close the file.
+copy .env.example .env
+```
+3. Open `.env` and paste your key:
+```
+BEAMMP_AUTHKEY=PASTE_YOUR_KEY_HERE
+```
+4. Save and close. Before every launch, the tool reads `.env`, writes your key into `AuthKey` inside `ServerConfig.toml`, and starts the server.
+5. `.env` is **git-ignored**, so your key can never be pushed to GitHub.
+
+> **Alternative — Windows environment variable:** set a system/user variable named `BEAMMP_AUTHKEY`. The environment variable takes priority over `.env`.
+>
+> **Manual fallback:** you can still paste the key directly into `ServerConfig.toml` (line 7, `AuthKey = "..."`); the launcher leaves an already-set key untouched if neither `.env` nor the environment variable exists.
 
 ### 3️⃣ Note on Ports
 
@@ -146,10 +156,10 @@ Resources/Client/
 > Ignore this message! BeamNG scans files while BeamMP streams them in real time. Simply let the progress bar finish loading.
 
 > **Server Window Closes Instantly?**
-> Check your `ServerConfig.toml` file. This usually happens if the `AuthKey` was pasted incorrectly or left blank.
+> Check your `ServerConfig.toml` file. This usually happens if the `AuthKey` was pasted incorrectly or left blank. With the launcher, make sure your `.env` file contains a valid `BEAMMP_AUTHKEY=...` (or the `BEAMMP_AUTHKEY` environment variable is set).
 
 > **Tool says the server failed to start?**
-> The tool waits for the server to actually listen on the configured port before showing "SERVER IS LIVE!". If it reports failure, check the `AuthKey`, that port `30813` isn't already in use, and that Windows Firewall allows `BeamMP-Server.exe`.
+> The tool waits for the server to actually listen on the configured port before showing "SERVER IS LIVE!". If it reports failure, check that your `.env` `BEAMMP_AUTHKEY` (or the env var / manual `AuthKey`) is valid, that port `30813` isn't already in use, and that Windows Firewall allows `BeamMP-Server.exe`.
 
 ---
 
@@ -165,7 +175,7 @@ This project is distributed under a proprietary EULA. By using this software you
 
 Summary of permitted actions:
 - Running the unmodified packaged software.
-- Editing authorized configuration files (ServerConfig.toml) only as instructed.
+- Editing authorized configuration files (ServerConfig.toml, .env) only as instructed.
 - Adding mod archive files to Resources/Client/ to enable mod syncing.
 
 Strictly prohibited:
