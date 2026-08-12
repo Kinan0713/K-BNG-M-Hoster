@@ -307,7 +307,7 @@ function Show-SetupWizard {
         if ($_ -match '^\s*Name\s*=') { 'Name = "K BNG M Server"' }
         elseif ($_ -match '^\s*Port\s*=') { "Port = $port" }
         elseif ($_ -match '^\s*MaxPlayers\s*=') { 'MaxPlayers = 10' }
-        elseif ($_ -match '^\s*IP\s*=') { 'IP = "0.0.0.0"' }
+        elseif ($_ -match '^\s*IP\s*=') { 'IP = "::"' }
         else { $_ }
     }
     Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
@@ -492,6 +492,13 @@ function Show-ServerDiagnostics {
 # ---------------------------------------------------------------------------------------
 function Get-ConnectionInfo {
     $port = Get-ServerPort
+    $lan = ''
+    try {
+        $addrs = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+            Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' -and $_.PrefixOrigin -ne 'WellKnown' })
+        $lan = ($addrs | Where-Object { $_.IPAddress -like '10.*' -or $_.IPAddress -like '192.168.*' -or ($_.IPAddress -like '172.*' -and [int]($_.IPAddress.Split('.')[1]) -ge 16 -and [int]($_.IPAddress.Split('.')[1]) -le 31) } | Select-Object -First 1).IPAddress
+        if (-not $lan) { $lan = ($addrs | Select-Object -First 1).IPAddress }
+    } catch { }
     $tail = ''
     try {
         $tailExe = 'C:\Program Files\Tailscale\tailscale.exe'
@@ -512,7 +519,7 @@ function Get-ConnectionInfo {
             @{ ip = $public; checked = (Get-Date).ToString('o') } | ConvertTo-Json | Set-Content -LiteralPath $cache
         } catch { }
     }
-    return [pscustomobject]@{ Port = $port; Tailscale = $tail; Public = $public }
+    return [pscustomobject]@{ Port = $port; LAN = $lan; Tailscale = $tail; Public = $public }
 }
 
 # Returns $true if we can reach our own server over IPv4 loopback (127.0.0.1).
@@ -781,37 +788,13 @@ if (-not $ready) {
 }
 Write-Log "Server is live (PID $($server.Id))"
 
-# Self-check: make sure the server can be reached over IPv4 (127.0.0.1).
-# If not, the config may still be binding IPv6-only (IP = "::") - fix it and restart.
+# Health check (non-destructive): confirm the server answers on 127.0.0.1.
+# Never rewrites the config - BeamMP requires the IPv6 dual-stack bind (IP = "::").
 if (-not (Test-Loopback $serverPort)) {
     Write-Host ""
-    Write-Host "  I can't reach my own server over IPv4. Fixing the bind address and restarting..." -ForegroundColor Yellow
-    Write-Log "Loopback check failed - rewriting IP to 0.0.0.0"
-    $cfgPath = $ServerDir + 'ServerConfig.toml'
-    $lines = @(Get-Content -LiteralPath $cfgPath) | ForEach-Object {
-        if ($_ -match '^\s*IP\s*=') { 'IP = "0.0.0.0"' } else { $_ }
-    }
-    Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
-    Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
-    $server = Start-Process -FilePath ($ServerDir + 'BeamMP-Server.exe') -WorkingDirectory $ServerDir -WindowStyle Minimized -PassThru
-    $ready = $false
-    for ($i = 0; $i -lt 40; $i++) {
-        if ($server.HasExited) { break }
-        if (Get-NetTCPConnection -LocalPort $serverPort -State Listen -ErrorAction SilentlyContinue) { $ready = $true; break }
-        Start-Sleep -Seconds 1
-    }
-    if (-not $ready) {
-        Write-Host "  The server still did not start after the fix. Check Help / Fix Problems." -ForegroundColor Red
-        Show-ServerDiagnostics
-        Read-Host "Press Enter to return to the main menu"
-        exit 1
-    }
-    if (Test-Loopback $serverPort) {
-        Write-Host "  Fixed! Your server is now reachable on 127.0.0.1:$serverPort." -ForegroundColor Green
-    } else {
-        Write-Host "  Warning: the server is running but 127.0.0.1 could not be reached. Check Help / Fix Problems -> firewall." -ForegroundColor Yellow
-    }
+    Write-Host "  Warning: I could not reach 127.0.0.1:$serverPort. If friends can't connect," -ForegroundColor Yellow
+    Write-Host "  run Help / Fix Problems -> firewall, or check your antivirus." -ForegroundColor Yellow
+    Write-Log "Loopback check failed (diagnostic only - config left untouched)"
 }
 
 # Watchdog (kills the server with the session)
@@ -886,24 +869,53 @@ Write-Host "=================================================================" -
 Write-Host "    Server Name : $serverName"
 Write-Host "    Port        : $serverPort"
 Write-Host ""
-Write-Host "    How to connect:" -ForegroundColor Cyan
+Write-Host "    How to connect (BeamNG -> More... -> BeamMP -> Direct Connect):" -ForegroundColor Cyan
 $conn = Get-ConnectionInfo
 $copyLine = "127.0.0.1:$($conn.Port)"
-Write-Host "      THIS PC (test now): 127.0.0.1:$($conn.Port)"
-if ($conn.Tailscale) {
-    Write-Host "      Same WiFi / Tailscale: $($conn.Tailscale):$($conn.Port)"
+Write-Host "      THIS PC (test it now):  127.0.0.1  :  $($conn.Port)"
+if ($conn.LAN) {
+    Write-Host "      Friends (same WiFi):    $($conn.LAN)  :  $($conn.Port)"
+    $copyLine = "$($conn.LAN):$($conn.Port)"
+} elseif ($conn.Tailscale) {
+    Write-Host "      Friends (Tailscale):    $($conn.Tailscale)  :  $($conn.Port)"
     $copyLine = "$($conn.Tailscale):$($conn.Port)"
 }
 if ($conn.Public) {
-    Write-Host "      Anywhere (internet): $($conn.Public):$($conn.Port)"
+    Write-Host "      Anyone (internet):      $($conn.Public)  :  $($conn.Port)  (needs router port-forwarding)"
 } else {
-    Write-Host "      Anywhere (internet): (could not detect your public IP)"
+    Write-Host "      Anyone (internet):      (public IP not detected - needs router port-forwarding)"
 }
 Write-Host ""
-Write-Host "      Press C at any time to copy the connection line to your clipboard."
+Write-Host "      IMPORTANT: do NOT click your own server in the server list - it uses your"
+Write-Host "      public IP and fails from inside your own network. Always use Direct Connect."
+Write-Host ""
+Write-Host "      Press C at any time to copy the connection line for your friends."
 Write-Host ""
 Write-Host "    Leave this window open. Closing it stops the server."
 Write-Host "=================================================================" -ForegroundColor Green
+
+# Write a plain-language 'how to connect' file next to the launcher
+$connectDoc = @"
+HOW TO CONNECT TO YOUR SERVER
+=============================
+
+1) ON THIS PC (test it here):
+   In BeamNG: More... -> BeamMP -> Direct Connect
+   IP: 127.0.0.1     Port: $($conn.Port)
+   Press Connect.
+
+2) FRIENDS ON THE SAME WIFI:
+   BeamNG -> More... -> BeamMP -> Direct Connect
+   IP: $(if ($conn.LAN) { "$($conn.LAN)   Port: $($conn.Port)" } else { '(LAN IP not detected - run ipconfig to find yours)' })
+
+3) FRIENDS ANYWHERE (internet):
+   IP: $(if ($conn.Public) { "$($conn.Public)   Port: $($conn.Port) (requires router port-forwarding)" } else { '(public IP not detected - requires router port-forwarding)' })
+
+IMPORTANT: Do NOT click your own server in the BeamMP server list.
+It uses your public IP, which fails from inside your own network.
+Always use Direct Connect with the correct address above.
+"@
+Set-Content -LiteralPath ($ServerDir + 'CONNECTING.txt') -Value $connectDoc
 
 # Voice
 Speak 'K BNG M Hoster is online.'
