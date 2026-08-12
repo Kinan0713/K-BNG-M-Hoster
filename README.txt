@@ -1,6 +1,6 @@
 ===================================================================
                        K BNG M HOSTER
-               Official BeamMP Hosting Tool
+               Official BeamMP Hosting Tool - v0.3
          Join Discord: Innocent (discord.gg/2fxsJvKr4a)
 ===================================================================
 
@@ -13,24 +13,21 @@
    --> Find line: AuthKey = ""
    --> Replace with: AuthKey = "YOUR_KEY_HERE"
 
-3. Choose your preferred connection method below, then launch via
-   'K_BNG_M_Hoster.exe'!
+3. Launch 'K_BNG_M_Hoster.exe'!
 
 
-[ 2. CONNECTION METHODS ]
+[ 2. HOW IT WORKS ]
 -------------------------------------------------------------------
-METHOD A: PUBLIC HOSTING (Router Port Forwarding)
-  • Forward Port: 30814 (Protocol: ALL / TCP+UDP) to your PC.
-  • Make sure Tailscale is turned OFF when using this method.
-  • Result: Friends can find and join your server directly from
-    the public BeamMP server list.
+The launcher:
+  • Starts BeamMP-Server.exe (kept running in the background).
+  • Waits until your BeamMP game session is open, then stops the
+    server the moment the session ends.
+  • Runs a security scan on Resources/Client and quarantines any
+    suspicious executables inside mods.
+  • Writes a log of everything to: Logs/launcher.log
 
-METHOD B: PRIVATE HOSTING (Via Tailscale)
-  • Download Tailscale (https://tailscale.com) and ensure you and
-    your friends are on the same network.
-  • Leave Tailscale running in the background.
-  • Result: Friends join using your Tailscale IP (100.x.x.x) on
-    port 30814 via Direct Connect.
+NOTE: The server stays alive while the game launcher is running.
+Close the game to stop the server automatically.
 
 
 [ 3. HOW TO JOIN YOUR OWN SERVER (FOR THE HOST) ]
@@ -47,8 +44,22 @@ METHOD B: PRIVATE HOSTING (Via Tailscale)
 • Drop any vehicle or map '.zip' files directly into:
   --> Resources/Client/
 
+• Suspicious files (*.exe, *.vbs, *.cmd, *.scr, *.pif) are moved to
+  the Quarantine folder automatically on launch.
 
-[ 5. TROUBLESHOOTING ]
+
+[ 5. OPTIONAL: DISCORD SERVER ANNOUNCEMENTS ]
+-------------------------------------------------------------------
+1. Create a webhook in your Discord channel:
+   --> Channel Settings > Integrations > Webhooks
+2. Copy 'webhook.example.txt' to 'webhook.txt' next to the .exe.
+3. Paste your webhook URL into 'webhook.txt' and save.
+   The launcher will post an [ONLINE] message when the server
+   starts and an [OFFLINE] message when it stops.
+   Leave webhook.txt empty / absent to disable this feature.
+
+
+[ 6. TROUBLESHOOTING ]
 -------------------------------------------------------------------
 • "Invalid ZIP file" error:
   --> Ignore it! BeamNG automatically scans mods while downloading.
@@ -57,9 +68,13 @@ METHOD B: PRIVATE HOSTING (Via Tailscale)
   --> Make sure your AuthKey is pasted correctly inside
       ServerConfig.toml without missing quotes.
 
-• Friends can't connect:
+• "SERVER IS LIVE!" shows but friends can't connect:
   --> Check that Windows Firewall allowed network access for the
-      server, and double-check Port 30814 or Tailscale status.
+      server, and double-check Port 30814 forwarding or Tailscale.
+
+• Everything ran but you see no server in the list:
+  --> BeamMP server registration requires a valid AuthKey and a
+      stable internet connection.
 
 ===================================================================
 Created by Kinan | Server Community: Innocent
