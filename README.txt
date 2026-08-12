@@ -10,6 +10,17 @@ Here is the full, updated `README.md` code reflecting the new project name **K B
 
 ---
 
+## 🚀 QUICK START (30 seconds)
+
+1. **Extract** this ZIP to any folder.
+2. **Double-click `Start_Here.bat`** — that's it, no other setup.
+3. First time: the tool opens the key website, you **paste your key**, press Enter, and your server starts automatically.
+4. While playing, tell your friends to connect using the address shown on your screen (press **C** to copy it).
+
+That's everything. The tool handles the server key, settings, ports and problems for you.
+
+---
+
 ## 📌 What is K BNG M Hoster?
 
 **K BNG M Hoster** (*Kinan BeamNG Multiplayer Hoster*) is an all-in-one automation utility designed to make hosting, configuring, and joining BeamMP multiplayer servers effortless. Built entirely from scratch by **Kinan**, it handles process execution, automates background server management, and streamlines the direct connection workflow so you and your friends can drive together in seconds.
@@ -23,6 +34,7 @@ Here is the full, updated `README.md` code reflecting the new project name **K B
 * **Auto Diagnostics (v0.4):** If the server fails to start, the tool reads the server log and tells you exactly why — bad AuthKey, port already in use, missing Visual C++ runtime, or a bad map.
 * **Live Player Activity (v0.4):** Shows how many players are online (and who) while you host, with optional Discord join/leave notifications.
 * **Update Checker (v0.4):** Tells you when a newer official BeamMP-Server is available (checked once per day, never blocks startup).
+* **Simplest Setup Ever (v0.5):** First run walks you through everything — you only paste your key once. The tool writes all files, auto-picks a free port, and has a one-click **Help / Fix Problems** menu.
 
 ---
 
@@ -63,6 +75,7 @@ BEAMMP_AUTHKEY=PASTE_YOUR_KEY_HERE
 
 | Command | What it does |
 | --- | --- |
+| `Start_Here.bat` | **Just double-click this.** Everything else is automatic |
 
 
 ---
