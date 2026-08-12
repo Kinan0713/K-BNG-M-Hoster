@@ -20,6 +20,9 @@ Here is the full, updated `README.md` code reflecting the new project name **K B
 * **Flexible Hosting Options:** Full support for both **Tailscale (No Port Forwarding)** and **Public Port Forwarding**.
 * **Seamless Mod Syncing:** Load custom vehicles and maps directly through client resources.
 * **Session-Aware Lifecycle (v0.3):** The server starts with your game session and stops automatically the moment the session ends.
+* **Auto Diagnostics (v0.4):** If the server fails to start, the tool reads the server log and tells you exactly why — bad AuthKey, port already in use, missing Visual C++ runtime, or a bad map.
+* **Live Player Activity (v0.4):** Shows how many players are online (and who) while you host, with optional Discord join/leave notifications.
+* **Update Checker (v0.4):** Tells you when a newer official BeamMP-Server is available (checked once per day, never blocks startup).
 
 ---
 
@@ -54,6 +57,12 @@ BEAMMP_AUTHKEY=PASTE_YOUR_KEY_HERE
 >
 
 ### 3️⃣ Note on Ports
+
+
+### 4️⃣ Utility Commands *(v0.4)*
+
+| Command | What it does |
+| --- | --- |
 
 
 ---
@@ -114,13 +123,14 @@ To load custom vehicles, maps, or physics mods onto your server:
 ```
 2. Drop your mod `.zip` files directly into this directory.
 
+>
 
 ---
 
 ## 🔌 Optional: Discord Server Announcements
 
 1. Create a webhook in your Discord channel (`Channel Settings > Integrations > Webhooks`).
-4. The launcher posts an **`[ONLINE]`** embed when the server starts and an **`[OFFLINE]`** embed when it stops.
+4. The launcher posts an **`[ONLINE]`** embed when the server starts, an **`[OFFLINE]`** embed when it stops, and **join/leave** embeds when players enter or leave the server *(v0.4)*.
 
 ---
 
