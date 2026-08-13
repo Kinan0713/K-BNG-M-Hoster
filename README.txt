@@ -40,6 +40,8 @@ That's everything. The tool handles the server key, settings, ports and problems
 * **Mod Manager (v0.4):** Manage your `Resources/Client/` mods from a simple menu — run `Start_Here.bat mods`.
 * **Update Checker (v0.4):** Tells you when a newer official BeamMP-Server is available (checked once per day, never blocks startup).
 * **Simplest Setup Ever (v0.5):** First run walks you through everything — you only paste your key once. The tool writes all files, auto-picks a free port, and has a one-click **Help / Fix Problems** menu.
+* **Lock my IP while hosting (v0.5.3):** Keeps your LAN IP fixed during a session so your router's port-forward never breaks when the DHCP lease renews — it auto-returns to DHCP when the session ends (main menu option 6).
+* **Deduplicated Firewall (v0.5.3):** The launcher detects existing Windows Firewall rules and never creates duplicates, even on repeated runs without admin rights.
 
 ---
 
@@ -204,7 +206,7 @@ Resources/Client/
 > Check your `ServerConfig.toml` file. This usually happens if the `AuthKey` was pasted incorrectly or left blank. With the launcher, make sure your `.env` file contains a valid `BEAMMP_AUTHKEY=...` (or the `BEAMMP_AUTHKEY` environment variable is set).
 
 > **Tool says the server failed to start?**
-> The tool waits for the server to actually listen on the configured port before showing "SERVER IS LIVE!". If it fails, it **auto-diagnoses the cause** *(v0.4)* — bad/empty AuthKey, port already in use, missing Visual C++ runtime, unreachable BeamMP backend, or a missing map — and shows you the exact fix. Also make sure Windows Firewall allows `BeamMP-Server.exe`.
+> The tool waits for the server to actually listen on the configured port before showing "SERVER IS LIVE!". If it fails, it **auto-diagnoses the cause** *(v0.4)* — bad/empty AuthKey, port already in use, missing Visual C++ runtime, unreachable BeamMP backend, or a missing map — and shows you the exact fix. Also make sure Windows Firewall allows `BeamMP-Server.exe` (the launcher's Fix menu creates the rules for you and never duplicates them).
 
 ---
 
