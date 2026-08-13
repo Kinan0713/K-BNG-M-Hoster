@@ -12,11 +12,11 @@
 
 # 🚗 K BNG M Hoster
 
-### *(Kinan BeamNG Multiplayer Hoster)* — **v0.5.3**
+### *(Kinan BeamNG Multiplayer Hoster)* — **v0.5.4**
 
 **The All-In-One Automated BeamMP Hosting & Joining Tool**
 
-> 🔽 **Download the latest release:** [K BNG M Hoster v0.5.3 ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
+> 🔽 **Download the latest release:** [K BNG M Hoster v0.5.4 ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
 
 > ⚠️ **Official download only:** Get K BNG M Hoster exclusively from the [GitHub Releases page](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest) above. Please do **not** share, reupload, or forward this tool to others — everyone should download it from here so they always get the latest version.
 
@@ -39,13 +39,15 @@
 | 🛡️ **Auto Firewall** | Opens the correct Windows Firewall rules with one polite UAC prompt — existing rules are detected and never duplicated (v0.5.3). |
 | 🔒 **Lock my IP while hosting** | Keeps your LAN IP fixed during a session so router port-forwards never break on DHCP renewals; auto-returns to DHCP when the session ends (v0.5.3, menu option 6). |
 | 🧭 **Reachability Test** | Checks whether your public IP:port is actually reachable from the internet and tells you on screen — with retries and a fallback service (v0.5.3), plus a full scan inside the Help / Fix menu. |
-| ⚠️ **Smart Warnings** | Detects CGNAT ISPs (checks both your public IP **and your router's WAN IP** via UPnP — v0.5.3) and VPN adapters (Radmin VPN, Hamachi, ZeroTier) that silently break BeamMP's UDP traffic. |
+| ⚠️ **Smart Warnings** | Detects CGNAT ISPs (checks both your public IP **and your router's WAN IP** via UPnP — v0.5.3) and tells you exactly what to do. |
+| 🖧 **VPN Manager** | New (v0.5.4, menu option 7): sees if **Radmin VPN / Hamachi / ZeroTier / Tailscale** are installed and running, starts any of them with one click, or opens the official download page when missing. If you have two VPNs running at once it tells you — friends must be on the same one as the IP you send. |
+| 🔗 **VPN Hosting** | VPNs (Radmin VPN, Hamachi, ZeroTier, Tailscale) are supported connection methods that work even behind **CGNAT** — the live screen shows the VPN IP line for friends automatically. |
 | 🔄 **Busy-Port Auto-Switch** | If your port is taken, picks a free one and warns you loudly. |
 | 🎮 **Mod Manager** | List, enable/disable and scan your `Resources/Client/` mods from a menu. |
 | 🔐 **Malware Guard** | Scans mod ZIPs for executables and quarantines anything suspicious. |
 | 👥 **Live Player Activity** | Shows who's online, with optional Discord join/leave notifications. |
 | 🧹 **Privacy Cleaner** | One menu option removes all personal/temporary files from the folder. |
-| 📡 **Flexible Hosting** | Works with **Tailscale** (no port forwarding) **or** public port forwarding. |
+| 📡 **Flexible Hosting** | Works with **Tailscale**, **Radmin VPN / Hamachi / ZeroTier** (no port forwarding) **or** public port forwarding. |
 
 ---
 
@@ -67,6 +69,9 @@ That's everything. The tool handles the server key, settings, ports and problems
 | **BeamMP Keymaster** | Get your free server authentication key | [Keymaster Portal](https://keymaster.beammp.com) |
 | **BeamMP Client** | Official multiplayer client for BeamNG.drive | [Download Client](https://beammp.com) |
 | **Tailscale** *(Method A)* | Secure direct connection without changing router settings | [Download Tailscale](https://tailscale.com) |
+| **Radmin VPN** *(Method C)* | Free P2P VPN — friends join your virtual network | [Download Radmin VPN](https://www.radmin-vpn.com/) |
+| **Hamachi** *(Method C)* | Free P2P VPN (up to 5 devices per network) | [Download Hamachi](https://www.vpn.net/) |
+| **ZeroTier** *(Method C)* | Free, open-source P2P VPN | [Download ZeroTier](https://www.zerotier.com/download/) |
 
 ---
 
@@ -131,7 +136,7 @@ If your ISP/router assigns your PC a **new local IP** from time to time, your po
 
 ## 🌐 Server Launch & Connection Methods
 
-Choose **one** of the two hosting methods below depending on how you want players to connect:
+Choose **one** of the hosting methods below depending on how you want players to connect:
 
 ### 🔹 METHOD A: Tailscale (Private / No Port Forwarding)
 
@@ -172,7 +177,7 @@ Choose **one** of the two hosting methods below depending on how you want player
    Port = 30814
    ```
 4. Double-click **`Start_Here.bat`** to launch the server.
-5. Watch the live status screen: it shows whether your `public IP:port` is **reachable** from the internet, and warns you about VPN adapters or CGNAT networks that would block players.
+5. Watch the live status screen: it shows whether your `public IP:port` is **reachable** from the internet, warns about CGNAT networks that block players, and lists any VPN connection line for friends.
 6. Open **BeamNG.drive** and connect via `Direct Connect` (`127.0.0.1:30814`).
 
 #### 👥 How Friends Join
@@ -180,7 +185,30 @@ Choose **one** of the two hosting methods below depending on how you want player
 - **Option 1 (Server Browser):** players can search for your Server Name in the official BeamMP Server Browser.
 - **Option 2 (Direct Connect):** players go to `More...` ➔ `BeamMP` ➔ `Direct Connect` and enter your **Public IP** and Port from `ServerConfig.toml`.
 
-> ⚠️ **Why won't players connect?** The three usual culprits, in order: (1) a **VPN adapter** (Radmin VPN, Hamachi, ZeroTier) is running on the host — close it, BeamMP's UDP traffic breaks through VPNs; (2) **UDP is not forwarded** — BeamMP needs both TCP *and* UDP; (3) **Windows Firewall** doesn't allow `BeamMP-Server.exe`. The launcher's **Fix menu (option 4)** checks all of these for you. If the problem appeared after a router reboot, your PC may have a new local IP — enable **"Lock my IP while hosting"** (menu option 6) to prevent that.
+> ⚠️ **Why won't players connect?** The usual culprits, in order: (1) **you're behind CGNAT** — if the tool shows a CGNAT warning, public hosting can never work; use a VPN instead (see Method C); (2) **UDP is not forwarded** — BeamMP needs both TCP *and* UDP; (3) **Windows Firewall** doesn't allow `BeamMP-Server.exe`. The launcher's **Fix menu (option 4)** checks all of these for you. If the problem appeared after a router reboot, your PC may have a new local IP — enable **"Lock my IP while hosting"** (menu option 6) to prevent that.
+
+---
+
+### 🔹 METHOD C: P2P VPN — Radmin VPN / Hamachi / ZeroTier (Private, no port forwarding)
+
+*Best when port forwarding is impossible (e.g. CGNAT ISPs) and you play with a small group of friends. The launcher's **VPN Manager** (main menu option 7) handles everything below for you: it shows which VPNs are installed and running, starts them with one click, and opens the official download page for any that are missing.*
+
+#### 🛠️ Host Setup & Connection
+
+1. Install a P2P VPN — any of **Radmin VPN**, **Hamachi**, or **ZeroTier** (or Tailscale, Method A). All are free and safe.
+2. Start it (via the **VPN Manager**, option 7, or yourself) and **create/join a network** inside the VPN app.
+3. Double-click **`Start_Here.bat`** — the live screen now shows `Friends (VPN <name>): <26.x.x.x/25.x.x.x> : port`.
+4. Open **BeamNG.drive** → `More...` ➔ `BeamMP` ➔ `Direct Connect` (`127.0.0.1:30814`).
+
+#### 👥 How Friends Join
+
+1. **Every friend installs the same VPN app** and joins **the same network** as the host.
+2. BeamNG → `More...` ➔ `BeamMP` ➔ `Direct Connect`.
+3. **IP Address:** the host's **VPN IP** shown on the live screen (press **C** to copy it). **Port:** `30814`.
+
+> ℹ️ **Two VPNs running at once?** The tool lists each one with its own IP and reminds you: friends must be on the **same VPN** as the line you send them. Close the unused one to avoid routing confusion.
+>
+> ℹ️ **Honest note:** BeamMP officially recommends **Tailscale** for VPN hosting. Radmin VPN / Hamachi / ZeroTier work for most users, but occasionally UDP traffic can be unreliable through them — if friends can connect but lag or drop, switch to Tailscale (Method A).
 
 ---
 
@@ -223,13 +251,13 @@ To load custom vehicles, maps, or physics mods onto your server:
 > The tool waits for the server to actually listen on the configured port before showing "SERVER IS LIVE!". If it fails, it **auto-diagnoses the cause** — bad/empty AuthKey, port already in use, missing Visual C++ runtime, unreachable BeamMP backend, or a missing map — and shows you the exact fix.
 
 > **"NOT reachable" on the external test?**
-> That means players from the internet can't reach your port. Run the **Fix menu** (option 4) and follow its instructions: close any VPN adapters, forward **TCP+UDP 30814** to your PC, and allow `BeamMP-Server.exe` through Windows Firewall.
+> That means players from the internet can't reach your port. Run the **Fix menu** (option 4) and follow its instructions: check the CGNAT warning (if shown, public hosting can never work — use a VPN via the **VPN Manager**, main menu option 7), forward **TCP+UDP 30814** to your PC, and allow `BeamMP-Server.exe` through Windows Firewall. While the server is live, press **P** on the live screen for a one-screen diagnosis of everything.
 
 > **Does everyone use the same port?**
 > Yes — port 30814 is the BeamMP standard for everyone. That's fine: every host has a unique public IP, so `IP:port` never collides between different networks. The only exception is two hosts sharing one public IP (same LAN/VPN) — the launcher auto-switches the port in that case.
 
 > **I don't want to touch my router at all.**
-> Use **Method A (Tailscale)** — no port forwarding needed, works over any network.
+> Use **Method A (Tailscale)** or **Method C (Radmin VPN / Hamachi / ZeroTier)** — no port forwarding needed, works over any network, even behind CGNAT. The **VPN Manager** (main menu option 7) starts or installs them for you.
 
 ---
 

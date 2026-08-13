@@ -2,6 +2,25 @@
 
 All notable changes to **K BNG M Hoster** are documented here.
 
+## v0.5.4 — VPN support: VPN Manager, one-click start, CGNAT-friendly hosting
+
+### 🖧 New VPN Manager (main menu option 7)
+- Scans your PC for **Radmin VPN, Hamachi, ZeroTier and Tailscale** (install paths, Start-menu shortcuts, registry — no admin needed) and shows each as *Not installed / installed, not running / RUNNING with its IP*
+- **One-click start:** press `R`/`H`/`Z`/`T` to launch an installed VPN, or press `A` to start all installed at once. The tool then watches for the VPN network to connect and reports the result (with its IP)
+- **Not installed?** Pressing the key opens that VPN's **official download page** (radmin-vpn.com / vpn.net / zerotier.com/download / tailscale.com/download) — never a mirror
+- If **two VPNs are running** at the same time, it lists each with its own IP and reminds you that friends must use the same VPN as the line you send
+
+### 🔗 VPNs are now supported connection methods (works behind CGNAT)
+- Radmin VPN / Hamachi / ZeroTier are no longer flagged as "break UDP" — the live screen shows a `Friends (VPN <name>): <IP> : port` line for every running VPN, and `CONNECTING.txt` documents them
+- Copy-line priority: LAN > VPN > Tailscale
+- The Help / Fix menu now reports each running VPN as `[OK]` with its IP (and notes when one is still connecting), instead of a red failure
+
+### 🤖 Pre-start VPN help (only when CGNAT is detected)
+- Before launching the server, if your ISP uses CGNAT the tool asks whether to start your installed-but-idle VPNs, or offers official download links when you have none installed
+
+### 🩺 Problem Diagnosis key (live screen)
+- Press **P** while hosting for a one-screen report: running VPNs (+IPs), LAN IP, Tailscale, public IP, CGNAT, UPnP state, listening port, firewall rules — so any problem is explained on the spot
+
 ## v0.5.3 — CGNAT detection upgrade + visible countdown (patch to the Restructured Edition)
 
 ### 🌐 CGNAT is now detected correctly (the "NOT reachable" mystery)
