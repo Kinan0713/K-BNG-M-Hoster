@@ -6,6 +6,11 @@
 
 *Solely created and developed by **Kinan** (`@raed713`)*
 
+> ⚠️ **OFFICIAL DOWNLOAD ONLY** - This tool is distributed exclusively through the
+> GitHub Releases page: https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest
+> Please do NOT share, reupload, or forward this tool to others - everyone should
+> download it from there so they always get the latest version.
+
 ---
 
 ## 🚀 QUICK START (30 seconds)
@@ -71,7 +76,7 @@ Keep it simple — the top level only shows the things you actually use:
 | `Launcher.cfg`, `webhook.example.txt` | Support files |
 | `Logs/`, `Server.log`, `CONNECTING.txt` *(created automatically)* | Logs, IP caches and session files |
 
-> The server always runs using the **top-level** `ServerConfig.toml` and `Resources/` — that is why they stay visible. Everything personal or temporary lives inside `Server\`, and menu option **"Clean personal info"** wipes it before you share the folder.
+> The server always runs using the **top-level** `ServerConfig.toml` and `Resources/` — that is why they stay visible. Everything personal or temporary lives inside `Server\`, and menu option **"Clean personal info"** removes all personal information from the folder (menu option 5).
 
 ### 1️⃣ Extract & Open
 
@@ -86,7 +91,7 @@ The launcher handles your key automatically, so you **never have to paste it int
 1. Go to [BeamMP Keymaster](https://keymaster.beammp.com) and generate a new key.
 2. Run `Start_Here.bat` — on first launch it asks you to paste the key once, then saves it into `Server\.env` automatically.
 3. Before every launch, the tool reads `Server\.env`, writes your key into `AuthKey` inside `ServerConfig.toml`, starts the server, and **removes the key from the config again when the session ends** so nothing personal is ever left behind.
-4. `Server\.env` is your private file — never share the folder before running **"Clean personal info"** (menu option 5).
+4. `Server\.env` is your private file — you can remove all personal information with **"Clean personal info"** (menu option 5).
 
 > **Alternative — Windows environment variable:** set a system/user variable named `BEAMMP_AUTHKEY`. The environment variable takes priority over `.env`.
 >
