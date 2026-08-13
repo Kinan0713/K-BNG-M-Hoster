@@ -36,7 +36,8 @@
 | 🔑 **Auto AuthKey** | Paste your BeamMP key once — the tool stores it privately, injects it at start, and removes it again when the session ends. |
 | 🔄 **Auto Diagnostics** | If the server fails to start, the tool reads the server log and tells you *exactly* why (bad key, busy port, missing runtime, bad map). |
 | 🌍 **UPnP Port Forwarding** | Automatically forwards your port (TCP+UDP) on router-enabled setups — no manual router login needed. |
-| 🛡️ **Auto Firewall** | Opens the correct Windows Firewall rules with one polite UAC prompt. |
+| 🛡️ **Auto Firewall** | Opens the correct Windows Firewall rules with one polite UAC prompt — existing rules are detected and never duplicated (v0.5.3). |
+| 🔒 **Lock my IP while hosting** | Keeps your LAN IP fixed during a session so router port-forwards never break on DHCP renewals; auto-returns to DHCP when the session ends (v0.5.3, menu option 6). |
 | 🧭 **Reachability Test** | Checks whether your public IP:port is actually reachable from the internet and tells you on screen. |
 | ⚠️ **Smart Warnings** | Detects CGNAT ISPs and VPN adapters (Radmin VPN, Hamachi, ZeroTier) that silently break BeamMP's UDP traffic. |
 | 🔄 **Busy-Port Auto-Switch** | If your port is taken, picks a free one and warns you loudly. |
@@ -77,6 +78,13 @@ That's everything. The tool handles the server key, settings, ports and problems
 
 ### 2️⃣ Note on Ports
 
+
+### 2️⃣.5️⃣ Locking your IP while hosting (v0.5.3)
+
+If your ISP/router assigns your PC a **new local IP** from time to time, your port-forward rule silently breaks and players can no longer join. The launcher's **menu option 6 — "Lock my IP while hosting"** fixes this:
+
+- When **ON**, the tool sets your network adapter to a static IP at server start and **restores DHCP automatically** when your session ends.
+- The tool never touches adapters it didn't lock itself (a manually configured static IP is left exactly as it is).
 
 ### 3️⃣ Utility Commands
 
