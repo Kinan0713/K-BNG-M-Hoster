@@ -41,7 +41,7 @@
 | ⚠️ **Smart Warnings** | Detects CGNAT ISPs and VPN adapters (Radmin VPN, Hamachi, ZeroTier) that silently break BeamMP's UDP traffic. |
 | 🔄 **Busy-Port Auto-Switch** | If your port is taken, picks a free one and warns you loudly. |
 | 👥 **Live Player Activity** | Shows who's online, with optional Discord join/leave notifications. |
-| 🧹 **Privacy Cleaner** | One menu option wipes every personal/temporary file before you share the folder. |
+| 🧹 **Privacy Cleaner** | One menu option removes all personal/temporary files from the folder. |
 | 📡 **Flexible Hosting** | Works with **Tailscale** (no port forwarding) **or** public port forwarding. |
 
 ---
