@@ -228,6 +228,189 @@ New-NetFirewallRule -DisplayName 'K BNG M Hoster Out' -Direction Outbound -Actio
     Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
 }
 
+# ---------------------------------------------------------------------------------------
+# STATIC IP LOCK (keeps the LAN IP stable while hosting so router forwards never break)
+# ---------------------------------------------------------------------------------------
+function Get-PrimaryLanAdapter {
+    try {
+        $route = Get-NetRoute -AddressFamily IPv4 -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue | Select-Object -First 1
+        if (-not $route) { return $null }
+        $ip = Get-NetIPAddress -AddressFamily IPv4 -InterfaceIndex $route.ifIndex -ErrorAction SilentlyContinue |
+            Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } | Select-Object -First 1
+        if (-not $ip) { return $null }
+        $dns = @(Get-DnsClientServerAddress -AddressFamily IPv4 -InterfaceIndex $route.ifIndex -ErrorAction SilentlyContinue |
+            Select-Object -First 1 | ForEach-Object { $_.ServerAddresses })
+        return [pscustomobject]@{
+            InterfaceIndex = $route.ifIndex
+            Alias          = $route.InterfaceAlias
+            IP             = $ip.IPAddress
+            PrefixLength   = $ip.PrefixLength
+            Gateway        = $route.NextHop
+            Dns            = ($dns -join ',')
+        }
+    } catch { return $null }
+}
+
+function Get-IPv4Mask([int]$Prefix) {
+    $v = [int64]0
+    for ($i = 0; $i -lt $Prefix; $i++) { $v = ($v -shl 1) -bor 1 }
+    $v = $v -shl (32 - $Prefix)
+    return ('{0}.{1}.{2}.{3}' -f (($v -shr 24) -band 255), (($v -shr 16) -band 255), (($v -shr 8) -band 255), ($v -band 255))
+}
+
+function Test-StaticIpLocked {
+    return (Test-Path -LiteralPath ($ServerDir + 'staticip.cfg'))
+}
+
+# Switches the main adapter from DHCP to a static IP (one UAC prompt).
+# Saves a backup only when the tool itself does the DHCP->static switch,
+# so Restore-DhcpLanIp never undoes an IP the user set manually.
+function Set-StaticLanIp {
+    $a = Get-PrimaryLanAdapter
+    if (-not $a) {
+        Write-Host "  Could not detect your main network adapter. Skipping." -ForegroundColor Red
+        Write-Log "Static IP lock: adapter detection failed"
+        return $false
+    }
+    $cur = Get-NetIPAddress -AddressFamily IPv4 -InterfaceIndex $a.InterfaceIndex -ErrorAction SilentlyContinue |
+        Where-Object { $_.IPAddress -eq $a.IP } | Select-Object -First 1
+    if ($cur -and $cur.PrefixOrigin -ne 'Dhcp') {
+        Set-Content -LiteralPath ($ServerDir + 'staticip.cfg') -Value $a.Alias -ErrorAction SilentlyContinue
+        Write-Host "  Your IP is already static ($($a.IP)) - I will leave it untouched." -ForegroundColor Green
+        Write-Log "Static IP lock: already static, left untouched ($($a.Alias): $($a.IP))"
+        return $true
+    }
+    $mask = Get-IPv4Mask $a.PrefixLength
+    $backup = $ServerDir + 'Logs\staticip.undo.json'
+    if (-not (Test-Path -LiteralPath $backup)) {
+        [pscustomobject]@{
+            Adapter = $a.Alias
+            IP      = $a.IP
+            Mask    = $mask
+            Gateway = $a.Gateway
+            Dns     = $a.Dns
+            Saved   = (Get-Date).ToString('o')
+        } | ConvertTo-Json | Set-Content -LiteralPath $backup
+    }
+    $tmp = Join-Path $env:TEMP ('kbip-' + [guid]::NewGuid().ToString('N') + '.ps1')
+    $result = $tmp + '.out'
+    $dnsCmd = ''
+    if ($a.Dns) { $dnsCmd = "netsh interface ipv4 set dns name=`"$($a.Alias)`" static $($a.Dns) 2>&1 | ForEach-Object { if (`$_ -match 'error|fail') { `$err += `$_ } }" }
+    $script = @"
+`$err = @()
+netsh interface ipv4 set address name="$($a.Alias)" static $($a.IP) $mask $($a.Gateway) 2>&1 | ForEach-Object { if (`$_ -match 'error|fail') { `$err += `$_ } }
+$dnsCmd
+if (`$err.Count) { Set-Content -LiteralPath '$result' -Value (`$err -join '; ') } else { Set-Content -LiteralPath '$result' -Value 'OK' }
+"@
+    Set-Content -LiteralPath $tmp -Value $script
+    try {
+        Write-Host "  A Windows security window will appear. Click 'Yes' to lock your IP." -ForegroundColor Yellow
+        Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $tmp + '"') -Verb RunAs -Wait | Out-Null
+        $res = (Get-Content -LiteralPath $result -Raw -ErrorAction SilentlyContinue).Trim()
+        if ($res -eq 'OK') {
+            Set-Content -LiteralPath ($ServerDir + 'staticip.cfg') -Value $a.Alias
+            Write-Host "  IP locked: $($a.IP) (stays fixed while hosting)." -ForegroundColor Green
+            Write-Log "Static IP lock applied ($($a.Alias): $($a.IP))"
+            return $true
+        }
+        Write-Host "  Could not lock the IP ($res). Was the Windows window cancelled?" -ForegroundColor Yellow
+        Write-Log "Static IP lock failed: $res"
+        return $false
+    } catch {
+        Write-Host "  Could not lock the IP (was the Windows window cancelled?)." -ForegroundColor Yellow
+        Write-Log "Static IP lock failed (exception: $_)"
+        return $false
+    } finally {
+        Remove-Item -LiteralPath $tmp, $result -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Restores DHCP only if the tool itself made the DHCP->static switch
+# (a backup exists). Leaves manually-set static IPs untouched, and keeps
+# the ON marker so the lock persists across sessions.
+function Restore-DhcpLanIp {
+    $backup = $ServerDir + 'Logs\staticip.undo.json'
+    if (-not (Test-Path -LiteralPath $backup)) {
+        Write-Host "  IP was not changed by the tool - nothing to restore." -ForegroundColor DarkGray
+        return $true
+    }
+    $alias = ''
+    try { $alias = ((Get-Content -LiteralPath $backup -Raw | ConvertFrom-Json).Adapter).Trim() } catch { }
+    if (-not $alias) { return $false }
+    $tmp = Join-Path $env:TEMP ('kbip-' + [guid]::NewGuid().ToString('N') + '.ps1')
+    $result = $tmp + '.out'
+    $script = @"
+`$err = @()
+netsh interface ipv4 set address name="$alias" source=dhcp 2>&1 | ForEach-Object { if (`$_ -match 'error|fail') { `$err += `$_ } }
+netsh interface ipv4 set dns name="$alias" source=dhcp 2>&1 | ForEach-Object { if (`$_ -match 'error|fail') { `$err += `$_ } }
+if (`$err.Count) { Set-Content -LiteralPath '$result' -Value (`$err -join '; ') } else { Set-Content -LiteralPath '$result' -Value 'OK' }
+"@
+    Set-Content -LiteralPath $tmp -Value $script
+    try {
+        Write-Host "  A Windows security window will appear. Click 'Yes' to restore your IP." -ForegroundColor Yellow
+        Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $tmp + '"') -Verb RunAs -Wait | Out-Null
+        $res = (Get-Content -LiteralPath $result -Raw -ErrorAction SilentlyContinue).Trim()
+        if ($res -eq 'OK') {
+            Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue
+            Write-Host "  IP restored to DHCP." -ForegroundColor Green
+            Write-Log "Static IP lock released (back to DHCP)"
+            return $true
+        }
+        Write-Log "Static IP restore failed: $res (retry on next run)"
+        return $false
+    } catch {
+        Write-Log "Static IP restore failed (exception: $_; retry on next run)"
+        return $false
+    } finally {
+        Remove-Item -LiteralPath $tmp, $result -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Main-menu toggle for the IP lock.
+function Toggle-StaticIpLock {
+    Clear-Host
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host "   Lock my IP while hosting" -ForegroundColor Cyan
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host ""
+    if (Test-StaticIpLocked) {
+        Write-Host "  Currently: LOCKED - your IP stays fixed while hosting." -ForegroundColor Green
+        $a = Get-PrimaryLanAdapter
+        if ($a) { Write-Host "  Adapter: $($a.Alias) - $($a.IP)" -ForegroundColor Cyan }
+        Write-Host ""
+        Write-Host "  Why: your router's TCP+UDP forward keeps working even when the" -ForegroundColor DarkGray
+        Write-Host "  DHCP lease renews, because your IP never changes anymore." -ForegroundColor DarkGray
+        Write-Host ""
+        $ans = Read-Host "  Disable the lock now? (Y/N)"
+        if ($ans -match '^\s*[Yy]') {
+            if (Restore-DhcpLanIp) {
+                Remove-Item -LiteralPath ($ServerDir + 'staticip.cfg') -Force -ErrorAction SilentlyContinue
+                Write-Host "  Lock disabled - your IP returns to DHCP now." -ForegroundColor Green
+                Write-Log "Static IP lock disabled from menu"
+            } else {
+                Write-Host "  Could not disable it (was the Windows window cancelled?)." -ForegroundColor Yellow
+            }
+        }
+    } else {
+        Write-Host "  This keeps your PC's IP fixed while you host, so the router's" -ForegroundColor Cyan
+        Write-Host "  TCP+UDP port forward never breaks when the DHCP lease renews." -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "  When enabled: the IP locks at server start and automatically" -ForegroundColor DarkGray
+        Write-Host "  returns to DHCP when your session ends. No manual router work." -ForegroundColor DarkGray
+        Write-Host ""
+        $ans = Read-Host "  Enable the lock? (Y/N)"
+        if ($ans -match '^\s*[Yy]') {
+            if (Set-StaticLanIp) {
+                Write-Host "  Lock enabled - it will be applied on the next server start." -ForegroundColor Green
+                Write-Log "Static IP lock enabled from menu"
+            } else {
+                Write-Host "  Could not enable it (was the Windows window cancelled?)." -ForegroundColor Yellow
+            }
+        }
+    }
+    Read-Host "Press Enter to continue"
+}
+
 function Update-Config {
     param([string]$Name = '', [int]$Players = 0)
     $cfgPath = $RootDir + 'ServerConfig.toml'
@@ -698,13 +881,18 @@ function Show-CleanForSharing {
     Write-Host "   - Logs\, Server.log (IP caches, player names, logs)" -ForegroundColor Yellow
     Write-Host "   - CONNECTING.txt  (contains your IP addresses)" -ForegroundColor Yellow
     Write-Host "   - Backups\, Quarantine\  - AuthKey inside ServerConfig.toml" -ForegroundColor Yellow
+    Write-Host "   - staticip.cfg  (your IP-lock marker, restored to DHCP first)" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "  Run this BEFORE zipping the folder to give to someone else." -ForegroundColor Cyan
     Write-Host ""
     $answer = Read-Host "  Type Y to clean, or N to cancel"
     if ($answer -match '^\s*[Yy]') {
         $removed = @()
-        foreach ($p in @('Logs', 'Backups', 'Quarantine', 'CONNECTING.txt', 'Server.log', '.env', 'webhook.txt')) {
+        if (Test-StaticIpLocked) {
+            Write-Host "  IP lock is on - restoring DHCP first..." -ForegroundColor Yellow
+            $null = Restore-DhcpLanIp
+        }
+        foreach ($p in @('Logs', 'Backups', 'Quarantine', 'CONNECTING.txt', 'Server.log', '.env', 'webhook.txt', 'staticip.cfg')) {
             $full = $ServerDir + $p
             if (Test-Path -LiteralPath $full) {
                 try {
@@ -751,7 +939,8 @@ function Show-MainMenu {
     Write-Host "   3.  Mod Manager"
     Write-Host "   4.  Help / Fix Problems"
     Write-Host "   5.  Clean personal info (before sharing)"
-    Write-Host "   6.  Exit"
+    Write-Host "   6.  Lock my IP while hosting  (currently $(if (Test-StaticIpLocked) { 'ON' } else { 'OFF' }))"
+    Write-Host "   7.  Exit"
     Write-Host ""
     $k = Wait-OrKey 8 "  Press ENTER to start now (auto-starts in 8 seconds)..."
     if ($k -eq '2') { return 2 }
@@ -759,6 +948,7 @@ function Show-MainMenu {
     if ($k -eq '4') { return 4 }
     if ($k -eq '5') { return 5 }
     if ($k -eq '6') { return 6 }
+    if ($k -eq '7') { return 7 }
     return 1
 }
 
@@ -884,7 +1074,8 @@ while ($true) {
     if ($choice -eq 3) { Show-ModManager; continue }
     if ($choice -eq 4) { Show-FixMenu; continue }
     if ($choice -eq 5) { Show-CleanForSharing; continue }
-    if ($choice -eq 6) { exit 0 }
+    if ($choice -eq 6) { Toggle-StaticIpLock; continue }
+    if ($choice -eq 7) { exit 0 }
     # choice 1 -> start the server
     break
 }
@@ -1016,6 +1207,14 @@ if (-not (Test-FirewallRule) -and -not (Test-Path -LiteralPath $fwDeclined)) {
         Set-Content -LiteralPath $fwDeclined -Value (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
         Write-Log "Firewall rule declined - marker written (fix via Help / Fix Problems later)"
     }
+}
+
+# Auto-lock: if the user enabled 'Lock my IP while hosting', keep the LAN IP
+# static for the whole session so router forwards never break. Undone at exit.
+$ipLockedBefore = $false
+if (Test-StaticIpLocked) {
+    Write-Host "  Locking your IP for the session (option 6 is ON)..." -ForegroundColor Yellow
+    $ipLockedBefore = Set-StaticLanIp
 }
 
 # Start the server (working dir = the visible top level, so the server uses the
@@ -1260,6 +1459,15 @@ $lines = @(Get-Content -LiteralPath $cfgPath) | ForEach-Object {
 }
 Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
 Write-Log "AuthKey removed from ServerConfig.toml (re-injected on next start)"
+# Undo the IP lock: restore DHCP exactly like the AuthKey is removed.
+if (Test-StaticIpLocked) {
+    Write-Host "  Releasing the IP lock for this session..." -ForegroundColor Yellow
+    if (Restore-DhcpLanIp) {
+        Write-Host "  IP lock released - your network is back to normal." -ForegroundColor Green
+    } else {
+        Write-Host "  WARNING: could not restore DHCP. Run the tool again later - it retries automatically." -ForegroundColor Yellow
+    }
+}
 # The server writes Server.log to its working folder (the visible top level) -
 # tuck it away into Server\ so the top level stays tidy.
 $rootLog = $RootDir + 'Server.log'

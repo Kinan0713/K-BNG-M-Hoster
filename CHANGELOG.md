@@ -2,6 +2,17 @@
 
 All notable changes to **K BNG M Hoster** are documented here.
 
+## v0.5.3 — IP lock (patch to the Restructured Edition)
+
+### 🔒 New: "Lock my IP while hosting" (main menu option 6)
+- New main-menu option **"Lock my IP while hosting"** (currently ON/OFF):
+  - When enabled, the launcher switches your main adapter to a **static IP** at server start and **restores DHCP automatically** when your session ends — like the AuthKey injection, nothing is left behind
+  - This keeps your router's TCP+UDP forward working even when the DHCP lease renews (the usual cause of "last numbers of the IP change")
+- One polite UAC prompt when locking and one when unlocking (same pattern as the firewall rule); if declined it logs and skips safely
+- The tool only undoes what it changed itself: if your IP was already static before enabling the lock, it is left untouched (no backup = no restore)
+- "Clean personal info" (option 5) restores DHCP first and removes the lock marker before sharing the folder
+- Backup of the previous network state is kept in `Logs\staticip.undo.json`; if a restore fails, the next run retries automatically
+
 ## v0.5.3 — Restructured Edition (folder layout + connectivity + privacy)
 
 ### 📁 New folder structure (breaking change for manual users)
