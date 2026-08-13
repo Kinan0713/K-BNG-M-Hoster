@@ -12,7 +12,7 @@
 
 # 🚗 <span style="color: #FF6B6B">K</span> <span style="color: #4ECDC4">BNG</span> <span style="color: #45B7D1">M</span> <span style="color: #FFA07A">H</span><span style="color: #98D8C8">o</span><span style="color: #F7DC6F">s</span><span style="color: #BB8FCE">t</span><span style="color: #85C1E2">e</span><span style="color: #F8B88B">r</span> <span style="display: inline-block; animation: shatter 0.6s ease-out forwards;">✨</span>
 
-### *(Kinan BeamNG Multiplayer Hoster)*
+### *(Kinan BeamNG Multiplayer Hoster)* — **v0.5.3**
 
 **The All-In-One Automated BeamMP Hosting & Joining Tool**
 
@@ -29,7 +29,7 @@
 - **Zero-Stress Automation:** Handles server startup and process management automatically.
 - **Flexible Hosting Options:** Full support for both **Tailscale (No Port Forwarding)** and **Public Port Forwarding**.
 - **Seamless Mod Syncing:** Load custom vehicles and maps directly through client resources.
-- **One-Click Launch:** Start the host via `K_BNG_M_Hoster.exe`.
+- **One-Click Launch:** Start the host via `Start_Here.bat`.
 
 ---
 
@@ -47,21 +47,28 @@ Before getting started, make sure you have the following downloads ready:
 
 ## ⚙️ Step-by-Step Configuration Guide
 
+### 📁 Folder Layout
+
+| Top level (visible) | What it is |
+| --- | --- |
+| `Start_Here.bat` | **Just double-click this to start.** |
+| `ServerConfig.toml` | Your server settings (name, port, players, map...) |
+| `Resources/` | Your mods (drop mod `.zip` files into `Resources/Client/`) |
+| `README.md` / `README.txt` | This documentation |
+
+The `Server/` folder holds the engine (`BeamMP-Server.exe`, launcher scripts, `Logs/`, your `.env` key) — you never need to open it. The server always runs using the **top-level** `ServerConfig.toml` and `Resources/`, and menu option **"Clean personal info"** wipes all personal/temporary files before you share the folder.
+
 ### 1️⃣ Extract & Open
 
 1. Download **K BNG M Hoster** and extract the ZIP folder to your preferred location.
 2. Locate `ServerConfig.toml` inside the main folder.
-3. Open `ServerConfig.toml` using **Notepad** or your preferred text editor.
+3. Open `ServerConfig.toml` using **Notepad** or your preferred text editor (optional — the launcher can change name/players for you).
 
 ### 2️⃣ Input Your Auth Key
 
 1. Go to [BeamMP Keymaster](https://keymaster.beammp.com) and generate a new key.
-2. In `ServerConfig.toml`, find **Line 7**:
-   ```toml
-   AuthKey = "YOUR_KEY_HERE"
-   ```
-3. Replace `"YOUR_KEY_HERE"` with your generated key *(keep the quotation marks)*.
-4. Save (`Ctrl + S`) and close the file.
+2. Run `Start_Here.bat` — on first launch it asks you to paste the key once and saves it automatically into `Server\.env`.
+3. The tool writes your key into `AuthKey` in `ServerConfig.toml` before each start and removes it again when the session ends — nothing personal is ever left behind.
 
 ---
 
@@ -76,7 +83,7 @@ Choose **one** of the two hosting methods below depending on how you want player
 #### 🛠️ Host Setup & Connection
 
 1. Launch **Tailscale** on your PC.
-2. Right-click **`K_BNG_M_Hoster.exe`** and choose **"Run as administrator"** to start the host (recommended).
+2. Double-click **`Start_Here.bat`** to start the host.
 3. Open **BeamNG.drive**.
 4. Go to: `More...` ➔ `BeamMP` ➔ `Direct Connect`
 5. Connect using:
@@ -106,7 +113,7 @@ Choose **one** of the two hosting methods below depending on how you want player
    Private = false
    Port = 30814
    ```
-3. Run **`K_BNG_M_Hoster.exe`** to launch the server. Right-click the exe and choose **"Run as administrator"**.
+3. Double-click **`Start_Here.bat`** to launch the server.
 4. Open **BeamNG.drive** and connect via `Direct Connect` (`127.0.0.1:30814`).
 
 #### 👥 How Friends Join
@@ -125,7 +132,7 @@ To load custom vehicles, maps, or physics mods onto your server:
    Resources/Client/
    ```
 2. Drop your mod `.zip` files directly into this directory.
-3. Restart the server by running `K_BNG_M_Hoster.exe` again to sync mods automatically with everyone who joins (right-click → Run as administrator if needed).
+3. Restart the server by running `Start_Here.bat` again to sync mods automatically with everyone who joins.
 
 ---
 

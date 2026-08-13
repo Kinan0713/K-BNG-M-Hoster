@@ -5,7 +5,8 @@
 # (BEAMMP_AUTHKEY=...) or the BEAMMP_AUTHKEY environment variable. You can still paste it
 # here manually if you prefer. See README.txt and .env.example for details.
 [General]
-Port = 30813
+# BeamMP standard port. Forward THIS port (TCP+UDP) on your router / via UPnP.
+Port = 30814
 # AuthKey has to be filled out in order to run the server
 AuthKey = ""
 # Whether to allow guests

@@ -1,5 +1,3 @@
-Here is the full, updated `README.md` code reflecting the new project name **K BNG M Hoster** (*Kinan BeamNG Multiplayer Hoster*):
-
 # 🚗 K BNG M HOSTER
 
 ### *(Kinan BeamNG Multiplayer Hoster)*
@@ -30,12 +28,11 @@ That's everything. The tool handles the server key, settings, ports and problems
 * **Zero-Stress Automation:** Handles server startup and process management automatically.
 * **Flexible Hosting Options:** Full support for both **Tailscale (No Port Forwarding)** and **Public Port Forwarding**.
 * **Seamless Mod Syncing:** Load custom vehicles and maps directly through client resources.
-* **One-Click Launch:** Start the host via `K_BNG_M_Hoster.exe`.
+* **One-Click Launch:** Start the host via `Start_Here.bat`.
 * **Session-Aware Lifecycle (v0.3):** The server starts with your game session and stops automatically the moment the session ends.
-* **One-Click Launch:** Pre-configured script execution via `Play_BeamMP.bat`.
 * **Auto Diagnostics (v0.4):** If the server fails to start, the tool reads the server log and tells you exactly why — bad AuthKey, port already in use, missing Visual C++ runtime, or a bad map.
 * **Live Player Activity (v0.4):** Shows how many players are online (and who) while you host, with optional Discord join/leave notifications.
-* **Mod Manager (v0.4):** Manage your `Resources/Client/` mods from a simple menu — run `Play_BeamMP.bat mods`.
+* **Mod Manager (v0.4):** Manage your `Resources/Client/` mods from a simple menu — run `Start_Here.bat mods`.
 * **Update Checker (v0.4):** Tells you when a newer official BeamMP-Server is available (checked once per day, never blocks startup).
 * **Simplest Setup Ever (v0.5):** First run walks you through everything — you only paste your key once. The tool writes all files, auto-picks a free port, and has a one-click **Help / Fix Problems** menu.
 
@@ -55,27 +52,41 @@ Before getting started, make sure you have the following downloads ready:
 
 ## ⚙️ Step-by-Step Configuration Guide
 
+### 📁 Folder Layout
+
+Keep it simple — the top level only shows the things you actually use:
+
+| Top level (visible) | What it is |
+| --- | --- |
+| `Start_Here.bat` | **Just double-click this to start.** |
+| `ServerConfig.toml` | Your server settings (name, port, players, map...) |
+| `Resources/` | Your mods (drop mod `.zip` files into `Resources/Client/`) |
+| `README.md` / `README.txt` | This documentation |
+
+| `Server/` (the engine — you never need to open it) | What it is |
+| --- | --- |
+| `BeamMP-Server.exe` | The official BeamMP server program |
+| `Play_BeamMP.ps1` / `.bat` | The launcher code (single source of truth) |
+| `.env` *(created automatically)* | Your secret server key |
+| `Launcher.cfg`, `webhook.example.txt` | Support files |
+| `Logs/`, `Server.log`, `CONNECTING.txt` *(created automatically)* | Logs, IP caches and session files |
+
+> The server always runs using the **top-level** `ServerConfig.toml` and `Resources/` — that is why they stay visible. Everything personal or temporary lives inside `Server\`, and menu option **"Clean personal info"** wipes it before you share the folder.
+
 ### 1️⃣ Extract & Open
 
 1. Download **K BNG M Hoster** and extract the ZIP folder to your preferred location.
 2. Locate `ServerConfig.toml` inside the main folder.
-3. Open `ServerConfig.toml` using **Notepad** or your preferred text editor.
+3. Open `ServerConfig.toml` using **Notepad** or your preferred text editor (optional — the launcher can change name/players for you).
 
 ### 2️⃣ Input Your Auth Key *(Automatic — Recommended)*
 
-The launcher now injects your key automatically, so you **never have to paste it into `ServerConfig.toml` by hand**.
+The launcher handles your key automatically, so you **never have to paste it into `ServerConfig.toml` by hand**.
 
 1. Go to [BeamMP Keymaster](https://keymaster.beammp.com) and generate a new key.
-2. Copy `.env.example` to `.env` in the main folder:
-```
-copy .env.example .env
-```
-3. Open `.env` and paste your key:
-```
-BEAMMP_AUTHKEY=PASTE_YOUR_KEY_HERE
-```
-4. Save and close. Before every launch, the tool reads `.env`, writes your key into `AuthKey` inside `ServerConfig.toml`, and starts the server.
-5. `.env` is **git-ignored**, so your key can never be pushed to GitHub.
+2. Run `Start_Here.bat` — on first launch it asks you to paste the key once, then saves it into `Server\.env` automatically.
+3. Before every launch, the tool reads `Server\.env`, writes your key into `AuthKey` inside `ServerConfig.toml`, starts the server, and **removes the key from the config again when the session ends** so nothing personal is ever left behind.
+4. `Server\.env` is your private file — never share the folder before running **"Clean personal info"** (menu option 5).
 
 > **Alternative — Windows environment variable:** set a system/user variable named `BEAMMP_AUTHKEY`. The environment variable takes priority over `.env`.
 >
@@ -90,12 +101,11 @@ The server port is read from `Port` in `ServerConfig.toml`. Adjust the connectio
 | Command | What it does |
 | --- | --- |
 | `Start_Here.bat` | **Just double-click this.** Everything else is automatic |
-| `Play_BeamMP.bat` | Same as `Start_Here.bat` (compatibility) |
-| `Play_BeamMP.bat mods` | Open the Mod Manager (list, disable, enable, scan mods) |
-| `Play_BeamMP.bat fix` | Open the Help / Fix Problems menu |
-| `Play_BeamMP.bat help` | Show usage |
+| `Start_Here.bat mods` | Open the Mod Manager (list, disable, enable, scan mods) |
+| `Start_Here.bat fix` | Open the Help / Fix Problems menu |
+| `Start_Here.bat help` | Show usage |
 
-*(Both .bat files just launch `Play_BeamMP.ps1` — one codebase. PowerShell users: `.\Play_BeamMP.ps1 -Mods`, `.\Play_BeamMP.ps1 -Fix`, `.\Play_BeamMP.ps1 -Help`)*
+*(All commands just launch `Server\Play_BeamMP.ps1` — one codebase. PowerShell users: `.\Play_BeamMP.ps1 -Mods`, `.\Play_BeamMP.ps1 -Fix`, `.\Play_BeamMP.ps1 -Help`)*
 
 ---
 
@@ -112,13 +122,13 @@ Choose **one** of the two hosting methods below depending on how you want player
 #### 🛠️ Host Setup & Connection
 
 1. Launch **Tailscale** on your PC.
-2. Double‑click **`K_BNG_M_Hoster.exe`** to start the host.
+2. Double-click **`Start_Here.bat`** to start the host.
 3. Accept the license prompt, then the tool opens the BeamMP Launcher automatically.
 4. Open **BeamNG.drive**.
 5. Go to: `More...` ➔ `BeamMP` ➔ `Direct Connect`
 6. Connect using:
 * **IP Address:** `127.0.0.1`
-* **Port:** `30813` *(or whatever `Port` is set to in ServerConfig.toml)*
+* **Port:** `30814` *(or whatever `Port` is set to in ServerConfig.toml)*
 
 #### 👥 How Friends Join
 
@@ -127,7 +137,7 @@ Choose **one** of the two hosting methods below depending on how you want player
 3. Go to: `More...` ➔ `BeamMP` ➔ `Direct Connect`
 4. Connect using:
 * **IP Address:** Host's Tailscale IP (`100.x.x.x`)
-* **Port:** `30813` *(or whatever `Port` is set to in ServerConfig.toml)*
+* **Port:** `30814` *(or whatever `Port` is set to in ServerConfig.toml)*
 
 ---
 
@@ -137,14 +147,14 @@ Choose **one** of the two hosting methods below depending on how you want player
 
 #### 🛠️ Host Setup & Connection
 
-1. Access your router settings and forward the port from `ServerConfig.toml` (default **`30813`**, TCP/UDP) to your local IP address.
+1. Access your router settings and forward the port from `ServerConfig.toml` (default **`30814`**, TCP/UDP) to your local IP address.
 2. Open `ServerConfig.toml` and verify your settings:
 ```toml
 Private = false
-Port = 30813
+Port = 30814
 ```
-3. Run **`K_BNG_M_Hoster.exe`** to launch the server.
-4. Open **BeamNG.drive** and connect via `Direct Connect` (`127.0.0.1:30813`).
+3. Double-click **`Start_Here.bat`** to launch the server.
+4. Open **BeamNG.drive** and connect via `Direct Connect` (`127.0.0.1:30814`).
 
 #### 👥 How Friends Join
 
@@ -162,11 +172,11 @@ To load custom vehicles, maps, or physics mods onto your server:
 Resources/Client/
 ```
 2. Drop your mod `.zip` files directly into this directory.
-3. Restart the server by running `K_BNG_M_Hoster.exe` again to sync mods automatically with everyone who joins.
+3. Restart the server by running `Start_Here.bat` again to sync mods automatically with everyone who joins.
 
 > **Security note (v0.3):** On launch the tool scans `Resources/Client/` (including inside `.zip` mods) and moves any suspicious executable files (`*.exe`, `*.vbs`, `*.cmd`, `*.scr`, `*.pif`) to the `Quarantine/` folder. Everything it does is written to `Logs/launcher.log`.
 >
-> **Tip (v0.4):** Run `Play_BeamMP.bat mods` for a menu that lists your mods with sizes, lets you disable/enable them (moved to `Backups\mods\`), re-runs the security scan, and opens the folder in Explorer.
+> **Tip (v0.4):** Run `Start_Here.bat mods` for a menu that lists your mods with sizes, lets you disable/enable them (moved to `Server\Backups\mods\`), re-runs the security scan, and opens the folder in Explorer.
 
 ---
 
@@ -198,7 +208,3 @@ Resources/Client/
 * **Sole Developer & Creator:** **Kinan** (`@raed713`)
 *All original code, tools, scripts, and rights belong strictly and exclusively to Kinan.*
 * **Official Discord:** [Innocent BeamMP Server Community](https://discord.gg/2FxsJvKr4a)
-
-```
-
-```

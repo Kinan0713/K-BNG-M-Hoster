@@ -2,10 +2,18 @@
 # K BNG M Hoster v0.5 - Simplest Edition
 # Purpose: let anyone with zero technical skill host a BeamMP server.
 #
-# This file is the SINGLE source of truth. Start_Here.bat and Play_BeamMP.bat only
-# launch this file.
+# This file is the SINGLE source of truth. Start_Here.bat only launches this file.
 #
-# Optional: drop your Discord webhook URL into "webhook.txt" (next to this file)
+# Folder layout (public release):
+#   Top level (visible):  Start_Here.bat, README.md, README.txt,
+#                         ServerConfig.toml, Resources\
+#   Server\ (engine):     this file, BeamMP-Server.exe, Launcher.cfg, logs,
+#                         .env (your key), webhook.txt - everything else.
+#
+# The server process runs FROM the top-level folder, so the visible
+# ServerConfig.toml and Resources\ are the ones it actually uses.
+#
+# Optional: drop your Discord webhook URL into "Server\webhook.txt"
 # to announce server online/offline and player join/leave events.
 # ========================================================================================
 
@@ -21,18 +29,20 @@ param(
 
 $ErrorActionPreference = 'SilentlyContinue'
 
-# Accept friendly mode names passed by the .bat launchers (e.g. "Play_BeamMP.bat fix")
+# Accept friendly mode names passed by the .bat launchers (e.g. "Start_Here.bat fix")
 if ($Mode -eq 'mods') { $Mods = $true }
 elseif ($Mode -eq 'fix') { $Fix = $true }
 elseif ($Mode -eq 'help') { $Help = $true }
 elseif ($Mode -eq 'setup') { $Setup = $true }
 
 # ---------------------------------------------------------------------------------------
-# 1. RESOLVE THE REAL SERVER DIRECTORY
+# 1. RESOLVE THE REAL SERVER DIRECTORIES
+#    $ServerDir = engine folder (BeamMP-Server.exe, logs, .env) - usually Server\
+#    $RootDir   = visible top level (ServerConfig.toml + Resources\) - usually the parent
 # ---------------------------------------------------------------------------------------
-$ServerDir = (Get-Location).Path.TrimEnd('\') + '\'
+$ServerDir = $PSScriptRoot.TrimEnd('\') + '\'
 if (-not (Test-Path -LiteralPath ($ServerDir + 'BeamMP-Server.exe'))) {
-    $ServerDir = $PSScriptRoot.TrimEnd('\') + '\'
+    $ServerDir = (Get-Location).Path.TrimEnd('\') + '\'
 }
 if (-not (Test-Path -LiteralPath ($ServerDir + 'BeamMP-Server.exe'))) {
     Write-Host "I could not find the server program (BeamMP-Server.exe)." -ForegroundColor Red
@@ -40,7 +50,14 @@ if (-not (Test-Path -LiteralPath ($ServerDir + 'BeamMP-Server.exe'))) {
     Read-Host "Press Enter to exit"
     exit 1
 }
-if (-not (Test-Path -LiteralPath ($ServerDir + 'ServerConfig.toml'))) {
+# Where is the visible ServerConfig.toml? Next to the exe (flat layout) or one folder up (new layout)?
+$RootDir = $ServerDir
+if (Test-Path -LiteralPath ($ServerDir + 'ServerConfig.toml')) {
+    $RootDir = $ServerDir
+} elseif (Test-Path -LiteralPath ((Split-Path -Parent $PSScriptRoot).TrimEnd('\') + '\ServerConfig.toml')) {
+    $RootDir = (Split-Path -Parent $PSScriptRoot).TrimEnd('\') + '\'
+}
+if (-not (Test-Path -LiteralPath ($RootDir + 'ServerConfig.toml'))) {
     Write-Host "I could not find the server settings file (ServerConfig.toml)." -ForegroundColor Red
     Read-Host "Press Enter to exit"
     exit 1
@@ -96,13 +113,17 @@ function Show-Usage {
     Write-Host "============================================================" -ForegroundColor Cyan
     Write-Host "  Just double-click Start_Here.bat - that's all."
     Write-Host ""
+    Write-Host "  Start_Here.bat mods        Mod Manager"
+    Write-Host "  Start_Here.bat fix         Help / Fix Problems"
+    Write-Host "  Start_Here.bat setup       First-time setup wizard"
+    Write-Host ""
+    Write-Host "  PowerShell users (inside the Server folder):"
     Write-Host "  .\Play_BeamMP.ps1              Normal start"
-    Write-Host "  .\Play_BeamMP.ps1 -Setup       First-time setup wizard"
     Write-Host "  .\Play_BeamMP.ps1 -Mods        Mod Manager"
     Write-Host "  .\Play_BeamMP.ps1 -Fix         Help / Fix Problems"
     Write-Host "  .\Play_BeamMP.ps1 -Help        This screen"
     Write-Host ""
-    Write-Host "  Your key lives in the .env file (BEAMMP_AUTHKEY=...)."
+    Write-Host "  Your key lives in Server\.env (BEAMMP_AUTHKEY=...)."
     Write-Host "  Get one at: https://keymaster.beammp.com"
     Read-Host "Press Enter to exit"
 }
@@ -137,14 +158,14 @@ function Wait-OrKey([int]$Seconds, [string]$Prompt) {
 }
 
 function Get-ServerPort {
-    $cfgPath = $ServerDir + 'ServerConfig.toml'
+    $cfgPath = $RootDir + 'ServerConfig.toml'
     $m = Select-String -LiteralPath $cfgPath -Pattern '^\s*Port\s*=\s*(\d+)' | Select-Object -First 1
     if ($m) { return [int]$m.Matches[0].Groups[1].Value }
-    return 30813
+    return 30814
 }
 
 function Get-FreePort {
-    $start = 30813
+    $start = 30814
     for ($p = $start; $p -lt ($start + 200); $p++) {
         if (-not (Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue)) { return $p }
     }
@@ -154,7 +175,7 @@ function Get-FreePort {
 function Test-AuthKeyConfigured {
     if ($env:BEAMMP_AUTHKEY) { return $true }
     if (Test-Path -LiteralPath ($ServerDir + '.env')) { return $true }
-    $m = Select-String -LiteralPath ($ServerDir + 'ServerConfig.toml') -Pattern '^\s*AuthKey\s*=\s*"[^"]+"' | Select-Object -First 1
+    $m = Select-String -LiteralPath ($RootDir + 'ServerConfig.toml') -Pattern '^\s*AuthKey\s*=\s*"[^"]+"' | Select-Object -First 1
     return [bool]$m
 }
 
@@ -187,13 +208,20 @@ function Test-FirewallRule {
 
 function Add-FirewallRule {
     $serverExe = $ServerDir + 'BeamMP-Server.exe'
-    $script = "New-NetFirewallRule -DisplayName 'K BNG M Hoster' -Direction Inbound -Action Allow -Program '$serverExe' -ErrorAction SilentlyContinue"
+    $port = Get-ServerPort
+    # Program rule (all ports) + explicit TCP/UDP port rules (BeamMP needs both) + outbound.
+    $script = @"
+New-NetFirewallRule -DisplayName 'K BNG M Hoster' -Direction Inbound -Action Allow -Program '$serverExe' -ErrorAction SilentlyContinue
+New-NetFirewallRule -DisplayName 'K BNG M Hoster UDP $port' -Direction Inbound -Action Allow -Protocol UDP -LocalPort $port -ErrorAction SilentlyContinue
+New-NetFirewallRule -DisplayName 'K BNG M Hoster TCP $port' -Direction Inbound -Action Allow -Protocol TCP -LocalPort $port -ErrorAction SilentlyContinue
+New-NetFirewallRule -DisplayName 'K BNG M Hoster Out' -Direction Outbound -Action Allow -Program '$serverExe' -ErrorAction SilentlyContinue
+"@
     $tmp = Join-Path $env:TEMP ('kbfw-' + [guid]::NewGuid().ToString('N') + '.ps1')
     Set-Content -LiteralPath $tmp -Value $script
     try {
         Write-Host "  A Windows security window will appear. Click 'Yes' to allow the server." -ForegroundColor Yellow
         Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',('"' + $tmp + '"') -Verb RunAs -Wait | Out-Null
-        Write-Host "  Firewall rule added." -ForegroundColor Green
+        Write-Host "  Firewall rule added (port $port TCP+UDP)." -ForegroundColor Green
     } catch {
         Write-Host "  Could not add the firewall rule (was the Windows window cancelled?)." -ForegroundColor Yellow
     }
@@ -202,7 +230,7 @@ function Add-FirewallRule {
 
 function Update-Config {
     param([string]$Name = '', [int]$Players = 0)
-    $cfgPath = $ServerDir + 'ServerConfig.toml'
+    $cfgPath = $RootDir + 'ServerConfig.toml'
     $lines = @(Get-Content -LiteralPath $cfgPath)
     $lines = $lines | ForEach-Object {
         if ($Name -and $_ -match '^\s*Name\s*=') { 'Name = "' + $Name + '"' }
@@ -297,7 +325,7 @@ function Show-SetupWizard {
     Write-Host ""
     Write-Host "  STEP 2 of 2: Server settings" -ForegroundColor Green
     Write-Host "  I'm now setting up the server with sensible defaults..."
-    $cfgPath = $ServerDir + 'ServerConfig.toml'
+    $cfgPath = $RootDir + 'ServerConfig.toml'
     $backupDir = $ServerDir + 'Backups'
     if (-not (Test-Path -LiteralPath $backupDir)) { New-Item -ItemType Directory -Path $backupDir -Force | Out-Null }
     Copy-Item -LiteralPath $cfgPath -Destination (Join-Path $backupDir ("ServerConfig-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + ".toml")) -Force
@@ -344,7 +372,7 @@ function Show-ChangeSettings {
 # MOD MANAGER
 # ---------------------------------------------------------------------------------------
 function Show-ModManager {
-    $client = $ServerDir + 'Resources\Client'
+    $client = $RootDir + 'Resources\Client'
     $backup = $ServerDir + 'Backups\mods'
     $qroot = $ServerDir + 'Quarantine'
     if (-not (Test-Path -LiteralPath $client)) {
@@ -465,7 +493,7 @@ function Check-ForUpdates {
 # STARTUP DIAGNOSTICS (explains why the server failed)
 # ---------------------------------------------------------------------------------------
 function Show-ServerDiagnostics {
-    $log = $ServerDir + 'Server.log'
+    $log = $RootDir + 'Server.log'
     $c = @()
     if (Test-Path -LiteralPath $log) { $c = Get-Content -LiteralPath $log -Tail 20 }
     $txt = $c -join ' '
@@ -490,15 +518,136 @@ function Show-ServerDiagnostics {
 # ---------------------------------------------------------------------------------------
 # CONNECTION INFO FOR FRIENDS
 # ---------------------------------------------------------------------------------------
-function Get-ConnectionInfo {
-    $port = Get-ServerPort
-    $lan = ''
+function Get-LanIp {
     try {
         $addrs = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
             Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' -and $_.PrefixOrigin -ne 'WellKnown' })
         $lan = ($addrs | Where-Object { $_.IPAddress -like '10.*' -or $_.IPAddress -like '192.168.*' -or ($_.IPAddress -like '172.*' -and [int]($_.IPAddress.Split('.')[1]) -ge 16 -and [int]($_.IPAddress.Split('.')[1]) -le 31) } | Select-Object -First 1).IPAddress
         if (-not $lan) { $lan = ($addrs | Select-Object -First 1).IPAddress }
+        return $lan
+    } catch { return '' }
+}
+
+# CGNAT check: carrier-grade NAT public IPs live in 100.64.0.0/10 (RFC 6598).
+function Test-Cgnat([string]$PublicIp) {
+    if (-not $PublicIp) { return $false }
+    $o = $PublicIp.Split('.')
+    if ($o.Count -ne 4) { return $false }
+    return ([int]$o[0] -eq 100 -and [int]$o[1] -ge 64 -and [int]$o[1] -le 127)
+}
+
+# Discovers the router's UPnP InternetGatewayDevice and returns
+# @{ ServiceType = ...; ControlUrl = ... } or $null.
+function Get-UpnpControlUrl {
+    $client = New-Object System.Net.Sockets.UdpClient
+    $client.Client.ReceiveTimeout = 2000
+    $search = "M-SEARCH * HTTP/1.1`r`nHOST: 239.255.255.250:1900`r`nMAN: `"ssdp:discover`"`r`nMX: 2`r`nST: urn:schemas-upnp-org:device:InternetGatewayDevice:1`r`n`r`n"
+    $bytes = [System.Text.Encoding]::ASCII.GetBytes($search)
+    $endpoint = New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Parse('239.255.255.250'), 1900)
+    $locations = @{}
+    try {
+        $client.Send($bytes, $bytes.Length, $endpoint) | Out-Null
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        while ($sw.ElapsedMilliseconds -lt 6000) {
+            try {
+                $resp = $client.Receive([ref]$endpoint)
+                $text = [System.Text.Encoding]::ASCII.GetString($resp)
+                $locLine = $text -split "`r?`n" | Where-Object { $_ -match '^LOCATION:\s*(.+)$' } | Select-Object -First 1
+                if ($locLine -and $locLine -match '^LOCATION:\s*(.+)$') { $locations[$Matches[1].Trim()] = $true }
+            } catch { break }
+        }
     } catch { }
+    $client.Close()
+    foreach ($url in $locations.Keys) {
+        try {
+            $xml = [xml](Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5).Content
+            foreach ($svc in $xml.SelectNodes('//*[local-name()="service"]')) {
+                $stNode = $svc.SelectSingleNode('*[local-name()="serviceType"]')
+                $cuNode = $svc.SelectSingleNode('*[local-name()="controlURL"]')
+                if (-not $stNode -or -not $cuNode) { continue }
+                $st = $stNode.InnerText.Trim()
+                if ($st -notmatch 'WAN(IP|PPP)Connection') { continue }
+                $ctrl = $cuNode.InnerText.Trim()
+                if ($ctrl -notmatch '^https?://') {
+                    if ($ctrl -match '^/') { $ctrl = ($url -replace '^(https?://[^/]+).*$', '$1') + $ctrl }
+                    else { $ctrl = $url.Substring(0, $url.LastIndexOf('/') + 1) + $ctrl }
+                }
+                return @{ ServiceType = $st; ControlUrl = $ctrl }
+            }
+        } catch { }
+    }
+    return $null
+}
+
+# Sends one SOAP AddPortMapping request to the router. Returns $true on success
+# (also when the mapping already exists - error 718 means it is already open).
+function Invoke-UpnpAddMapping {
+    param($Igd, [string]$Protocol, [int]$Port, [string]$LanIp)
+    $body = @"
+<?xml version="1.0"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+ <s:Body>
+  <u:AddPortMapping xmlns:u="$($Igd.ServiceType)">
+   <NewRemoteHost></NewRemoteHost>
+   <NewExternalPort>$Port</NewExternalPort>
+   <NewProtocol>$Protocol</NewProtocol>
+   <NewInternalPort>$Port</NewInternalPort>
+   <NewInternalClient>$LanIp</NewInternalClient>
+   <NewEnabled>1</NewEnabled>
+   <NewPortMappingDescription>K BNG M Hoster</NewPortMappingDescription>
+   <NewLeaseDuration>0</NewLeaseDuration>
+  </u:AddPortMapping>
+ </s:Body>
+</s:Envelope>
+"@
+    try {
+        $r = Invoke-WebRequest -Uri $Igd.ControlUrl -Method Post -Body $body -ContentType 'text/xml; charset="utf-8"' -Headers @{ SOAPACTION = ('"{0}#AddPortMapping"' -f $Igd.ServiceType) } -UseBasicParsing -TimeoutSec 8
+        return $true
+    } catch {
+        if ($_.Exception.Message -match '718') { return $true }
+        return $false
+    }
+}
+
+# Opens the server port on the router via UPnP (no admin needed).
+# Tries the Windows UPnP COM API first, then raw IGD/SSDP+SOAP discovery.
+function Add-UpnpPortForward {
+    param([int]$Port)
+    $lan = Get-LanIp
+    if (-not $lan) { return $false }
+    try {
+        $upnp = New-Object -ComObject HNetCfg.UPnPNAT
+        $map = $upnp.StaticPortMappingCollection
+        if ($map) {
+            $added = $false
+            foreach ($proto in 'TCP', 'UDP') {
+                try { $map.Add($Port, $proto, $Port, $lan, $true, 'K BNG M Hoster'); $added = $true } catch { }
+            }
+            if ($added) { return $true }
+        }
+    } catch { }
+    $igd = Get-UpnpControlUrl
+    if (-not $igd) { return $false }
+    $ok = $false
+    foreach ($proto in 'TCP', 'UDP') {
+        if (Invoke-UpnpAddMapping -Igd $igd -Protocol $proto -Port $Port -LanIp $lan) { $ok = $true }
+    }
+    return $ok
+}
+
+# Asks an external service whether the public IP:port is reachable from the internet.
+function Test-ExternalReachability {
+    param([string]$PublicIp, [int]$Port)
+    try {
+        $r = Invoke-RestMethod -Uri "https://ifconfig.co/port/$Port" -Headers @{ 'User-Agent' = 'K-BNG-M-Hoster' } -TimeoutSec 10
+        if ($null -ne $r.reachable) { return [bool]$r.reachable }
+    } catch { }
+    return $null
+}
+
+function Get-ConnectionInfo {
+    $port = Get-ServerPort
+    $lan = Get-LanIp
     $tail = ''
     try {
         $tailExe = 'C:\Program Files\Tailscale\tailscale.exe'
@@ -519,7 +668,7 @@ function Get-ConnectionInfo {
             @{ ip = $public; checked = (Get-Date).ToString('o') } | ConvertTo-Json | Set-Content -LiteralPath $cache
         } catch { }
     }
-    return [pscustomobject]@{ Port = $port; LAN = $lan; Tailscale = $tail; Public = $public }
+    return [pscustomobject]@{ Port = $port; LAN = $lan; Tailscale = $tail; Public = $public; Cgnat = (Test-Cgnat $public) }
 }
 
 # Returns $true if we can reach our own server over IPv4 loopback (127.0.0.1).
@@ -535,6 +684,60 @@ function Test-Loopback([int]$Port) {
 }
 
 # ---------------------------------------------------------------------------------------
+# CLEAN FOR SHARING (removes every personal/runtime file before zipping the folder)
+# ---------------------------------------------------------------------------------------
+function Show-CleanForSharing {
+    Clear-Host
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host "   Clean personal info (prepare the folder for sharing)" -ForegroundColor Cyan
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  This removes anything personal or temporary:" -ForegroundColor Yellow
+    Write-Host "   - .env            (your secret server key)" -ForegroundColor Yellow
+    Write-Host "   - webhook.txt     (your Discord webhook URL)" -ForegroundColor Yellow
+    Write-Host "   - Logs\, Server.log (IP caches, player names, logs)" -ForegroundColor Yellow
+    Write-Host "   - CONNECTING.txt  (contains your IP addresses)" -ForegroundColor Yellow
+    Write-Host "   - Backups\, Quarantine\  - AuthKey inside ServerConfig.toml" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  Run this BEFORE zipping the folder to give to someone else." -ForegroundColor Cyan
+    Write-Host ""
+    $answer = Read-Host "  Type Y to clean, or N to cancel"
+    if ($answer -match '^\s*[Yy]') {
+        $removed = @()
+        foreach ($p in @('Logs', 'Backups', 'Quarantine', 'CONNECTING.txt', 'Server.log', '.env', 'webhook.txt')) {
+            $full = $ServerDir + $p
+            if (Test-Path -LiteralPath $full) {
+                try {
+                    Remove-Item -LiteralPath $full -Recurse -Force -ErrorAction Stop
+                    $removed += $p
+                } catch {
+                    Write-Host "  Could not remove $p (is it in use?)." -ForegroundColor Red
+                }
+            }
+        }
+        $rootLog = $RootDir + 'Server.log'
+        if (Test-Path -LiteralPath $rootLog) {
+            try { Remove-Item -LiteralPath $rootLog -Force -ErrorAction Stop; $removed += '(top) Server.log' } catch { }
+        }
+        $cfgPath = $RootDir + 'ServerConfig.toml'
+        $lines = @(Get-Content -LiteralPath $cfgPath) | ForEach-Object {
+            if ($_ -match '^\s*AuthKey\s*=') { 'AuthKey = ""' } else { $_ }
+        }
+        Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
+        Write-Host ""
+        if ($removed.Count) {
+            Write-Host "  Removed: $($removed -join ', ')" -ForegroundColor Green
+        } else {
+            Write-Host "  Nothing to clean - the folder was already clean." -ForegroundColor Green
+        }
+        Write-Host "  ServerConfig.toml: AuthKey cleared." -ForegroundColor Green
+        Write-Host "  The folder is now safe to zip and share." -ForegroundColor Green
+        Write-Log "Clean-for-sharing: removed $($removed -join ', ')"
+    }
+    Read-Host "Press Enter to continue"
+}
+
+# ---------------------------------------------------------------------------------------
 # MAIN MENU (auto-starts the server after 8 seconds)
 # ---------------------------------------------------------------------------------------
 function Show-MainMenu {
@@ -547,13 +750,15 @@ function Show-MainMenu {
     Write-Host "   2.  Change Server Name / Players"
     Write-Host "   3.  Mod Manager"
     Write-Host "   4.  Help / Fix Problems"
-    Write-Host "   5.  Exit"
+    Write-Host "   5.  Clean personal info (before sharing)"
+    Write-Host "   6.  Exit"
     Write-Host ""
     $k = Wait-OrKey 8 "  Press ENTER to start now (auto-starts in 8 seconds)..."
     if ($k -eq '2') { return 2 }
     if ($k -eq '3') { return 3 }
     if ($k -eq '4') { return 4 }
     if ($k -eq '5') { return 5 }
+    if ($k -eq '6') { return 6 }
     return 1
 }
 
@@ -588,6 +793,21 @@ function Show-FixMenu {
 
         if (Test-Path -LiteralPath 'C:\Program Files\Tailscale\tailscale.exe') { Write-Host "  [OK] Tailscale: installed" -ForegroundColor Green } else { Write-Host "  [..] Tailscale: not installed (friends can still join via public IP)" -ForegroundColor DarkGray }
 
+        $badVpn = @(Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.InterfaceAlias -match 'Radmin|Hamachi|LogMeIn|ZeroTier' -and $_.Status -eq 'Up' })
+        if ($badVpn) {
+            $issues += 'VPN'
+            Write-Host "  [X] Unsupported VPN active ($($badVpn.InterfaceAlias -join ', ')) - BeamMP says these break UDP. Close it while hosting." -ForegroundColor Red
+        }
+
+        $pubIp = ''
+        try { $pubIp = (Invoke-RestMethod -Uri 'https://api.ipify.org' -TimeoutSec 8).ToString().Trim() } catch { }
+        if (Test-Cgnat $pubIp) {
+            $issues += 'CGNAT'
+            Write-Host "  [X] CGNAT detected (public IP $pubIp is a carrier NAT) - port forwarding can't work" -ForegroundColor Red
+        } elseif ($pubIp) {
+            Write-Host "  [OK] Public IP: $pubIp" -ForegroundColor Green
+        }
+
         Write-Host ""
         Write-Host "  Actions:"
         if ($issues -contains 'AUTHKEY') { Write-Host "   1.  Set up my server key" }
@@ -596,6 +816,7 @@ function Show-FixMenu {
         if ($issues -contains 'FW') { Write-Host "   4.  Add a firewall rule (asks for admin)" }
         if ($issues -contains 'VC') { Write-Host "   5.  Open the Visual C++ installer" }
         if ($issues -contains 'BEAMNG') { Write-Host "   6.  Open BeamNG.drive download" }
+        Write-Host "   7.  Open port $port on the router via UPnP (no admin needed)"
         Write-Host "   X.  Back to main menu"
         Write-Host ""
         $c = Read-Host "  Your choice"
@@ -605,20 +826,29 @@ function Show-FixMenu {
             Start-Process 'https://beammp.com'
         } elseif ($c -eq '3') {
             $np = Get-FreePort
-            $cfgPath = $ServerDir + 'ServerConfig.toml'
+            $cfgPath = $RootDir + 'ServerConfig.toml'
             $lines = @(Get-Content -LiteralPath $cfgPath) | ForEach-Object {
                 if ($_ -match '^\s*Port\s*=') { "Port = $np" } else { $_ }
             }
             Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
             Write-Log "Port changed to $np"
-            Write-Host "  Done! Port changed to $np." -ForegroundColor Green
-            Start-Sleep -Milliseconds 1000
+            Write-Host "  Done! Port changed to $np. Remember: the router must forward $np (TCP+UDP)." -ForegroundColor Green
+            Start-Sleep -Milliseconds 1500
         } elseif ($c -eq '4') {
             Add-FirewallRule
         } elseif ($c -eq '5') {
             Start-Process 'https://aka.ms/vs/17/release/vc_redist.x64.exe'
         } elseif ($c -eq '6') {
             Start-Process 'https://www.beamng.com/game/'
+        } elseif ($c -eq '7') {
+            if (Add-UpnpPortForward $port) {
+                Write-Host "  UPnP: port $port (TCP+UDP) forwarded on the router. Friends can now connect!" -ForegroundColor Green
+                Write-Log "UPnP port-forward OK (port $port, fix menu)"
+            } else {
+                Write-Host "  UPnP failed. Enable UPnP in your router settings, or forward port $port (TCP+UDP) manually." -ForegroundColor Yellow
+                Write-Log "UPnP port-forward failed (port $port, fix menu)"
+            }
+            Start-Sleep -Milliseconds 1500
         } elseif ($c -eq 'X' -or $c -eq 'x') {
             break
         }
@@ -653,7 +883,8 @@ while ($true) {
     if ($choice -eq 2) { Show-ChangeSettings; continue }
     if ($choice -eq 3) { Show-ModManager; continue }
     if ($choice -eq 4) { Show-FixMenu; continue }
-    if ($choice -eq 5) { exit 0 }
+    if ($choice -eq 5) { Show-CleanForSharing; continue }
+    if ($choice -eq 6) { exit 0 }
     # choice 1 -> start the server
     break
 }
@@ -680,12 +911,21 @@ $busy = Get-NetTCPConnection -LocalPort $serverPort -State Listen -ErrorAction S
 if ($busy) {
     $np = Get-FreePort
     Write-Host "  Port $serverPort was in use, switching to port $np automatically." -ForegroundColor Yellow
-    $cfgPath = $ServerDir + 'ServerConfig.toml'
+    $cfgPath = $RootDir + 'ServerConfig.toml'
     $lines = @(Get-Content -LiteralPath $cfgPath) | ForEach-Object {
         if ($_ -match '^\s*Port\s*=') { "Port = $np" } else { $_ }
     }
     Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
     $serverPort = $np
+    Write-Host "  IMPORTANT: your router/UPnP must forward the NEW port $np (TCP+UDP)." -ForegroundColor Red
+    Write-Host "  I am trying to open it automatically now..." -ForegroundColor Yellow
+    if (Add-UpnpPortForward $np) {
+        Write-Host "  UPnP: port $np (TCP+UDP) forwarded on the router." -ForegroundColor Green
+        Write-Log "UPnP forwarded new port $np after busy-port switch"
+    } else {
+        Write-Host "  UPnP unavailable - forward port $np (TCP+UDP) manually in your router." -ForegroundColor Red
+        Write-Log "UPnP failed for new port $np after busy-port switch"
+    }
 }
 
 # Auto-fix: server already running
@@ -697,11 +937,11 @@ if (Get-Process -Name 'BeamMP-Server' -ErrorAction SilentlyContinue) {
 
 # Server name for the live screen
 $serverName = 'K BNG M Server'
-$m = Select-String -LiteralPath ($ServerDir + 'ServerConfig.toml') -Pattern '^\s*Name\s*=\s*"(.*)"' | Select-Object -First 1
+$m = Select-String -LiteralPath ($RootDir + 'ServerConfig.toml') -Pattern '^\s*Name\s*=\s*"(.*)"' | Select-Object -First 1
 if ($m) { $serverName = $m.Matches[0].Groups[1].Value }
 
 # Security scan (quick, silent)
-$clientDir = $ServerDir + 'Resources\Client'
+$clientDir = $RootDir + 'Resources\Client'
 $quarantineDir = $ServerDir + 'Quarantine'
 if (-not (Test-Path -LiteralPath $quarantineDir)) { New-Item -ItemType Directory -Path $quarantineDir -Force | Out-Null }
 if (Test-Path -LiteralPath $clientDir) {
@@ -749,7 +989,7 @@ if (-not $authKey) {
         if ($authKey) { $authSource = '.env file' }
     }
 }
-$cfgPath = $ServerDir + 'ServerConfig.toml'
+$cfgPath = $RootDir + 'ServerConfig.toml'
 if ($authKey) {
     $lines = Get-Content -LiteralPath $cfgPath
     $lines = $lines | ForEach-Object {
@@ -763,11 +1003,27 @@ if ($authKey) {
     exit 1
 }
 
-# Start the server
+# Auto-fix: firewall (asks for admin ONCE - needed so friends can join; no nagging afterwards)
+$fwDeclined = $ServerDir + 'Logs\fw.declined'
+if (-not (Test-FirewallRule) -and -not (Test-Path -LiteralPath $fwDeclined)) {
+    Write-Host "  Opening Windows Firewall for the server (needed so friends can join)..." -ForegroundColor Yellow
+    Write-Host "  A Windows security window will appear - click 'Yes' (only happens once)." -ForegroundColor Yellow
+    Add-FirewallRule
+    if (Test-FirewallRule) {
+        Write-Host "  Firewall is open for the server." -ForegroundColor Green
+        Write-Log "Firewall rule added automatically"
+    } else {
+        Set-Content -LiteralPath $fwDeclined -Value (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+        Write-Log "Firewall rule declined - marker written (fix via Help / Fix Problems later)"
+    }
+}
+
+# Start the server (working dir = the visible top level, so the server uses the
+# ServerConfig.toml and Resources\ folder everyone can see and edit)
 Write-Host "  Starting your server..."
 $startTime = Get-Date
-$server = Start-Process -FilePath ($ServerDir + 'BeamMP-Server.exe') -WorkingDirectory $ServerDir -WindowStyle Minimized -PassThru
-Write-Log "Server process started (PID $($server.Id))"
+$server = Start-Process -FilePath ($ServerDir + 'BeamMP-Server.exe') -WorkingDirectory $RootDir -WindowStyle Minimized -PassThru
+Write-Log "Server process started (PID $($server.Id), working dir $RootDir)"
 
 # Wait up to 40s for the server to listen
 $ready = $false
@@ -788,6 +1044,19 @@ if (-not $ready) {
 }
 Write-Log "Server is live (PID $($server.Id))"
 
+# Try to open the port on the router via UPnP (TCP+UDP) - the key to letting friends in.
+$upnpOk = $false
+Write-Host "  Opening port $serverPort (TCP+UDP) on your router via UPnP..."
+$upnpOk = Add-UpnpPortForward $serverPort
+if ($upnpOk) {
+    Write-Host "  UPnP: port $serverPort forwarded automatically." -ForegroundColor Green
+    Write-Log "UPnP port-forward OK (port $serverPort)"
+} else {
+    Write-Host "  UPnP: not available (router setting off, or unsupported)." -ForegroundColor Yellow
+    Write-Host "  You must forward port $serverPort (TCP+UDP) manually, or use Tailscale." -ForegroundColor Yellow
+    Write-Log "UPnP port-forward unavailable (port $serverPort)"
+}
+
 # Health check (non-destructive): confirm the server answers on 127.0.0.1.
 # Never rewrites the config - BeamMP requires the IPv6 dual-stack bind (IP = "::").
 if (-not (Test-Loopback $serverPort)) {
@@ -803,10 +1072,10 @@ Start-Process powershell -WindowStyle Hidden -ArgumentList ('-NoProfile -Command
 
 # Player activity tracker
 $trackerJob = Start-Job -ScriptBlock {
-    param($ServerDir, $ServerId)
+    param($ServerDir, $RootDir, $ServerId)
     $posF = $ServerDir + 'Logs\serverlog.pos'
     $stateF = $ServerDir + 'Logs\players.tmp'
-    $logF = $ServerDir + 'Server.log'
+    $logF = $RootDir + 'Server.log'
     $whF = $ServerDir + 'webhook.txt'
     function Send-Event([string]$Text, [int]$Color) {
         if (-not (Test-Path -LiteralPath $whF)) { return }
@@ -856,7 +1125,7 @@ $trackerJob = Start-Job -ScriptBlock {
         }
         Start-Sleep -Seconds 3
     }
-} -ArgumentList $ServerDir, $server.Id
+} -ArgumentList $ServerDir, $RootDir, $server.Id
 
 # Webhook: online
 Send-Webhook 'K BNG M Hoster [ONLINE]' 'Server is now live.' 3066993
@@ -881,9 +1150,34 @@ if ($conn.LAN) {
     $copyLine = "$($conn.Tailscale):$($conn.Port)"
 }
 if ($conn.Public) {
-    Write-Host "      Anyone (internet):      $($conn.Public)  :  $($conn.Port)  (needs router port-forwarding)"
+    Write-Host "      Anyone (internet):      $($conn.Public)  :  $($conn.Port)"
 } else {
-    Write-Host "      Anyone (internet):      (public IP not detected - needs router port-forwarding)"
+    Write-Host "      Anyone (internet):      (public IP not detected)"
+}
+Write-Host ""
+if ($upnpOk) {
+    Write-Host "      Router (UPnP):       port $serverPort forwarded - internet players CAN connect." -ForegroundColor Green
+} else {
+    Write-Host "      Router (UPnP):       NOT forwarded - forward port $serverPort (TCP+UDP) manually" -ForegroundColor Yellow
+    Write-Host "                          or use Tailscale (check Tailscale is running on both sides)." -ForegroundColor Yellow
+}
+if ($conn.Cgnat) {
+    Write-Host "      [WARNING] Your ISP uses CGNAT ($($conn.Public)) - port forwarding CANNOT work." -ForegroundColor Red
+    Write-Host "      Use Tailscale instead, or rent a cheap VPS for the server." -ForegroundColor Red
+} elseif ($conn.Public) {
+    $reachable = Test-ExternalReachability -PublicIp $conn.Public -Port $conn.Port
+    if ($reachable -eq $true) {
+        Write-Host "      External test:       $($conn.Public):$($conn.Port) IS reachable from the internet." -ForegroundColor Green
+    } elseif ($reachable -eq $false) {
+        Write-Host "      External test:       $($conn.Public):$($conn.Port) NOT reachable - check forwarding/firewall." -ForegroundColor Red
+    } else {
+        Write-Host "      External test:       could not verify (check https://checkbeammp.beammp.com manually)." -ForegroundColor DarkGray
+    }
+}
+$badVpn = @(Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.InterfaceAlias -match 'Radmin|Hamachi|LogMeIn|ZeroTier' -and $_.Status -eq 'Up' })
+if ($badVpn) {
+    Write-Host "      [WARNING] Unsupported VPN active ($($badVpn.InterfaceAlias -join ', ')) - close it while hosting," -ForegroundColor Yellow
+    Write-Host "      it can block the UDP traffic friends need to join." -ForegroundColor Yellow
 }
 Write-Host ""
 Write-Host "      IMPORTANT: do NOT click your own server in the server list - it uses your"
@@ -909,7 +1203,10 @@ HOW TO CONNECT TO YOUR SERVER
    IP: $(if ($conn.LAN) { "$($conn.LAN)   Port: $($conn.Port)" } else { '(LAN IP not detected - run ipconfig to find yours)' })
 
 3) FRIENDS ANYWHERE (internet):
-   IP: $(if ($conn.Public) { "$($conn.Public)   Port: $($conn.Port) (requires router port-forwarding)" } else { '(public IP not detected - requires router port-forwarding)' })
+   IP: $(if ($conn.Public) { "$($conn.Public)   Port: $($conn.Port)" } else { '(public IP not detected)' })
+
+   Router port forwarding status: $(if ($upnpOk) { 'OPENED AUTOMATICALLY via UPnP - friends can join' } else { 'NOT OPENED - forward port ' + $conn.Port + ' (TCP+UDP) in your router, or use Tailscale' })
+   $(if ($conn.Cgnat) { "WARNING: your ISP uses CGNAT ($($conn.Public)) - public port forwarding can never work. Use Tailscale or a VPS." })
 
 IMPORTANT: Do NOT click your own server in the BeamMP server list.
 It uses your public IP, which fails from inside your own network.
@@ -957,6 +1254,18 @@ Write-Log "Session ended"
 Stop-Job $trackerJob -ErrorAction SilentlyContinue
 if (-not $server.HasExited) { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
 Write-Log "Server stopped"
+# Remove the injected key so the config is always safe to share (re-injected on next start)
+$lines = @(Get-Content -LiteralPath $cfgPath) | ForEach-Object {
+    if ($_ -match '^\s*AuthKey\s*=') { 'AuthKey = ""' } else { $_ }
+}
+Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
+Write-Log "AuthKey removed from ServerConfig.toml (re-injected on next start)"
+# The server writes Server.log to its working folder (the visible top level) -
+# tuck it away into Server\ so the top level stays tidy.
+$rootLog = $RootDir + 'Server.log'
+if (Test-Path -LiteralPath $rootLog) {
+    Move-Item -LiteralPath $rootLog -Destination ($ServerDir + 'Server.log') -Force -ErrorAction SilentlyContinue
+}
 $uptimeMin = [math]::Round(((Get-Date) - $startTime).TotalMinutes, 1)
 Write-Host ""
 Write-Host "  Your server ran for $uptimeMin minute(s). Thanks for using K BNG M Hoster!" -ForegroundColor Green
