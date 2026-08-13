@@ -455,13 +455,56 @@ function Show-Eula {
     Write-Host "===============================================================================" -ForegroundColor Yellow
     Write-Host "              K BNG M Hoster - END USER LICENSE AGREEMENT" -ForegroundColor Yellow
     Write-Host "===============================================================================" -ForegroundColor Yellow
-    Write-Host " Owner / Creator: Kinan (Discord: @raed713)"
+    Write-Host " Proprietary License Agreement (EULA)" -ForegroundColor Cyan
+    Write-Host " Product: K BNG M Hoster"
+    Write-Host " Licensor / Copyright Holder: Kinan (@raed713) - Copyright (c) 2026. All Rights Reserved."
     Write-Host ""
-    Write-Host " TERMS OF SERVICE:"
-    Write-Host " 1. OWNERSHIP: This tool is the intellectual property of Kinan."
-    Write-Host " 2. DISTRIBUTION: Re-uploading, redistributing, or selling is STRICTLY PROHIBITED."
-    Write-Host " 3. TAMPERING: Editing, obfuscating, or removing Kinan's name is ILLEGAL."
-    Write-Host " 4. FAKING: Claiming ownership will result in a permanent ban."
+    Write-Host " IMPORTANT: BY DOWNLOADING, INSTALLING, ACCESSING, OR USING THE SOFTWARE, YOU" -ForegroundColor Yellow
+    Write-Host " ACCEPT AND AGREE TO THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT USE THE SOFTWARE." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host " 1. LICENSE GRANT - LIMITED USE"
+    Write-Host "    You may: (a) run the unmodified Software on your devices for personal," -ForegroundColor Gray
+    Write-Host "    non-commercial use; (b) edit Configuration Files where the documentation" -ForegroundColor Gray
+    Write-Host "    permits (e.g. AuthKey in ServerConfig.toml); (c) add user mod archives" -ForegroundColor Gray
+    Write-Host "    into Resources/Client/ for server-side mod syncing. All other rights are reserved." -ForegroundColor Gray
+    Write-Host ""
+    Write-Host " 2. PROHIBITED CONDUCT"
+    Write-Host "    You shall NOT: (a) modify, patch, adapt, translate, or create derivative works" -ForegroundColor Gray
+    Write-Host "    of the Software; (b) decompile, disassemble, or reverse-engineer it;" -ForegroundColor Gray
+    Write-Host "    (c) redistribute, reupload, mirror, fork, publish, share, sell, sublicense," -ForegroundColor Gray
+    Write-Host "    lease, rent, or transfer the Software, except by directing others to the" -ForegroundColor Gray
+    Write-Host "    official GitHub Releases page; (d) use it for paid hosting or commercial" -ForegroundColor Gray
+    Write-Host "    services without prior written permission; (e) remove, alter, or obscure" -ForegroundColor Gray
+    Write-Host "    any attribution identifying the Licensor (Kinan / @raed713)." -ForegroundColor Gray
+    Write-Host ""
+    Write-Host " 3. TERMINATION"
+    Write-Host "    This license may be terminated immediately upon notice for any breach." -ForegroundColor Gray
+    Write-Host "    Upon termination you must cease use and delete all copies of the Software." -ForegroundColor Gray
+    Write-Host ""
+    Write-Host " 4. DISCLAIMER OF WARRANTY"
+    Write-Host "    THE SOFTWARE IS PROVIDED 'AS IS' AND 'AS AVAILABLE', WITHOUT WARRANTY OF ANY" -ForegroundColor Gray
+    Write-Host "    KIND, EXPRESS OR IMPLIED. THE ENTIRE RISK ARISING OUT OF ITS USE REMAINS WITH YOU." -ForegroundColor Gray
+    Write-Host ""
+    Write-Host " 5. LIMITATION OF LIABILITY"
+    Write-Host "    TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE LICENSOR SHALL NOT BE LIABLE FOR" -ForegroundColor Gray
+    Write-Host "    ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY" -ForegroundColor Gray
+    Write-Host "    LOSS OF PROFITS, DATA, OR GOODWILL, ARISING OUT OF OR RELATED TO THE USE OF" -ForegroundColor Gray
+    Write-Host "    OR INABILITY TO USE THE SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES." -ForegroundColor Gray
+    Write-Host ""
+    Write-Host " 6. GOVERNING LAW"
+    Write-Host "    This Agreement is governed by the laws of Sweden, without regard to its" -ForegroundColor Gray
+    Write-Host "    conflict-of-law provisions. The Licensor may also seek to enforce this" -ForegroundColor Gray
+    Write-Host "    Agreement in any jurisdiction where the Software is used or a breach has occurred." -ForegroundColor Gray
+    Write-Host ""
+    Write-Host " 7. CONTACT"
+    Write-Host "    Legal inquiries, permissions requests, and DMCA notices: open an issue at" -ForegroundColor Gray
+    Write-Host "    https://github.com/Kinan0713/K-BNG-M-Hoster/issues" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host " 8. GENERAL"
+    Write-Host "    Sections 2-8 survive termination. This is the entire agreement regarding the" -ForegroundColor Gray
+    Write-Host "    Software and supersedes any prior agreements or understandings." -ForegroundColor Gray
+    Write-Host ""
+    Write-Host " The full agreement is available in the LICENSE file shipped with this tool." -ForegroundColor Cyan
     Write-Host "===============================================================================" -ForegroundColor Yellow
     Write-Host ""
     $answer = Read-Host "Type Y to accept (required to use this tool) or N to exit"

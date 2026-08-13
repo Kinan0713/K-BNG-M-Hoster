@@ -2,6 +2,12 @@
 
 All notable changes to **K BNG M Hoster** are documented here.
 
+## v0.5.3 — EULA alignment (patch to the Restructured Edition)
+
+### 📜 Built-in license agreement now matches the shipped LICENSE file
+- The in-tool EULA screen now mirrors the full proprietary agreement from `LICENSE` (license grant, prohibited conduct, termination, disclaimer, liability, governing law, contact, general)
+- Applies to all launcher versions, since `Play_BeamMP.ps1` is the single source of truth
+
 ## v0.5.3 — Firewall fix (patch to the Restructured Edition)
 
 ### 🛡️ Firewall checks & rule creation fixed
