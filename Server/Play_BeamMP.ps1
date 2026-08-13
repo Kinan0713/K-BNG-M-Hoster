@@ -199,9 +199,8 @@ function Get-BeamNGPath {
 
 function Test-FirewallRule {
     try {
-        $rules = Get-NetFirewallRule -Direction Inbound -Enabled True -ErrorAction SilentlyContinue |
-            Where-Object { $_.DisplayName -like '*BeamMP*' -or $_.DisplayName -like '*K BNG*' }
-        return [bool]$rules
+        $found = @(netsh advfirewall firewall show rule name=all 2>$null | Select-String -Pattern 'K BNG M Hoster|BeamMP')
+        return [bool]$found
     } catch { }
     return $false
 }
@@ -209,23 +208,46 @@ function Test-FirewallRule {
 function Add-FirewallRule {
     $serverExe = $ServerDir + 'BeamMP-Server.exe'
     $port = Get-ServerPort
-    # Program rule (all ports) + explicit TCP/UDP port rules (BeamMP needs both) + outbound.
+    # First remove any old/duplicate sets, then add one clean set:
+    # program rule (all ports) + explicit TCP/UDP port rules (BeamMP needs both) + outbound.
+    $resultFile = Join-Path $env:TEMP ('kbfw-' + [guid]::NewGuid().ToString('N') + '.txt')
     $script = @"
-New-NetFirewallRule -DisplayName 'K BNG M Hoster' -Direction Inbound -Action Allow -Program '$serverExe' -ErrorAction SilentlyContinue
-New-NetFirewallRule -DisplayName 'K BNG M Hoster UDP $port' -Direction Inbound -Action Allow -Protocol UDP -LocalPort $port -ErrorAction SilentlyContinue
-New-NetFirewallRule -DisplayName 'K BNG M Hoster TCP $port' -Direction Inbound -Action Allow -Protocol TCP -LocalPort $port -ErrorAction SilentlyContinue
-New-NetFirewallRule -DisplayName 'K BNG M Hoster Out' -Direction Outbound -Action Allow -Program '$serverExe' -ErrorAction SilentlyContinue
+`$resultFile = '$resultFile'
+`$lines = @()
+`$del = 0
+Get-NetFirewallRule -ErrorAction SilentlyContinue | Where-Object { `$_.DisplayName -like 'K BNG M Hoster*' } | ForEach-Object {
+    Remove-NetFirewallRule -DisplayName `$_.DisplayName -ErrorAction SilentlyContinue
+    `$del++
+}
+if (`$del -gt 4) { `$lines += "Removed `$del old/duplicate rules first" }
+try { New-NetFirewallRule -DisplayName 'K BNG M Hoster' -Direction Inbound -Action Allow -Program '$serverExe' -ErrorAction Stop -WarningAction SilentlyContinue | Out-Null; `$lines += "[OK] Program rule (inbound, all ports)" } catch { `$lines += "[FAIL] Program rule: " + `$_.Exception.Message }
+try { New-NetFirewallRule -DisplayName 'K BNG M Hoster UDP $port' -Direction Inbound -Action Allow -Protocol UDP -LocalPort $port -ErrorAction Stop -WarningAction SilentlyContinue | Out-Null; `$lines += "[OK] UDP $port rule (inbound)" } catch { `$lines += "[FAIL] UDP rule: " + `$_.Exception.Message }
+try { New-NetFirewallRule -DisplayName 'K BNG M Hoster TCP $port' -Direction Inbound -Action Allow -Protocol TCP -LocalPort $port -ErrorAction Stop -WarningAction SilentlyContinue | Out-Null; `$lines += "[OK] TCP $port rule (inbound)" } catch { `$lines += "[FAIL] TCP rule: " + `$_.Exception.Message }
+try { New-NetFirewallRule -DisplayName 'K BNG M Hoster Out' -Direction Outbound -Action Allow -Program '$serverExe' -ErrorAction Stop -WarningAction SilentlyContinue | Out-Null; `$lines += "[OK] Program rule (outbound, all ports)" } catch { `$lines += "[FAIL] Outbound rule: " + `$_.Exception.Message }
+Set-Content -LiteralPath `$resultFile -Value (`$lines -join [Environment]::NewLine)
+Write-Host ""
+Write-Host "Firewall setup finished - see the result above."
+Read-Host "Press Enter to close this window"
 "@
     $tmp = Join-Path $env:TEMP ('kbfw-' + [guid]::NewGuid().ToString('N') + '.ps1')
     Set-Content -LiteralPath $tmp -Value $script
     try {
         Write-Host "  A Windows security window will appear. Click 'Yes' to allow the server." -ForegroundColor Yellow
-        Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',('"' + $tmp + '"') -Verb RunAs -Wait | Out-Null
-        Write-Host "  Firewall rule added (port $port TCP+UDP)." -ForegroundColor Green
+        Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $tmp + '"') -Verb RunAs -Wait | Out-Null
+        if (Test-Path -LiteralPath $resultFile) {
+            Get-Content -LiteralPath $resultFile | ForEach-Object { Write-Host "  $_" }
+            if (Select-String -LiteralPath $resultFile -Pattern '\[FAIL\]' -Quiet) {
+                Write-Host "  Some rules could not be created - see the messages above." -ForegroundColor Yellow
+            } else {
+                Write-Host "  Firewall is open for the server (port $port TCP+UDP)." -ForegroundColor Green
+            }
+        } else {
+            Write-Host "  Firewall rule added (port $port TCP+UDP)." -ForegroundColor Green
+        }
     } catch {
         Write-Host "  Could not add the firewall rule (was the Windows window cancelled?)." -ForegroundColor Yellow
     }
-    Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $tmp, $resultFile -Force -ErrorAction SilentlyContinue
 }
 
 # ---------------------------------------------------------------------------------------

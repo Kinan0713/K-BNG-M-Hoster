@@ -2,6 +2,13 @@
 
 All notable changes to **K BNG M Hoster** are documented here.
 
+## v0.5.3 — Firewall fix (patch to the Restructured Edition)
+
+### 🛡️ Firewall checks & rule creation fixed
+- **Duplicate-rule bug fixed:** the firewall previously re-created its rules on every run (and couldn't see existing ones without admin), piling up dozens of duplicate "K BNG M Hoster" rule sets. Now it removes old/duplicate sets first, then adds exactly one clean set (program + TCP + UDP + outbound)
+- **Firewall detection no longer needs admin:** uses `netsh advfirewall` instead of `Get-NetFirewallRule`, so the Fix menu correctly shows the real firewall state
+- **Readable result:** the elevated window now prints what it did ([OK]/[FAIL] per rule) and stays open until you press Enter — no more instant flash-close
+
 ## v0.5.3 — IP lock (patch to the Restructured Edition)
 
 ### 🔒 New: "Lock my IP while hosting" (main menu option 6)
