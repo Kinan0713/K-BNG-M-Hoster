@@ -903,9 +903,12 @@ function Show-VpnManager {
         Write-Host "   VPN Manager - Radmin VPN / Hamachi / ZeroTier / Tailscale" -ForegroundColor Cyan
         Write-Host "============================================================" -ForegroundColor Cyan
         Write-Host ""
-        Write-Host "  These VPNs let friends join even when port forwarding" -ForegroundColor DarkGray
-        Write-Host "  cannot work (e.g. CGNAT ISPs). If you have one, start it," -ForegroundColor DarkGray
-        Write-Host "  make sure friends join the same network, then host." -ForegroundColor DarkGray
+        Write-Host "  Port forwarding (Method B) is the #1 way to host - it exposes only" -ForegroundColor DarkGray
+        Write-Host "  the game port and is the right choice when hosting for STRANGERS." -ForegroundColor DarkGray
+        Write-Host "  These VPNs are a fallback for when forwarding can't work (e.g. CGNAT ISPs)." -ForegroundColor DarkGray
+        Write-Host "  SAFETY: a VPN puts friends on a virtual LAN with your PC - they can reach" -ForegroundColor Yellow
+        Write-Host "  file sharing / Remote Desktop etc. Only invite people you TRUST. Never" -ForegroundColor Yellow
+        Write-Host "  invite random players into your VPN network." -ForegroundColor Yellow
         Write-Host ""
         $apps = Get-InstalledVpns
         $running = @(Get-VpnIps)
@@ -1178,7 +1181,7 @@ function Show-MainMenu {
     Write-Host "   4.  Help / Fix Problems"
     Write-Host "   5.  Clean personal info (before sharing)"
     Write-Host "   6.  Lock my IP while hosting  (currently $(if (Test-StaticIpLocked) { 'ON' } else { 'OFF' }))"
-    Write-Host "   7.  VPN Manager (start / install Radmin, Hamachi, ZeroTier, Tailscale)"
+    Write-Host "   7.  VPN Manager (optional - Radmin, Hamachi, ZeroTier, Tailscale)"
     Write-Host "   8.  Exit"
     Write-Host ""
     $k = Wait-OrKey 30 "  Press ENTER to start now (auto-starts in 30 seconds)..."
@@ -1233,7 +1236,7 @@ function Show-FixMenu {
                 Write-Host "      Two VPNs are running - friends must use the same one as the IP line you send." -ForegroundColor Yellow
             }
         } else {
-            Write-Host "  [..] VPN: none running (Radmin/Hamachi/ZeroTier are supported - start one from the VPN Manager, main menu option 7)" -ForegroundColor DarkGray
+            Write-Host "  [..] VPN: none running (VPNs are only needed when port forwarding is impossible - VPN Manager, main menu option 7)" -ForegroundColor DarkGray
         }
 
         $pubIp = ''
@@ -1534,37 +1537,41 @@ if (-not (Test-FirewallRule) -and -not (Test-Path -LiteralPath $fwDeclined)) {
     }
 }
 
-# Pre-start VPN check: when the ISP uses CGNAT, friends can only join via a VPN.
-# If a VPN is installed but not running, ask once; if none installed, offer downloads.
+# Pre-start VPN help: when the ISP uses CGNAT, friends can only reach you via a VPN.
+# Asked ONCE per install (marker file) so it never nags on every start.
 $prePub = ''
 try { $prePub = (Invoke-RestMethod -Uri 'https://api.ipify.org' -TimeoutSec 8).ToString().Trim() } catch { }
+$vpnAskMarker = $ServerDir + 'Logs\vpn.asked'
 if (Test-Cgnat $prePub) {
     $preRunning = @(Get-VpnIps)
     $preApps = Get-InstalledVpns
     $preStarts = @($preApps | Where-Object { $a = $_; $a.Installed -and $a.Key -ne 'tailscale' -and -not [bool]($preRunning | Where-Object { $_.Key -eq $a.Key }) })
-    if ($preStarts.Count) {
+    $preHasAny = [bool]($preApps | Where-Object { $_.Installed })
+    if (-not (Test-Path -LiteralPath $vpnAskMarker) -and ($preStarts.Count -or -not $preHasAny)) {
         Write-Host ""
-        Write-Host "  NOTE: your ISP uses CGNAT, so friends need a VPN to reach you." -ForegroundColor Yellow
-        Write-Host "  Installed but not running: $(($preStarts | ForEach-Object { $_.Name }) -join ', ')." -ForegroundColor Yellow
-        $ans = Read-Host "  Start it/them now? (Y/N)"
-        if ($ans -match '^\s*[Yy]') {
-            foreach ($v in $preStarts) {
-                Write-Host (Start-OrDownload-Vpn $v)
-                if (-not (Read-Host "  Continue starting the rest? (Y/N)") -match '^\s*[Yy]') { break }
+        Write-Host "  NOTE: your ISP uses CGNAT - port forwarding can never work here." -ForegroundColor Yellow
+        Write-Host "  A VPN is the way friends can reach you, but only invite people you TRUST." -ForegroundColor Yellow
+        if ($preStarts.Count) {
+            Write-Host "  Installed but not running: $(($preStarts | ForEach-Object { $_.Name }) -join ', ')." -ForegroundColor Yellow
+            $ans = Read-Host "  Start it/them now? (Y/N)"
+            if ($ans -match '^\s*[Yy]') {
+                foreach ($v in $preStarts) {
+                    Write-Host (Start-OrDownload-Vpn $v)
+                    if (-not (Read-Host "  Continue starting the rest? (Y/N)") -match '^\s*[Yy]') { break }
+                }
+            }
+        } else {
+            $ans = Read-Host "  None installed - open an official download page? (Y/N)"
+            if ($ans -match '^\s*[Yy]') {
+                Write-Host "  R = Radmin VPN    H = Hamachi    Z = ZeroTier    T = Tailscale (recommended)" -ForegroundColor Cyan
+                $p = Read-Host "  Which one? (R/H/Z/T)"
+                $pick = @{ 'R' = 'radmin'; 'H' = 'hamachi'; 'Z' = 'zerotier'; 'T' = 'tailscale' }[$p.ToUpper()]
+                $app = $preApps | Where-Object { $_.Key -eq $pick } | Select-Object -First 1
+                if ($app) { try { Start-Process $app.Url } catch { } }
             }
         }
-    } elseif (-not ($preApps | Where-Object { $_.Installed })) {
-        Write-Host ""
-        Write-Host "  NOTE: your ISP uses CGNAT - friends can't join via your public IP." -ForegroundColor Yellow
-        Write-Host "  You have no VPN installed. Installing a free one fixes this." -ForegroundColor Yellow
-        $ans = Read-Host "  Open the official download page? (Y/N)"
-        if ($ans -match '^\s*[Yy]') {
-            Write-Host "  R = Radmin VPN    H = Hamachi    Z = ZeroTier    T = Tailscale (recommended)" -ForegroundColor Cyan
-            $p = Read-Host "  Which one? (R/H/Z/T)"
-            $pick = @{ 'R' = 'radmin'; 'H' = 'hamachi'; 'Z' = 'zerotier'; 'T' = 'tailscale' }[$p.ToUpper()]
-            $app = $preApps | Where-Object { $_.Key -eq $pick } | Select-Object -First 1
-            if ($app) { try { Start-Process $app.Url } catch { } }
-        }
+        Set-Content -LiteralPath $vpnAskMarker -Value (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+        Write-Log "Pre-start VPN help shown (CGNAT network)"
     }
 }
 
@@ -1732,8 +1739,8 @@ if ($upnpOk) {
 if ($conn.Cgnat) {
     Write-Host "      [WARNING] Your ISP uses CGNAT - your router's WAN IP is 100.x.x.x" -ForegroundColor Red
     Write-Host "      ($(if ($conn.Public) { "internet sees $($conn.Public) " })but the port-forward rules are ignored)." -ForegroundColor Red
-    Write-Host "      Public hosting CANNOT work here - use a VPN (Radmin/Hamachi/ZeroTier/Tailscale," -ForegroundColor Red
-    Write-Host "      VPN Manager option 7) or ask the ISP for a public IP." -ForegroundColor Red
+    Write-Host "      Public hosting CANNOT work here - ask the ISP for a public IP, or use a VPN" -ForegroundColor Red
+    Write-Host "      (Radmin/Hamachi/ZeroTier/Tailscale, VPN Manager option 7) as the fallback." -ForegroundColor Red
 } elseif ($conn.Public) {
     $reachable = Test-ExternalReachability -PublicIp $conn.Public -Port $conn.Port
     if ($reachable -eq $true) {

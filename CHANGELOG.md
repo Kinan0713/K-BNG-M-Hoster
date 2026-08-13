@@ -21,6 +21,11 @@ All notable changes to **K BNG M Hoster** are documented here.
 ### 🩺 Problem Diagnosis key (live screen)
 - Press **P** while hosting for a one-screen report: running VPNs (+IPs), LAN IP, Tailscale, public IP, CGNAT, UPnP state, listening port, firewall rules — so any problem is explained on the spot
 
+### 🔒 VPN is a fallback, not the main event
+- Port forwarding (Method B) is presented as the #1 hosting method; VPNs are only suggested when forwarding is impossible (CGNAT)
+- The pre-start VPN help now asks **once per install** (marker file) instead of every launch — no nagging
+- **Safety warnings added:** the VPN Manager screen and READMEs now warn that a P2P VPN puts players on a virtual LAN with your PC (file sharing, Remote Desktop reachable) — only invite people you trust; for random/unknown players use port forwarding or a VPS
+
 ## v0.5.3 — CGNAT detection upgrade + visible countdown (patch to the Restructured Edition)
 
 ### 🌐 CGNAT is now detected correctly (the "NOT reachable" mystery)
