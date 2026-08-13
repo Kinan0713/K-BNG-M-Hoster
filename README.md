@@ -208,6 +208,17 @@ To load custom vehicles, maps, or physics mods onto your server:
 - *All original code, tools, scripts, and rights belong strictly and exclusively to Kinan.*
 - **Official Discord:** [Innocent BeamMP Server Community](https://discord.gg/2FxsJvKr4a)
 
+### 🤝 Contributions
+
+- **Ali Alldoboni** (`@alialldoboni`) — early co-development of the launcher:
+  - v0.2: initial launcher, README, server config, port fixes
+  - v0.3: launcher bug fixes and improvements
+  - v0.4: user-friendly features and auto-diagnostics
+  - v0.5: zero-skill "Simplest Edition" — guided setup + auto-fix
+  - v0.5.1 / v0.5.2: IPv4/IPv6 binding fixes so same-PC clients can connect
+
+*(Changes by contributors are merged only after review and approval by Kinan.)*
+
 ---
 
 ## 📜 License & Legal
