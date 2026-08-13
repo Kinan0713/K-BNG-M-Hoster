@@ -6,6 +6,11 @@
 
 *Solely created and developed by **Kinan** (`@raed713`)*
 
+> ⚠️ **OFFICIAL DOWNLOAD ONLY** - This tool is distributed exclusively through the
+> GitHub Releases page: https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest
+> Please do NOT share, reupload, or forward this tool to others - everyone should
+> download it from there so they always get the latest version.
+
 ---
 
 ## 🚀 QUICK START (30 seconds)

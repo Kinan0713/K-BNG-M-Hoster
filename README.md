@@ -18,6 +18,8 @@
 
 > 🔽 **Download the latest release:** [K BNG M Hoster v0.5.3 ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
 
+> ⚠️ **Official download only:** Get K BNG M Hoster exclusively from the [GitHub Releases page](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest) above. Please do **not** share, reupload, or forward this tool to others — everyone should download it from here so they always get the latest version.
+
 *Solely created and developed by **Kinan** (`@raed713`)*
 
 ---
@@ -182,6 +184,7 @@ To load custom vehicles, maps, or physics mods onto your server:
 ## 🔐 Security & Privacy
 
 - **No data collection.** The tool is offline, local-only software. It never phones home, sends logs, or uploads anything except the normal BeamMP server traffic.
+- **Clean personal info (menu option 5):** you can remove all personal information from the folder (keys, webhooks, logs, backups and session files) at any time.
 - **Mod safety.** ZIP mods are scanned for executable payloads before being served to players.
 
 ---
@@ -212,6 +215,7 @@ This project is distributed under a proprietary EULA. By using this software you
 - Modifying source code or scripts that are not explicitly authorized
 - Reverse-engineering, decompilation, or extraction of internal logic
 - Reuploading, mirroring, forking, redistributing, or selling the software
+- Sharing the ZIP or the tool itself outside the official [GitHub Releases page](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
 - Removing, altering, or obscuring author attribution (Kinan / @raed713)
 - Accessing internal scripts or proprietary files not explicitly permitted
 
