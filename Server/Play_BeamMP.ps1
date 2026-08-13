@@ -798,7 +798,7 @@ function Get-RouterWanIp {
     return ''
 }
 
-# CGNAT check: carrier-grade NAT public IPs live in 100.64.0.0/10 (RFC 6598).
+# CGNAT check: carrier-grade NAT public IPs live in the ISP CGNAT range (RFC 6598).
 # Checks BOTH the public IP (from the internet) and the router's own WAN IP,
 # because some ISPs hand out a 100.x WAN address while the public IP looks normal.
 function Test-Cgnat([string]$PublicIp) {
@@ -1312,7 +1312,7 @@ function Show-FixMenu {
             Write-Host "  Instead you share ONE public IP with many customers." -ForegroundColor Yellow
             Write-Host ""
             Write-Host "  Proof found on your network:" -ForegroundColor Yellow
-            Write-Host "   - Your router's own WAN IP is in the CGNAT range (100.64.x.x - 100.127.x.x)" -ForegroundColor Gray
+            Write-Host "   - Your router's own WAN IP is in the CGNAT range ISPs use (RFC 6598)" -ForegroundColor Gray
             Write-Host "   - The public IP the internet sees belongs to the ISP, not your router" -ForegroundColor Gray
             Write-Host "   (the scan above shows your actual IPs - both are checked automatically)" -ForegroundColor Gray
             Write-Host ""
@@ -1342,7 +1342,8 @@ function Show-FixMenu {
             Write-Host "  1. Server running?  Start it (option 1) and wait for 'SERVER IS LIVE!'" -ForegroundColor Gray
             Write-Host "     Then reopen this menu (new window: Start_Here.bat fix) while it is live." -ForegroundColor Gray
             Write-Host ""
-            Write-Host "  2. Router forward?  Log into your router (192.168.0.1) and check that" -ForegroundColor Gray
+            Write-Host "  2. Router forward?  Log into your router admin page (address on the router's" -ForegroundColor Gray
+            Write-Host "     sticker) and check that" -ForegroundColor Gray
             Write-Host "     BOTH TCP and UDP $port point to your PC's LAN IP. Enable it if disabled." -ForegroundColor Gray
             Write-Host "     Or press 7 here to open it via UPnP (no admin needed)." -ForegroundColor Gray
             Write-Host ""
