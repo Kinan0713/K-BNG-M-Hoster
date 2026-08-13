@@ -1,5 +1,3 @@
-Here is the full, updated `README.md` code reflecting the new project name **K BNG M Hoster** (*Kinan BeamNG Multiplayer Hoster*):
-
 # 🚗 K BNG M HOSTER
 
 ### *(Kinan BeamNG Multiplayer Hoster)*
@@ -30,6 +28,7 @@ That's everything. The tool handles the server key, settings, ports and problems
 * **Zero-Stress Automation:** Handles server startup and process management automatically.
 * **Flexible Hosting Options:** Full support for both **Tailscale (No Port Forwarding)** and **Public Port Forwarding**.
 * **Seamless Mod Syncing:** Load custom vehicles and maps directly through client resources.
+* **One-Click Launch:** Start the host via `Start_Here.bat`.
 * **Session-Aware Lifecycle (v0.3):** The server starts with your game session and stops automatically the moment the session ends.
 * **Auto Diagnostics (v0.4):** If the server fails to start, the tool reads the server log and tells you exactly why — bad AuthKey, port already in use, missing Visual C++ runtime, or a bad map.
 * **Live Player Activity (v0.4):** Shows how many players are online (and who) while you host, with optional Discord join/leave notifications.
@@ -60,11 +59,6 @@ Before getting started, make sure you have the following downloads ready:
 
 
 1. Go to [BeamMP Keymaster](https://keymaster.beammp.com) and generate a new key.
-```
-```
-```
-BEAMMP_AUTHKEY=PASTE_YOUR_KEY_HERE
-```
 
 >
 
@@ -76,6 +70,9 @@ BEAMMP_AUTHKEY=PASTE_YOUR_KEY_HERE
 | Command | What it does |
 | --- | --- |
 | `Start_Here.bat` | **Just double-click this.** Everything else is automatic |
+| `Start_Here.bat mods` | Open the Mod Manager (list, disable, enable, scan mods) |
+| `Start_Here.bat fix` | Open the Help / Fix Problems menu |
+| `Start_Here.bat help` | Show usage |
 
 
 ---
@@ -93,6 +90,7 @@ Choose **one** of the two hosting methods below depending on how you want player
 #### 🛠️ Host Setup & Connection
 
 1. Launch **Tailscale** on your PC.
+2. Double-click **`Start_Here.bat`** to start the host.
 3. Accept the license prompt, then the tool opens the BeamMP Launcher automatically.
 4. Open **BeamNG.drive**.
 5. Go to: `More...` ➔ `BeamMP` ➔ `Direct Connect`
@@ -117,9 +115,10 @@ Choose **one** of the two hosting methods below depending on how you want player
 
 ```toml
 Private = false
-Port = 30813
+Port = 30814
 ```
-4. Open **BeamNG.drive** and connect via `Direct Connect` (`127.0.0.1:30813`).
+3. Double-click **`Start_Here.bat`** to launch the server.
+4. Open **BeamNG.drive** and connect via `Direct Connect` (`127.0.0.1:30814`).
 
 #### 👥 How Friends Join
 
@@ -135,6 +134,7 @@ To load custom vehicles, maps, or physics mods onto your server:
 ```text
 ```
 2. Drop your mod `.zip` files directly into this directory.
+3. Restart the server by running `Start_Here.bat` again to sync mods automatically with everyone who joins.
 
 >
 
@@ -163,7 +163,3 @@ To load custom vehicles, maps, or physics mods onto your server:
 * **Sole Developer & Creator:** **Kinan** (`@raed713`)
 *All original code, tools, scripts, and rights belong strictly and exclusively to Kinan.*
 * **Official Discord:** [Innocent BeamMP Server Community](https://discord.gg/2FxsJvKr4a)
-
-```
-
-```

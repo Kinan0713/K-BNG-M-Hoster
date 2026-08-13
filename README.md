@@ -12,7 +12,7 @@
 
 # 🚗 <span style="color: #FF6B6B">K</span> <span style="color: #4ECDC4">BNG</span> <span style="color: #45B7D1">M</span> <span style="color: #FFA07A">H</span><span style="color: #98D8C8">o</span><span style="color: #F7DC6F">s</span><span style="color: #BB8FCE">t</span><span style="color: #85C1E2">e</span><span style="color: #F8B88B">r</span> <span style="display: inline-block; animation: shatter 0.6s ease-out forwards;">✨</span>
 
-### *(Kinan BeamNG Multiplayer Hoster)*
+### *(Kinan BeamNG Multiplayer Hoster)* — **v0.5.3**
 
 **The All-In-One Automated BeamMP Hosting & Joining Tool**
 
@@ -29,6 +29,7 @@
 - **Zero-Stress Automation:** Handles server startup and process management automatically.
 - **Flexible Hosting Options:** Full support for both **Tailscale (No Port Forwarding)** and **Public Port Forwarding**.
 - **Seamless Mod Syncing:** Load custom vehicles and maps directly through client resources.
+- **One-Click Launch:** Start the host via `Start_Here.bat`.
 
 ---
 
@@ -53,11 +54,6 @@ Before getting started, make sure you have the following downloads ready:
 ### 2️⃣ Input Your Auth Key
 
 1. Go to [BeamMP Keymaster](https://keymaster.beammp.com) and generate a new key.
-   ```toml
-   AuthKey = "YOUR_KEY_HERE"
-   ```
-3. Replace `"YOUR_KEY_HERE"` with your generated key *(keep the quotation marks)*.
-4. Save (`Ctrl + S`) and close the file.
 
 ---
 
@@ -72,6 +68,7 @@ Choose **one** of the two hosting methods below depending on how you want player
 #### 🛠️ Host Setup & Connection
 
 1. Launch **Tailscale** on your PC.
+2. Double-click **`Start_Here.bat`** to start the host.
 3. Open **BeamNG.drive**.
 4. Go to: `More...` ➔ `BeamMP` ➔ `Direct Connect`
 5. Connect using:
@@ -100,6 +97,7 @@ Choose **one** of the two hosting methods below depending on how you want player
    Private = false
    Port = 30814
    ```
+3. Double-click **`Start_Here.bat`** to launch the server.
 4. Open **BeamNG.drive** and connect via `Direct Connect` (`127.0.0.1:30814`).
 
 #### 👥 How Friends Join
@@ -117,6 +115,7 @@ To load custom vehicles, maps, or physics mods onto your server:
    ```
    ```
 2. Drop your mod `.zip` files directly into this directory.
+3. Restart the server by running `Start_Here.bat` again to sync mods automatically with everyone who joins.
 
 ---
 

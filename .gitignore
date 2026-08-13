@@ -11,3 +11,7 @@ webhook.txt
 
 # Local secrets (never commit your BeamMP AuthKey)
 .env
+
+# Runtime session artifacts
+Server.log
+CONNECTING.txt
