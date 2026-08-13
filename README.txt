@@ -124,7 +124,7 @@ Choose **one** of the two hosting methods below depending on how you want player
 
 ### 🔹 METHOD B: Port Forwarding (Public Server List)
 
-*Best for hosting publicly so anyone can find your server in the BeamMP Server Browser or join via your Public IP.*
+*Best for hosting publicly so anyone can find your server in the BeamMP Server Browser or join via your Public IP. This is also the **right method when hosting for random/unknown players** — it exposes only the game port (TCP+UDP 30814), nothing else on your PC is reachable.*
 
 #### 🛠️ Host Setup & Connection
 
@@ -161,6 +161,8 @@ Port = 30814
 > ℹ️ **Two VPNs running at once?** The tool lists each one with its own IP and reminds you: friends must be on the **same VPN** as the line you send them. Close the unused one to avoid routing confusion.
 >
 > ℹ️ **Honest note:** BeamMP officially recommends **Tailscale** for VPN hosting. Radmin VPN / Hamachi / ZeroTier work for most users, but occasionally UDP traffic can be unreliable through them — if friends connect but lag or drop, switch to Tailscale (Method A).
+>
+> ⚠️ **SAFETY with strangers:** a P2P VPN puts players on a virtual LAN with your PC — they can reach other things on your machine (file sharing, Remote Desktop, printers). **Only invite people you trust.** To host for random players use **Method B (port forwarding)** — it exposes only the game port — or rent a VPS. Never share your VPN network with strangers.
 
 ---
 

@@ -133,7 +133,7 @@ Choose **one** of the hosting methods below depending on how you want players to
 
 ### 🔹 METHOD B: Port Forwarding (Public Server List)
 
-*Best for hosting publicly so anyone can find your server in the BeamMP Server Browser or join via your Public IP.*
+*Best for hosting publicly so anyone can find your server in the BeamMP Server Browser or join via your Public IP. This is also the **right method when hosting for random/unknown players** — it exposes only the game port (TCP+UDP 30814), nothing else on your PC is reachable.*
 
 #### 🛠️ Host Setup & Connection
 
@@ -173,6 +173,8 @@ Choose **one** of the hosting methods below depending on how you want players to
 > ℹ️ **Two VPNs running at once?** The tool lists each one with its own IP and reminds you: friends must be on the **same VPN** as the line you send them. Close the unused one to avoid routing confusion.
 >
 > ℹ️ **Honest note:** BeamMP officially recommends **Tailscale** for VPN hosting. Radmin VPN / Hamachi / ZeroTier work for most users, but occasionally UDP traffic can be unreliable through them — if friends can connect but lag or drop, switch to Tailscale (Method A).
+>
+> ⚠️ **SAFETY with strangers:** a P2P VPN puts players on a virtual LAN with your PC — they can reach other things on your machine (file sharing, Remote Desktop, printers). **Only invite people you trust.** To host for random players use **Method B (port forwarding)** — it exposes only the game port — or rent a VPS. Never share your VPN network with strangers.
 
 ---
 
@@ -214,6 +216,9 @@ To load custom vehicles, maps, or physics mods onto your server:
 
 > **I don't want to touch my router at all.**
 > Use **Method A (Tailscale)** or **Method C (Radmin VPN / Hamachi / ZeroTier)** — no port forwarding needed, works over any network, even behind CGNAT. The **VPN Manager** (main menu option 7) starts or installs them for you.
+
+> **Can I host for random/unknown players?**
+> Yes — use **Method B (port forwarding)** or a VPS: it exposes only the game port, so strangers can't reach anything else on your PC. Do **not** invite strangers into a P2P VPN network (Method C) — they'd be on a virtual LAN with your PC and could probe other services. The VPN Manager warns about this on screen.
 
 ---
 
