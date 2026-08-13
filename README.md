@@ -43,7 +43,7 @@
 | 🎮 **Mod Manager** | List, enable/disable and scan your `Resources/Client/` mods from a menu. |
 | 🔐 **Malware Guard** | Scans mod ZIPs for executables and quarantines anything suspicious. |
 | 👥 **Live Player Activity** | Shows who's online, with optional Discord join/leave notifications. |
-| 🧹 **Privacy Cleaner** | One menu option wipes every personal/temporary file before you share the folder. |
+| 🧹 **Privacy Cleaner** | One menu option removes all personal/temporary files from the folder. |
 | 📡 **Flexible Hosting** | Works with **Tailscale** (no port forwarding) **or** public port forwarding. |
 
 ---
@@ -90,14 +90,14 @@ Keep it simple — the top level only shows the things you actually use:
 | `Launcher.cfg`, `webhook.example.txt` | Support files |
 | `Logs/`, `Server.log`, `CONNECTING.txt` *(created automatically)* | Logs, IP caches and session files |
 
-> The server always runs using the **top-level** `ServerConfig.toml` and `Resources/` — that is why they stay visible. Everything personal or temporary lives inside `Server\`, and menu option **"Clean personal info"** wipes it before you share the folder.
+> The server always runs using the **top-level** `ServerConfig.toml` and `Resources/` — that is why they stay visible. Everything personal or temporary lives inside `Server\`, and menu option **"Clean personal info"** (menu option 5) removes all personal information from the folder.
 
 ### 1️⃣ Input Your Auth Key *(Automatic — Recommended)*
 
 1. Go to [BeamMP Keymaster](https://keymaster.beammp.com) and generate a new key.
 2. Run `Start_Here.bat` — on first launch it asks you to paste the key once, then saves it into `Server\.env` automatically.
 3. Before every launch, the tool reads `Server\.env`, writes your key into `AuthKey` inside `ServerConfig.toml`, starts the server, and **removes the key from the config again when the session ends** so nothing personal is ever left behind.
-4. `Server\.env` is your private file — never share the folder before running **"Clean personal info"** (menu option 5).
+4. `Server\.env` is your private file — you can remove all personal information with **"Clean personal info"** (menu option 5).
 
 > **Alternative — Windows environment variable:** set a system/user variable named `BEAMMP_AUTHKEY`. The environment variable takes priority over `.env`.
 >
