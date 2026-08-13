@@ -1309,11 +1309,12 @@ function Show-FixMenu {
             Write-Host "============================================================" -ForegroundColor Cyan
             Write-Host ""
             Write-Host "  Your ISP does not give your router its own public internet address." -ForegroundColor Yellow
-            Write-Host "  Instead you share ONE public IP (203.0.113.1) with many customers." -ForegroundColor Yellow
+            Write-Host "  Instead you share ONE public IP with many customers." -ForegroundColor Yellow
             Write-Host ""
             Write-Host "  Proof found on your network:" -ForegroundColor Yellow
-            Write-Host "   - Router's own WAN IP: 203.0.113.2  (this is a CGNAT address)" -ForegroundColor Gray
-            Write-Host "   - Public IP the internet sees: 203.0.113.1" -ForegroundColor Gray
+            Write-Host "   - Your router's own WAN IP is in the CGNAT range (100.64.x.x - 100.127.x.x)" -ForegroundColor Gray
+            Write-Host "   - The public IP the internet sees belongs to the ISP, not your router" -ForegroundColor Gray
+            Write-Host "   (the scan above shows your actual IPs - both are checked automatically)" -ForegroundColor Gray
             Write-Host ""
             Write-Host "  Since the public IP is shared, your router's port-forward rules are" -ForegroundColor Gray
             Write-Host "  ignored by the ISP's big NAT device - it does NOT forward 30814 to you." -ForegroundColor Gray

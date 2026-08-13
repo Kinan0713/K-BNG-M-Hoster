@@ -32,7 +32,7 @@ All notable changes to **K BNG M Hoster** are documented here.
 - The tool now reads your **router's own WAN IP** via UPnP and checks it too — many ISPs (like yours) give the router a `100.x.x.x` CGNAT address while the public IP looks normal
 - The Help / Fix menu now shows **both** IPs and a clear explanation when CGNAT is found, with a new action (`8`) explaining the options (Tailscale / ask ISP for public IP / VPS)
 - The live screen and CONNECTING.txt now say "CANNOT WORK - CGNAT" instead of a misleading forwarding hint
-- Verified on a real CGNAT network: router WAN `203.0.113.2` → correctly detected
+- Verified on a real CGNAT network (router WAN in the `100.64.0.0/10` range) → correctly detected
 
 ### ⏱️ Visible countdown in the main menu
 - The 30-second auto-start now shows a live countdown (30, 29, 28...)
