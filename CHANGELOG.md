@@ -32,7 +32,7 @@ All notable changes to **K BNG M Hoster** are documented here.
 - The tool now reads your **router's own WAN IP** via UPnP and checks it too — many ISPs (like yours) give the router a `100.x.x.x` CGNAT address while the public IP looks normal
 - The Help / Fix menu now shows **both** IPs and a clear explanation when CGNAT is found, with a new action (`8`) explaining the options (Tailscale / ask ISP for public IP / VPS)
 - The live screen and CONNECTING.txt now say "CANNOT WORK - CGNAT" instead of a misleading forwarding hint
-- Verified on a real CGNAT network (router WAN in the `100.64.0.0/10` range) → correctly detected
+- Verified on a real CGNAT network (router WAN in the ISP CGNAT range, RFC 6598) → correctly detected
 
 ### ⏱️ Visible countdown in the main menu
 - The 30-second auto-start now shows a live countdown (30, 29, 28...)
@@ -83,7 +83,7 @@ All notable changes to **K BNG M Hoster** are documented here.
 ### 🔌 Connectivity fixes & automation
 - **Port changed to the BeamMP standard `30814`** (was 30813) in `ServerConfig.toml` and launcher defaults
 - **UPnP port forwarding (new):** the launcher tries to add TCP+UDP 30814 automatically on server start and when the port is busy (COM fast path with SSDP/SOAP fallback, 6-second cap, error 718 = already mapped handled)
-- **CGNAT detection (new):** warns if your ISP puts you behind carrier-grade NAT (100.64.0.0/10) where port forwarding can't work
+- **CGNAT detection (new):** warns if your ISP puts you behind carrier-grade NAT (RFC 6598) where port forwarding can't work
 - **VPN detection (new):** warns about Radmin VPN / Hamachi / ZeroTier / LogMeIn adapters that block BeamMP's UDP traffic
 - **External reachability test (new):** the live screen shows whether your public IP:port is actually reachable from the internet
 - **Auto-firewall (new):** opens Windows Firewall rules (program + explicit TCP/UDP port rules) on first start, with a polite one-time UAC prompt; a `Logs\fw.declined` marker prevents nagging if you decline
