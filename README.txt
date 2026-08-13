@@ -43,6 +43,9 @@ That's everything. The tool handles the server key, settings, ports and problems
 * **Deduplicated Firewall (v0.5.3):** The launcher detects existing Windows Firewall rules and never creates duplicates, even on repeated runs without admin rights.
 * **External Reachability Scan (v0.5.3):** The Help / Fix menu tests your `publicIP:port` from the internet while your server is live, and gives you step-by-step fixes when it's not reachable. The main menu also waits 30 seconds before auto-starting, with a visible countdown.
 * **Real CGNAT Detection (v0.5.3):** The tool reads your router's own WAN IP via UPnP — if your ISP hides you behind a `100.x.x.x` carrier NAT, it tells you clearly (and why forwarding can never work) instead of a confusing error.
+* **VPN Manager (v0.5.4):** Main menu option 7. Shows whether **Radmin VPN / Hamachi / ZeroTier / Tailscale** are installed and running, starts any of them with one click, and opens the official download page for any that are missing. If two VPNs run at once it warns you — friends must use the same one as the IP you send.
+* **Pre-Start VPN Help (v0.5.4):** If your ISP is CGNAT, the tool asks whether to start your installed VPNs before the server launches — or offers official download links when you have none.
+* **Problem Diagnosis Key (v0.5.4):** While hosting, press **P** on the live screen for a one-screen report of everything (VPNs, LAN/Tailscale/public IPs, CGNAT, UPnP, listening port, firewall) so any problem is explained on the spot.
 
 ---
 
@@ -55,6 +58,9 @@ Before getting started, make sure you have the following downloads ready:
 | **BeamMP Keymaster** | Get your free server authentication key | [Keymaster Portal](https://keymaster.beammp.com) |
 | **BeamMP Client** | Official multiplayer client for BeamNG.drive | [Download Client](https://beammp.com) |
 | **Tailscale** *(Method A)* | Secure direct connection without changing router settings | [Download Tailscale](https://tailscale.com) |
+| **Radmin VPN** *(Method C)* | Free P2P VPN — friends join your virtual network | [Download Radmin VPN](https://www.radmin-vpn.com/) |
+| **Hamachi** *(Method C)* | Free P2P VPN (up to 5 devices per network) | [Download Hamachi](https://www.vpn.net/) |
+| **ZeroTier** *(Method C)* | Free, open-source P2P VPN | [Download ZeroTier](https://www.zerotier.com/download/) |
 
 ---
 
@@ -132,6 +138,29 @@ Port = 30814
 #### 👥 How Friends Join
 
 * **Option 1 (Server Browser):** Friends can search for your Server Name in the official BeamMP Server Browser.
+
+---
+
+### 🔹 METHOD C: P2P VPN — Radmin VPN / Hamachi / ZeroTier (Private, no port forwarding)
+
+*Best when port forwarding is impossible (e.g. CGNAT ISPs) and you play with a small group of friends. The launcher's **VPN Manager** (main menu option 7) does everything below for you: it shows which VPNs are installed and running, starts them with one click, and opens the official download page for any that are missing.*
+
+#### 🛠️ Host Setup & Connection
+
+1. Install a P2P VPN — **Radmin VPN**, **Hamachi**, or **ZeroTier** (all free and safe; Tailscale/Method A also works).
+2. Start it (via the **VPN Manager**, option 7) and **create/join a network** inside the VPN app.
+3. Double-click **`Start_Here.bat`** — the live screen shows `Friends (VPN <name>): <IP> : port`.
+4. Open **BeamNG.drive** -> `More...` -> `BeamMP` -> `Direct Connect` (`127.0.0.1:30814`).
+
+#### 👥 How Friends Join
+
+1. **Every friend installs the same VPN app** and joins **the same network** as the host.
+2. BeamNG -> `More...` -> `BeamMP` -> `Direct Connect`.
+3. **IP Address:** the host's **VPN IP** shown on the live screen (press **C** to copy it). **Port:** `30814`.
+
+> ℹ️ **Two VPNs running at once?** The tool lists each one with its own IP and reminds you: friends must be on the **same VPN** as the line you send them. Close the unused one to avoid routing confusion.
+>
+> ℹ️ **Honest note:** BeamMP officially recommends **Tailscale** for VPN hosting. Radmin VPN / Hamachi / ZeroTier work for most users, but occasionally UDP traffic can be unreliable through them — if friends connect but lag or drop, switch to Tailscale (Method A).
 
 ---
 

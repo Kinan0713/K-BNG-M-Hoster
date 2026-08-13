@@ -1,5 +1,5 @@
 # ========================================================================================
-# K BNG M Hoster v0.5 - Simplest Edition
+# K BNG M Hoster v0.5.4 - Simplest Edition
 # Purpose: let anyone with zero technical skill host a BeamMP server.
 #
 # This file is the SINGLE source of truth. Start_Here.bat only launches this file.
@@ -109,7 +109,7 @@ function Send-Webhook([string]$Title, [string]$Description, [int]$Color) {
 function Show-Usage {
     Clear-Host
     Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host "  K BNG M Hoster v0.5 - Usage" -ForegroundColor Cyan
+    Write-Host "  K BNG M Hoster v0.5.4 - Usage" -ForegroundColor Cyan
     Write-Host "============================================================" -ForegroundColor Cyan
     Write-Host "  Just double-click Start_Here.bat - that's all."
     Write-Host ""
@@ -136,7 +136,7 @@ function Show-Banner {
     Write-Host "    K  K    B  B  N  NN  G   G    M   M   H   H  O   O     S   T    E    R R" -ForegroundColor Cyan
     Write-Host "    K   K   BBB   N   N   GGG     M   M   H   H   OOO  SSSS    T    EEE  R  RR" -ForegroundColor Cyan
     Write-Host "==================================================================================================" -ForegroundColor Cyan
-    Write-Host "    K BNG M Hoster v0.5 - Simplest Edition"
+    Write-Host "  K BNG M Hoster v0.5.4 - Simplest Edition"
     Write-Host "    Sole Creator: Kinan | Official Discord: @raed713"
     Write-Host "==================================================================================================" -ForegroundColor Cyan
     Write-Host ""
@@ -814,6 +814,140 @@ function Test-Cgnat([string]$PublicIp) {
     return $false
 }
 
+# ---------------------------------------------------------------------------------------
+# VPN SUPPORT (Radmin VPN / Hamachi / ZeroTier / Tailscale)
+# ---------------------------------------------------------------------------------------
+function Get-VpnApps {
+    @(
+        @{ Key = 'radmin';    Name = 'Radmin VPN'; Match = 'Radmin';  Exes = @('C:\Program Files (x86)\Radmin VPN\Radmin_VPN.exe', 'C:\Program Files\Radmin VPN\Radmin_VPN.exe'); Url = 'https://www.radmin-vpn.com/' },
+        @{ Key = 'hamachi';   Name = 'Hamachi';    Match = 'Hamachi'; Exes = @('C:\Program Files (x86)\LogMeIn Hamachi\hamachi-2.exe', 'C:\Program Files\LogMeIn Hamachi\hamachi-ui.exe'); Url = 'https://www.vpn.net/' },
+        @{ Key = 'zerotier';  Name = 'ZeroTier';   Match = 'ZeroTier';Exes = @('C:\Program Files (x86)\ZeroTier\One\zerotier_desktop_ui.exe', 'C:\Program Files (x86)\ZeroTier\One\ZeroTier_GUI.exe', 'C:\Program Files (x86)\ZeroTier\One\zerotier-one_x64.exe', 'C:\Program Files\ZeroTier\One\zerotier_desktop_ui.exe'); Url = 'https://www.zerotier.com/download/' },
+        @{ Key = 'tailscale'; Name = 'Tailscale';  Match = 'Tailscale';Exes = @('C:\Program Files\Tailscale\tailscale-ipn.exe'); Url = 'https://tailscale.com/download' }
+    )
+}
+
+# Which VPNs are installed on this PC? (install paths, Start-menu shortcuts, registry).
+# Returns @{ Key; Name; Url; Exe; Installed } per app.
+function Get-InstalledVpns {
+    $menuDirs = @()
+    foreach ($d in @([Environment]::GetFolderPath('CommonStartMenu'), [Environment]::GetFolderPath('StartMenu'))) { if ($d) { $menuDirs += $d } }
+    $lnks = @(Get-ChildItem -Path $menuDirs -Recurse -Filter '*.lnk' -File -ErrorAction SilentlyContinue)
+    $regItems = @(Get-ItemProperty -Path @(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*') -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName })
+    $out = @()
+    foreach ($app in Get-VpnApps) {
+        $exe = $app.Exes | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+        $installed = [bool]$exe -or [bool]($lnks | Where-Object { $_.Name -match $app.Match }) -or [bool]($regItems | Where-Object { $_.DisplayName -match $app.Match })
+        $out += [pscustomobject]@{ Key = $app.Key; Name = $app.Name; Url = $app.Url; Exe = $(if ($exe) { $exe } else { '' }); Installed = $installed }
+    }
+    return $out
+}
+
+# Which VPNs are RUNNING right now (adapter up), with their IPs.
+# Also catches renamed adapters via the dedicated IP ranges (Radmin 26.x, Hamachi 25.x).
+# Returns @{ Key; Name; Ip; Alias } per adapter (Ip may be '' while still connecting).
+function Get-VpnIps {
+    $out = @()
+    try {
+        $names = @{ radmin = 'Radmin VPN'; hamachi = 'Hamachi'; zerotier = 'ZeroTier'; tailscale = 'Tailscale' }
+        $adaps = @(Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceAlias -match 'Radmin|Hamachi|LogMeIn|ZeroTier|Tailscale' })
+        foreach ($a in $adaps) {
+            $key = if ($a.InterfaceAlias -match 'Radmin') { 'radmin' }
+                   elseif ($a.InterfaceAlias -match 'Hamachi|LogMeIn') { 'hamachi' }
+                   elseif ($a.InterfaceAlias -match 'ZeroTier') { 'zerotier' }
+                   elseif ($a.InterfaceAlias -match 'Tailscale') { 'tailscale' } else { 'vpn' }
+            $ip = ''
+            try { $ip = ((Get-NetIPAddress -InterfaceIndex $a.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | Select-Object -First 1).IPAddress) } catch { }
+            $out += [pscustomobject]@{ Key = $key; Name = $names[$key]; Ip = $ip; Alias = $a.InterfaceAlias }
+        }
+        $dedicated = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -like '26.*' -or $_.IPAddress -like '25.*' })
+        foreach ($d in $dedicated) {
+            if ($out | Where-Object { $_.Ip -eq $d.IPAddress }) { continue }
+            $key = if ($d.IPAddress -like '26.*') { 'radmin' } else { 'hamachi' }
+            $out += [pscustomobject]@{ Key = $key; Name = $names[$key]; Ip = $d.IPAddress; Alias = 'VPN adapter' }
+        }
+    } catch { }
+    return $out
+}
+
+# Starts an installed VPN (or opens its official download page when missing).
+# Waits up to $WaitSeconds and reports what happened in plain language.
+function Start-OrDownload-Vpn($App, [int]$WaitSeconds = 20) {
+    if (-not $App.Installed) {
+        try { Start-Process $App.Url } catch { }
+        return "  [DOWNLOAD] Opened the official page: $($App.Url). Install it, then come back here."
+    }
+    if (-not $App.Exe) {
+        return "  [STUCK] $($App.Name) is installed but I can't find its program file. Start it from the Start menu, then press the key again."
+    }
+    try {
+        Start-Process -FilePath $App.Exe -ErrorAction Stop
+    } catch {
+        return "  [STUCK] Could not start $($App.Name) automatically. Launch it yourself from the Start menu, or reinstall it."
+    }
+    for ($i = 0; $i -lt $WaitSeconds; $i += 4) {
+        Start-Sleep -Seconds 4
+        $hit = @(Get-VpnIps | Where-Object { $_.Key -eq $App.Key -and $_.Ip })
+        if ($hit.Count) { return "  [OK] $($App.Name) connected - friends join via $($hit[0].Ip)" }
+    }
+    return "  [WAIT] $($App.Name) is opening. If it shows no VPN IP, click/join your network inside the app window, then press the key again."
+}
+
+# Full-screen VPN Manager (main menu option 8).
+function Show-VpnManager {
+    do {
+        Clear-Host
+        Write-Host "============================================================" -ForegroundColor Cyan
+        Write-Host "   VPN Manager - Radmin VPN / Hamachi / ZeroTier / Tailscale" -ForegroundColor Cyan
+        Write-Host "============================================================" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "  These VPNs let friends join even when port forwarding" -ForegroundColor DarkGray
+        Write-Host "  cannot work (e.g. CGNAT ISPs). If you have one, start it," -ForegroundColor DarkGray
+        Write-Host "  make sure friends join the same network, then host." -ForegroundColor DarkGray
+        Write-Host ""
+        $apps = Get-InstalledVpns
+        $running = @(Get-VpnIps)
+        foreach ($app in $apps) {
+            $run = @($running | Where-Object { $_.Key -eq $app.Key })
+            if (-not $app.Installed) {
+                Write-Host ("  {0}  {1,-11} NOT installed   (press {0} to open the official download)" -f $app.Key.Substring(0,1).ToUpper(), $app.Name)
+            } elseif ($run.Count -and $run[0].Ip) {
+                Write-Host ("  {0}  {1,-11} RUNNING - IP {2}" -f $app.Key.Substring(0,1).ToUpper(), $app.Name, $run[0].Ip) -ForegroundColor Green
+            } elseif ($run.Count) {
+                Write-Host ("  {0}  {1,-11} RUNNING - connecting (no VPN IP yet)" -f $app.Key.Substring(0,1).ToUpper(), $app.Name) -ForegroundColor Yellow
+            } else {
+                Write-Host ("  {0}  {1,-11} installed, not running   (press {0} to start it)" -f $app.Key.Substring(0,1).ToUpper(), $app.Name)
+            }
+        }
+        Write-Host ""
+        if ($running.Count -ge 2) {
+            Write-Host "  Two VPNs are running at once - friends must use the SAME one as" -ForegroundColor Yellow
+            Write-Host "  the IP line you send them. Close the one they don't use." -ForegroundColor Yellow
+            Write-Host ""
+        }
+        Write-Host "  R = Radmin VPN    H = Hamachi    Z = ZeroTier    T = Tailscale" -ForegroundColor Cyan
+        Write-Host "  A = start ALL installed VPNs          X = back to main menu" -ForegroundColor Cyan
+        Write-Host ""
+        $k = Read-Host "  Your choice"
+        $map = @{ 'R' = 'radmin'; 'H' = 'hamachi'; 'Z' = 'zerotier'; 'T' = 'tailscale' }
+        if ($map.ContainsKey($k.ToUpper())) {
+            $app = $apps | Where-Object { $_.Key -eq $map[$k.ToUpper()] } | Select-Object -First 1
+            if ($app) { Write-Host (Start-OrDownload-Vpn $app); Start-Sleep -Seconds 2 }
+        } elseif ($k.ToUpper() -eq 'A') {
+            $started = 0
+            foreach ($app in $apps | Where-Object { $_.Installed -and $_.Exe }) {
+                $r = Start-OrDownload-Vpn $app 6
+                Write-Host $r
+                if ($r -match '\[OK\]') { $started++ }
+            }
+            if ($started -eq 0) { Write-Host "  No VPN could be started. Install one (press R/H/Z/T) and try again." -ForegroundColor Yellow }
+            Start-Sleep -Seconds 2
+        }
+    } while ($k.ToUpper() -ne 'X')
+}
+
 # Discovers the router's UPnP InternetGatewayDevice and returns
 # @{ ServiceType = ...; ControlUrl = ... } or $null.
 function Get-UpnpControlUrl {
@@ -955,7 +1089,7 @@ function Get-ConnectionInfo {
             @{ ip = $public; checked = (Get-Date).ToString('o') } | ConvertTo-Json | Set-Content -LiteralPath $cache
         } catch { }
     }
-    return [pscustomobject]@{ Port = $port; LAN = $lan; Tailscale = $tail; Public = $public; Cgnat = (Test-Cgnat $public) }
+    return [pscustomobject]@{ Port = $port; LAN = $lan; Tailscale = $tail; Public = $public; Vpn = @(Get-VpnIps | Where-Object { $_.Key -ne 'tailscale' }); Cgnat = (Test-Cgnat $public) }
 }
 
 # Returns $true if we can reach our own server over IPv4 loopback (127.0.0.1).
@@ -1044,7 +1178,8 @@ function Show-MainMenu {
     Write-Host "   4.  Help / Fix Problems"
     Write-Host "   5.  Clean personal info (before sharing)"
     Write-Host "   6.  Lock my IP while hosting  (currently $(if (Test-StaticIpLocked) { 'ON' } else { 'OFF' }))"
-    Write-Host "   7.  Exit"
+    Write-Host "   7.  VPN Manager (start / install Radmin, Hamachi, ZeroTier, Tailscale)"
+    Write-Host "   8.  Exit"
     Write-Host ""
     $k = Wait-OrKey 30 "  Press ENTER to start now (auto-starts in 30 seconds)..."
     if ($k -eq '2') { return 2 }
@@ -1053,6 +1188,7 @@ function Show-MainMenu {
     if ($k -eq '5') { return 5 }
     if ($k -eq '6') { return 6 }
     if ($k -eq '7') { return 7 }
+    if ($k -eq '8') { return 8 }
     return 1
 }
 
@@ -1087,10 +1223,17 @@ function Show-FixMenu {
 
         if (Test-Path -LiteralPath 'C:\Program Files\Tailscale\tailscale.exe') { Write-Host "  [OK] Tailscale: installed" -ForegroundColor Green } else { Write-Host "  [..] Tailscale: not installed (friends can still join via public IP)" -ForegroundColor DarkGray }
 
-        $badVpn = @(Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.InterfaceAlias -match 'Radmin|Hamachi|LogMeIn|ZeroTier' -and $_.Status -eq 'Up' })
-        if ($badVpn) {
-            $issues += 'VPN'
-            Write-Host "  [X] Unsupported VPN active ($($badVpn.InterfaceAlias -join ', ')) - BeamMP says these break UDP. Close it while hosting." -ForegroundColor Red
+        $vpnRunning = @(Get-VpnIps)
+        if ($vpnRunning.Count) {
+            foreach ($v in $vpnRunning) {
+                if ($v.Ip) { Write-Host "  [OK] $($v.Name) running - friends can join via $($v.Ip)" -ForegroundColor Green }
+                else { Write-Host "  [?] $($v.Name) is running but has no VPN IP yet - wait for it to connect" -ForegroundColor Yellow }
+            }
+            if ($vpnRunning.Count -ge 2) {
+                Write-Host "      Two VPNs are running - friends must use the same one as the IP line you send." -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "  [..] VPN: none running (Radmin/Hamachi/ZeroTier are supported - start one from the VPN Manager, main menu option 7)" -ForegroundColor DarkGray
         }
 
         $pubIp = ''
@@ -1202,7 +1345,9 @@ function Show-FixMenu {
             Write-Host "  3. Windows Firewall?  Press 4 here to create the BeamMP rules" -ForegroundColor Gray
             Write-Host "     (they must exist as ALLOW rules on the Public profile - option 4 does this)." -ForegroundColor Gray
             Write-Host ""
-            Write-Host "  4. VPN running?  Close Radmin VPN / Hamachi / ZeroTier - they break UDP." -ForegroundColor Gray
+            Write-Host "  4. VPN running?  Radmin VPN / Hamachi / ZeroTier are supported - friends" -ForegroundColor Gray
+            Write-Host "     join via the VPN IP shown on the live screen. Close an extra VPN only" -ForegroundColor Gray
+            Write-Host "     if it interferes with public hosting." -ForegroundColor Gray
             Write-Host ""
             Write-Host "  5. IP changed?  If your PC's LAN IP changed, the forward breaks." -ForegroundColor Gray
             Write-Host "     Enable 'Lock my IP while hosting' (main menu option 6) to prevent this." -ForegroundColor Gray
@@ -1254,7 +1399,8 @@ while ($true) {
     if ($choice -eq 4) { Show-FixMenu; continue }
     if ($choice -eq 5) { Show-CleanForSharing; continue }
     if ($choice -eq 6) { Toggle-StaticIpLock; continue }
-    if ($choice -eq 7) { exit 0 }
+    if ($choice -eq 7) { Show-VpnManager; continue }
+    if ($choice -eq 8) { exit 0 }
     # choice 1 -> start the server
     break
 }
@@ -1385,6 +1531,40 @@ if (-not (Test-FirewallRule) -and -not (Test-Path -LiteralPath $fwDeclined)) {
     } else {
         Set-Content -LiteralPath $fwDeclined -Value (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
         Write-Log "Firewall rule declined - marker written (fix via Help / Fix Problems later)"
+    }
+}
+
+# Pre-start VPN check: when the ISP uses CGNAT, friends can only join via a VPN.
+# If a VPN is installed but not running, ask once; if none installed, offer downloads.
+$prePub = ''
+try { $prePub = (Invoke-RestMethod -Uri 'https://api.ipify.org' -TimeoutSec 8).ToString().Trim() } catch { }
+if (Test-Cgnat $prePub) {
+    $preRunning = @(Get-VpnIps)
+    $preApps = Get-InstalledVpns
+    $preStarts = @($preApps | Where-Object { $a = $_; $a.Installed -and $a.Key -ne 'tailscale' -and -not [bool]($preRunning | Where-Object { $_.Key -eq $a.Key }) })
+    if ($preStarts.Count) {
+        Write-Host ""
+        Write-Host "  NOTE: your ISP uses CGNAT, so friends need a VPN to reach you." -ForegroundColor Yellow
+        Write-Host "  Installed but not running: $(($preStarts | ForEach-Object { $_.Name }) -join ', ')." -ForegroundColor Yellow
+        $ans = Read-Host "  Start it/them now? (Y/N)"
+        if ($ans -match '^\s*[Yy]') {
+            foreach ($v in $preStarts) {
+                Write-Host (Start-OrDownload-Vpn $v)
+                if (-not (Read-Host "  Continue starting the rest? (Y/N)") -match '^\s*[Yy]') { break }
+            }
+        }
+    } elseif (-not ($preApps | Where-Object { $_.Installed })) {
+        Write-Host ""
+        Write-Host "  NOTE: your ISP uses CGNAT - friends can't join via your public IP." -ForegroundColor Yellow
+        Write-Host "  You have no VPN installed. Installing a free one fixes this." -ForegroundColor Yellow
+        $ans = Read-Host "  Open the official download page? (Y/N)"
+        if ($ans -match '^\s*[Yy]') {
+            Write-Host "  R = Radmin VPN    H = Hamachi    Z = ZeroTier    T = Tailscale (recommended)" -ForegroundColor Cyan
+            $p = Read-Host "  Which one? (R/H/Z/T)"
+            $pick = @{ 'R' = 'radmin'; 'H' = 'hamachi'; 'Z' = 'zerotier'; 'T' = 'tailscale' }[$p.ToUpper()]
+            $app = $preApps | Where-Object { $_.Key -eq $pick } | Select-Object -First 1
+            if ($app) { try { Start-Process $app.Url } catch { } }
+        }
     }
 }
 
@@ -1523,9 +1703,19 @@ Write-Host "      THIS PC (test it now):  127.0.0.1  :  $($conn.Port)"
 if ($conn.LAN) {
     Write-Host "      Friends (same WiFi):    $($conn.LAN)  :  $($conn.Port)"
     $copyLine = "$($conn.LAN):$($conn.Port)"
-} elseif ($conn.Tailscale) {
+}
+$vpnLines = @($conn.Vpn | Where-Object { $_.Ip })
+foreach ($v in $vpnLines) {
+    Write-Host "      Friends (VPN $($v.Name)):  $($v.Ip)  :  $($conn.Port)"
+}
+if (-not $conn.LAN -and $vpnLines.Count) { $copyLine = "$($vpnLines[0].Ip):$($conn.Port)" }
+if ($conn.Tailscale) {
     Write-Host "      Friends (Tailscale):    $($conn.Tailscale)  :  $($conn.Port)"
-    $copyLine = "$($conn.Tailscale):$($conn.Port)"
+    if (-not $conn.LAN -and -not $vpnLines.Count) { $copyLine = "$($conn.Tailscale):$($conn.Port)" }
+}
+if ($vpnLines.Count -ge 2) {
+    Write-Host "      [NOTE] Two VPNs are running: $(($vpnLines | ForEach-Object { "$($_.Name) $($_.Ip)" }) -join ', ')." -ForegroundColor Yellow
+    Write-Host "      Friends must be on the SAME VPN as the line you send. Close the unused one." -ForegroundColor Yellow
 }
 if ($conn.Public) {
     Write-Host "      Anyone (internet):      $($conn.Public)  :  $($conn.Port)"
@@ -1537,12 +1727,13 @@ if ($upnpOk) {
     Write-Host "      Router (UPnP):       port $serverPort forwarded - internet players CAN connect." -ForegroundColor Green
 } else {
     Write-Host "      Router (UPnP):       NOT forwarded - forward port $serverPort (TCP+UDP) manually" -ForegroundColor Yellow
-    Write-Host "                          or use Tailscale (check Tailscale is running on both sides)." -ForegroundColor Yellow
+    Write-Host "                          or use a VPN (VPN Manager, main menu option 7)." -ForegroundColor Yellow
 }
 if ($conn.Cgnat) {
     Write-Host "      [WARNING] Your ISP uses CGNAT - your router's WAN IP is 100.x.x.x" -ForegroundColor Red
     Write-Host "      ($(if ($conn.Public) { "internet sees $($conn.Public) " })but the port-forward rules are ignored)." -ForegroundColor Red
-    Write-Host "      Public hosting CANNOT work here - use Tailscale (free) or ask the ISP for a public IP." -ForegroundColor Red
+    Write-Host "      Public hosting CANNOT work here - use a VPN (Radmin/Hamachi/ZeroTier/Tailscale," -ForegroundColor Red
+    Write-Host "      VPN Manager option 7) or ask the ISP for a public IP." -ForegroundColor Red
 } elseif ($conn.Public) {
     $reachable = Test-ExternalReachability -PublicIp $conn.Public -Port $conn.Port
     if ($reachable -eq $true) {
@@ -1553,21 +1744,28 @@ if ($conn.Cgnat) {
         Write-Host "      External test:       could not verify (check https://checkbeammp.beammp.com manually)." -ForegroundColor DarkGray
     }
 }
-$badVpn = @(Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.InterfaceAlias -match 'Radmin|Hamachi|LogMeIn|ZeroTier' -and $_.Status -eq 'Up' })
-if ($badVpn) {
-    Write-Host "      [WARNING] Unsupported VPN active ($($badVpn.InterfaceAlias -join ', ')) - close it while hosting," -ForegroundColor Yellow
-    Write-Host "      it can block the UDP traffic friends need to join." -ForegroundColor Yellow
+$badVpn = @($conn.Vpn | Where-Object { -not $_.Ip })
+if ($badVpn.Count) {
+    Write-Host "      [NOTE] $($badVpn[0].Name) is running but has no VPN IP yet -" -ForegroundColor Yellow
+    Write-Host "      click/join your network inside the VPN app, or start it from the VPN Manager." -ForegroundColor Yellow
 }
 Write-Host ""
 Write-Host "      IMPORTANT: do NOT click your own server in the server list - it uses your"
 Write-Host "      public IP and fails from inside your own network. Always use Direct Connect."
 Write-Host ""
-Write-Host "      Press C at any time to copy the connection line for your friends."
+Write-Host "      Press C to copy the connection line for your friends, P for a problem diagnosis."
 Write-Host ""
 Write-Host "    Leave this window open. Closing it stops the server."
 Write-Host "=================================================================" -ForegroundColor Green
 
 # Write a plain-language 'how to connect' file next to the launcher
+$vpnDoc = ''
+$vpnWithIp = @($conn.Vpn | Where-Object { $_.Ip })
+if ($vpnWithIp.Count) {
+    foreach ($v in $vpnWithIp) { $vpnDoc += "   Direct Connect, IP: $($v.Ip)   Port: $($conn.Port)  (friends must be on the SAME $($v.Name) network)" + [Environment]::NewLine }
+} else {
+    $vpnDoc = '   Install the same VPN as you (Radmin VPN / Hamachi / ZeroTier / Tailscale), join your network, then Direct Connect with the host VPN IP shown on the live screen.'
+}
 $connectDoc = @"
 HOW TO CONNECT TO YOUR SERVER
 =============================
@@ -1581,11 +1779,14 @@ HOW TO CONNECT TO YOUR SERVER
    BeamNG -> More... -> BeamMP -> Direct Connect
    IP: $(if ($conn.LAN) { "$($conn.LAN)   Port: $($conn.Port)" } else { '(LAN IP not detected - run ipconfig to find yours)' })
 
+2.5) FRIENDS VIA VPN:
+   $vpnDoc
+
 3) FRIENDS ANYWHERE (internet):
    IP: $(if ($conn.Public) { "$($conn.Public)   Port: $($conn.Port)" } else { '(public IP not detected)' })
 
-   Router port forwarding status: $(if ($upnpOk) { 'OPENED AUTOMATICALLY via UPnP - friends can join' } elseif ($conn.Cgnat) { 'CANNOT WORK - your ISP uses CGNAT. Use Tailscale (free) or ask the ISP for a public IP.' } else { 'NOT OPENED - forward port ' + $conn.Port + ' (TCP+UDP) in your router, or use Tailscale' })
-   $(if ($conn.Cgnat) { "WARNING: your ISP uses CGNAT ($($conn.Public)) - public port forwarding can never work. Use Tailscale or a VPS." })
+   Router port forwarding status: $(if ($upnpOk) { 'OPENED AUTOMATICALLY via UPnP - friends can join' } elseif ($conn.Cgnat) { 'CANNOT WORK - your ISP uses CGNAT. Use a VPN (Radmin/Hamachi/ZeroTier/Tailscale) or ask the ISP for a public IP.' } else { 'NOT OPENED - forward port ' + $conn.Port + ' (TCP+UDP) in your router, or use a VPN' })
+   $(if ($conn.Cgnat) { "WARNING: your ISP uses CGNAT ($($conn.Public)) - public port forwarding can never work. Use a VPN or a VPS." })
 
 IMPORTANT: Do NOT click your own server in the BeamMP server list.
 It uses your public IP, which fails from inside your own network.
@@ -1608,6 +1809,21 @@ while (Get-Process -Name 'BeamMP-Launcher' -ErrorAction SilentlyContinue) {
                 Set-Clipboard -Value $copyLine
                 Write-Host ""
                 Write-Host "  Copied! Send this to your friends: $copyLine" -ForegroundColor Green
+            }
+            if ($k.KeyChar -eq 'p' -or $k.KeyChar -eq 'P') {
+                Write-Host ""
+                Write-Host "  PROBLEM DIAGNOSIS:" -ForegroundColor Cyan
+                $diag = Get-ConnectionInfo
+                $diagVpns = @($diag.Vpn | Where-Object { $_.Ip })
+                if ($diagVpns.Count) { $diagVpns | ForEach-Object { Write-Host "    VPN running: $($_.Name) $($_.Ip)" } } else { Write-Host "    VPN running: none (start one from the VPN Manager if friends can't join)" }
+                Write-Host "    LAN IP: $(if ($diag.LAN) { $diag.LAN } else { 'not detected' })"
+                Write-Host "    Tailscale: $(if ($diag.Tailscale) { $diag.Tailscale } else { 'not running' })"
+                Write-Host "    Public IP: $(if ($diag.Public) { $diag.Public } else { 'not detected' })"
+                Write-Host "    CGNAT: $(if ($diag.Cgnat) { 'YES - public hosting cannot work; use a VPN' } else { 'no' })"
+                Write-Host "    Router UPnP: $(if ($upnpOk) { 'port ' + $serverPort + ' forwarded' } else { 'NOT forwarded - use a VPN or forward manually' })"
+                Write-Host "    Server listening: $(if (Test-Loopback $serverPort) { 'yes (127.0.0.1:' + $serverPort + ')' } else { 'NO - restart the server' })"
+                Write-Host "    Firewall rules: $(if (Test-FirewallRule) { 'present' } else { 'MISSING - run Help/Fix, option 4' })"
+                Write-Host ""
             }
         }
     } catch { }
