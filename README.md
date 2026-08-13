@@ -39,7 +39,7 @@
 | 🛡️ **Auto Firewall** | Opens the correct Windows Firewall rules with one polite UAC prompt — existing rules are detected and never duplicated (v0.5.3). |
 | 🔒 **Lock my IP while hosting** | Keeps your LAN IP fixed during a session so router port-forwards never break on DHCP renewals; auto-returns to DHCP when the session ends (v0.5.3, menu option 6). |
 | 🧭 **Reachability Test** | Checks whether your public IP:port is actually reachable from the internet and tells you on screen — with retries and a fallback service (v0.5.3), plus a full scan inside the Help / Fix menu. |
-| ⚠️ **Smart Warnings** | Detects CGNAT ISPs and VPN adapters (Radmin VPN, Hamachi, ZeroTier) that silently break BeamMP's UDP traffic. |
+| ⚠️ **Smart Warnings** | Detects CGNAT ISPs (checks both your public IP **and your router's WAN IP** via UPnP — v0.5.3) and VPN adapters (Radmin VPN, Hamachi, ZeroTier) that silently break BeamMP's UDP traffic. |
 | 🔄 **Busy-Port Auto-Switch** | If your port is taken, picks a free one and warns you loudly. |
 | 👥 **Live Player Activity** | Shows who's online, with optional Discord join/leave notifications. |
 | 🧹 **Privacy Cleaner** | One menu option removes all personal/temporary files from the folder. |

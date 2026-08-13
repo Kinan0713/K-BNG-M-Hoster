@@ -142,18 +142,27 @@ function Show-Banner {
     Write-Host ""
 }
 
-# Waits up to N seconds for a single key press. Returns the char or $null on timeout.
+# Waits up to N seconds for a single key press, showing a live countdown (N, N-1, ...).
+# Returns the char or $null on timeout. Falls back to a silent wait when the console
+# is redirected (no real keyboard, e.g. automated tests).
 function Wait-OrKey([int]$Seconds, [string]$Prompt) {
-    Write-Host $Prompt -NoNewline
-    for ($i = 0; $i -lt $Seconds; $i++) {
-        try {
-            if ([Console]::KeyAvailable) {
-                $key = [Console]::ReadKey($true)
-                return [string]$key.KeyChar
-            }
-        } catch { }
+    Write-Host $Prompt
+    $interactive = $true
+    try { $null = [Console]::KeyAvailable } catch { $interactive = $false }
+    for ($i = $Seconds; $i -gt 0; $i--) {
+        if ($interactive) {
+            try {
+                if ([Console]::KeyAvailable) {
+                    $key = [Console]::ReadKey($true)
+                    Write-Host ("`r" + (' ' * 44) + "`r") -NoNewline
+                    return [string]$key.KeyChar
+                }
+            } catch { $interactive = $false }
+        }
+        if ($interactive) { Write-Host ("`r  Auto-starts in $i seconds...   ") -NoNewline }
         Start-Sleep -Seconds 1
     }
+    if ($interactive) { Write-Host ("`r" + (' ' * 44) + "`r") -NoNewline }
     return $null
 }
 
@@ -776,12 +785,33 @@ function Get-LanIp {
     } catch { return '' }
 }
 
+# Reads the router's own WAN IP via UPnP (GetExternalIPAddress). Empty string if unavailable.
+function Get-RouterWanIp {
+    $igd = Get-UpnpControlUrl
+    if (-not $igd) { return '' }
+    try {
+        $body = "<?xml version=`"1.0`"?><s:Envelope xmlns:s=`"http://schemas.xmlsoap.org/soap/envelope/`" s:encodingStyle=`"http://schemas.xmlsoap.org/soap/encoding/`"><s:Body><u:GetExternalIPAddress xmlns:u=`"$($igd.ServiceType)`"></u:GetExternalIPAddress></s:Body></s:Envelope>"
+        $r = Invoke-WebRequest -Uri $igd.ControlUrl -Method Post -Body $body -ContentType 'text/xml; charset="utf-8"' -Headers @{ SOAPACTION = ('"{0}#GetExternalIPAddress"' -f $igd.ServiceType) } -UseBasicParsing -TimeoutSec 6
+        $m = [regex]::Match($r.Content, '<NewExternalIPAddress>([\d.]+)</NewExternalIPAddress>')
+        if ($m.Success) { return $m.Groups[1].Value }
+    } catch { }
+    return ''
+}
+
 # CGNAT check: carrier-grade NAT public IPs live in 100.64.0.0/10 (RFC 6598).
+# Checks BOTH the public IP (from the internet) and the router's own WAN IP,
+# because some ISPs hand out a 100.x WAN address while the public IP looks normal.
 function Test-Cgnat([string]$PublicIp) {
-    if (-not $PublicIp) { return $false }
-    $o = $PublicIp.Split('.')
-    if ($o.Count -ne 4) { return $false }
-    return ([int]$o[0] -eq 100 -and [int]$o[1] -ge 64 -and [int]$o[1] -le 127)
+    $candidates = @($PublicIp)
+    $routerWan = Get-RouterWanIp
+    if ($routerWan) { $candidates += $routerWan }
+    foreach ($ip in $candidates) {
+        if (-not $ip) { continue }
+        $o = $ip.Split('.')
+        if ($o.Count -ne 4) { continue }
+        if ([int]$o[0] -eq 100 -and [int]$o[1] -ge 64 -and [int]$o[1] -le 127) { return $true }
+    }
+    return $false
 }
 
 # Discovers the router's UPnP InternetGatewayDevice and returns
@@ -1067,7 +1097,10 @@ function Show-FixMenu {
         try { $pubIp = (Invoke-RestMethod -Uri 'https://api.ipify.org' -TimeoutSec 8).ToString().Trim() } catch { }
         if (Test-Cgnat $pubIp) {
             $issues += 'CGNAT'
-            Write-Host "  [X] CGNAT detected (public IP $pubIp is a carrier NAT) - port forwarding can't work" -ForegroundColor Red
+            $routerWan = Get-RouterWanIp
+            Write-Host "  [X] CGNAT detected - your ISP is behind carrier-grade NAT" -ForegroundColor Red
+            Write-Host "      Internet sees: $pubIp   |   Your router's WAN IP: $($routerWan)" -ForegroundColor Red
+            Write-Host "      Port forwarding CANNOT work. Use Tailscale (free) or ask your ISP for a public IP." -ForegroundColor Red
         } elseif ($pubIp) {
             Write-Host "  [OK] Public IP: $pubIp" -ForegroundColor Green
         }
@@ -1097,8 +1130,9 @@ function Show-FixMenu {
         if ($issues -contains 'FW') { Write-Host "   4.  Add a firewall rule (asks for admin)" }
         if ($issues -contains 'VC') { Write-Host "   5.  Open the Visual C++ installer" }
         if ($issues -contains 'BEAMNG') { Write-Host "   6.  Open BeamNG.drive download" }
+        if ($issues -contains 'CGNAT') { Write-Host "   8.  Explain CGNAT (why forwarding can never work here)" }
         Write-Host "   7.  Open port $port on the router via UPnP (no admin needed)"
-        if ($issues -contains 'EXT') { Write-Host "   8.  Show step-by-step fixes for the NOT-reachable result" }
+        if ($issues -contains 'EXT') { Write-Host "   9.  Show step-by-step fixes for the NOT-reachable result" }
         Write-Host "   X.  Back to main menu"
         Write-Host ""
         $c = Read-Host "  Your choice"
@@ -1123,6 +1157,33 @@ function Show-FixMenu {
         } elseif ($c -eq '6') {
             Start-Process 'https://www.beamng.com/game/'
         } elseif ($c -eq '8') {
+            Clear-Host
+            Write-Host "============================================================" -ForegroundColor Cyan
+            Write-Host "   What is CGNAT and why can't I port-forward?" -ForegroundColor Cyan
+            Write-Host "============================================================" -ForegroundColor Cyan
+            Write-Host ""
+            Write-Host "  Your ISP does not give your router its own public internet address." -ForegroundColor Yellow
+            Write-Host "  Instead you share ONE public IP (203.0.113.1) with many customers." -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "  Proof found on your network:" -ForegroundColor Yellow
+            Write-Host "   - Router's own WAN IP: 203.0.113.2  (this is a CGNAT address)" -ForegroundColor Gray
+            Write-Host "   - Public IP the internet sees: 203.0.113.1" -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "  Since the public IP is shared, your router's port-forward rules are" -ForegroundColor Gray
+            Write-Host "  ignored by the ISP's big NAT device - it does NOT forward 30814 to you." -ForegroundColor Gray
+            Write-Host "  Nothing in the router or this tool can change that." -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "  Your options:" -ForegroundColor Green
+            Write-Host "   A) Tailscale (FREE, recommended) - creates a direct encrypted tunnel" -ForegroundColor Green
+            Write-Host "      that works through CGNAT. Friends install Tailscale too and join" -ForegroundColor Green
+            Write-Host "      via your 100.x.x.x Tailscale IP. No router changes needed." -ForegroundColor Green
+            Write-Host "   B) Contact your ISP and ask for a real public IP (often free or a" -ForegroundColor Green
+            Write-Host "      small monthly fee) - then port forwarding will work." -ForegroundColor Green
+            Write-Host "   C) Rent a cheap VPS and run the BeamMP server there instead." -ForegroundColor Green
+            Write-Host ""
+            Write-Host "  Download Tailscale: https://tailscale.com" -ForegroundColor Cyan
+            Read-Host "  Press Enter to continue"
+        } elseif ($c -eq '9') {
             Clear-Host
             Write-Host "============================================================" -ForegroundColor Cyan
             Write-Host "   Fixing a 'NOT reachable' external test result" -ForegroundColor Cyan
@@ -1479,8 +1540,9 @@ if ($upnpOk) {
     Write-Host "                          or use Tailscale (check Tailscale is running on both sides)." -ForegroundColor Yellow
 }
 if ($conn.Cgnat) {
-    Write-Host "      [WARNING] Your ISP uses CGNAT ($($conn.Public)) - port forwarding CANNOT work." -ForegroundColor Red
-    Write-Host "      Use Tailscale instead, or rent a cheap VPS for the server." -ForegroundColor Red
+    Write-Host "      [WARNING] Your ISP uses CGNAT - your router's WAN IP is 100.x.x.x" -ForegroundColor Red
+    Write-Host "      ($(if ($conn.Public) { "internet sees $($conn.Public) " })but the port-forward rules are ignored)." -ForegroundColor Red
+    Write-Host "      Public hosting CANNOT work here - use Tailscale (free) or ask the ISP for a public IP." -ForegroundColor Red
 } elseif ($conn.Public) {
     $reachable = Test-ExternalReachability -PublicIp $conn.Public -Port $conn.Port
     if ($reachable -eq $true) {
@@ -1522,7 +1584,7 @@ HOW TO CONNECT TO YOUR SERVER
 3) FRIENDS ANYWHERE (internet):
    IP: $(if ($conn.Public) { "$($conn.Public)   Port: $($conn.Port)" } else { '(public IP not detected)' })
 
-   Router port forwarding status: $(if ($upnpOk) { 'OPENED AUTOMATICALLY via UPnP - friends can join' } else { 'NOT OPENED - forward port ' + $conn.Port + ' (TCP+UDP) in your router, or use Tailscale' })
+   Router port forwarding status: $(if ($upnpOk) { 'OPENED AUTOMATICALLY via UPnP - friends can join' } elseif ($conn.Cgnat) { 'CANNOT WORK - your ISP uses CGNAT. Use Tailscale (free) or ask the ISP for a public IP.' } else { 'NOT OPENED - forward port ' + $conn.Port + ' (TCP+UDP) in your router, or use Tailscale' })
    $(if ($conn.Cgnat) { "WARNING: your ISP uses CGNAT ($($conn.Public)) - public port forwarding can never work. Use Tailscale or a VPS." })
 
 IMPORTANT: Do NOT click your own server in the BeamMP server list.
