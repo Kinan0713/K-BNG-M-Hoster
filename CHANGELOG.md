@@ -2,6 +2,16 @@
 
 All notable changes to **K BNG M Hoster** are documented here.
 
+## v0.5.3 — External reachability scan + longer auto-start (patch to the Restructured Edition)
+
+### 🌐 Help / Fix menu now scans your external reachability
+- The Fix menu tests `publicIP:port` from the internet while your server is live and shows `[OK]` / `[X]` / `[..]`
+- If it fails, a new action (`8`) walks you through the fixes in order: server running, router forward TCP+UDP, firewall ALLOW rules, VPNs, IP changes
+- The test itself is now more reliable: 3 retries against ifconfig.co, plus a fallback service (hackertarget nmap)
+
+### ⏱️ Main menu auto-start extended
+- The main menu now waits **30 seconds** before auto-starting the server (was 8 seconds), giving you more time to pick an option
+
 ## v0.5.3 — EULA alignment (patch to the Restructured Edition)
 
 ### 📜 Built-in license agreement now matches the shipped LICENSE file

@@ -884,11 +884,20 @@ function Add-UpnpPortForward {
 }
 
 # Asks an external service whether the public IP:port is reachable from the internet.
+# Retries up to 3 times (the service can be slow), then falls back to a second service.
 function Test-ExternalReachability {
     param([string]$PublicIp, [int]$Port)
+    for ($i = 0; $i -lt 3; $i++) {
+        try {
+            $r = Invoke-RestMethod -Uri "https://ifconfig.co/port/$Port" -Headers @{ 'User-Agent' = 'K-BNG-M-Hoster' } -TimeoutSec 10
+            if ($null -ne $r.reachable) { return [bool]$r.reachable }
+        } catch { }
+        if ($i -lt 2) { Start-Sleep -Seconds 3 }
+    }
     try {
-        $r = Invoke-RestMethod -Uri "https://ifconfig.co/port/$Port" -Headers @{ 'User-Agent' = 'K-BNG-M-Hoster' } -TimeoutSec 10
-        if ($null -ne $r.reachable) { return [bool]$r.reachable }
+        $t = (Invoke-WebRequest -Uri "https://api.hackertarget.com/nmap/?q=$PublicIp`:$Port" -UseBasicParsing -TimeoutSec 20).Content
+        if ($t -match 'Host is up' -and $t -match "$Port/tcp\s+open") { return $true }
+        if ($t -match "$Port/tcp\s+(filtered|closed)") { return $false }
     } catch { }
     return $null
 }
@@ -991,7 +1000,7 @@ function Show-CleanForSharing {
 }
 
 # ---------------------------------------------------------------------------------------
-# MAIN MENU (auto-starts the server after 8 seconds)
+# MAIN MENU (auto-starts the server after 30 seconds)
 # ---------------------------------------------------------------------------------------
 function Show-MainMenu {
     Clear-Host
@@ -1007,7 +1016,7 @@ function Show-MainMenu {
     Write-Host "   6.  Lock my IP while hosting  (currently $(if (Test-StaticIpLocked) { 'ON' } else { 'OFF' }))"
     Write-Host "   7.  Exit"
     Write-Host ""
-    $k = Wait-OrKey 8 "  Press ENTER to start now (auto-starts in 8 seconds)..."
+    $k = Wait-OrKey 30 "  Press ENTER to start now (auto-starts in 30 seconds)..."
     if ($k -eq '2') { return 2 }
     if ($k -eq '3') { return 3 }
     if ($k -eq '4') { return 4 }
@@ -1063,6 +1072,23 @@ function Show-FixMenu {
             Write-Host "  [OK] Public IP: $pubIp" -ForegroundColor Green
         }
 
+        $serverListening = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.OwningProcess -ne $PID -and $_.LocalAddress -notmatch '^(127\.|::1$)' } | Select-Object -First 1
+        if ($serverListening) {
+            Write-Host "  Scanning external reachability of $($pubIp):$port from the internet..." -ForegroundColor DarkGray
+            $reachable = Test-ExternalReachability -PublicIp $pubIp -Port $port
+            if ($reachable -eq $true) {
+                Write-Host "  [OK] External reachability: $($pubIp):$port IS reachable from the internet" -ForegroundColor Green
+            } elseif ($reachable -eq $false) {
+                $issues += 'EXT'
+                Write-Host "  [X] External reachability: $($pubIp):$port NOT reachable - check forwarding/firewall" -ForegroundColor Red
+            } else {
+                Write-Host "  [?] External reachability: could not verify (test services unreachable)" -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "  [..] External reachability: not tested - the server is not running right now" -ForegroundColor DarkGray
+            Write-Host "       (start the server first, then reopen this menu while it is live)" -ForegroundColor DarkGray
+        }
+
         Write-Host ""
         Write-Host "  Actions:"
         if ($issues -contains 'AUTHKEY') { Write-Host "   1.  Set up my server key" }
@@ -1072,6 +1098,7 @@ function Show-FixMenu {
         if ($issues -contains 'VC') { Write-Host "   5.  Open the Visual C++ installer" }
         if ($issues -contains 'BEAMNG') { Write-Host "   6.  Open BeamNG.drive download" }
         Write-Host "   7.  Open port $port on the router via UPnP (no admin needed)"
+        if ($issues -contains 'EXT') { Write-Host "   8.  Show step-by-step fixes for the NOT-reachable result" }
         Write-Host "   X.  Back to main menu"
         Write-Host ""
         $c = Read-Host "  Your choice"
@@ -1095,6 +1122,32 @@ function Show-FixMenu {
             Start-Process 'https://aka.ms/vs/17/release/vc_redist.x64.exe'
         } elseif ($c -eq '6') {
             Start-Process 'https://www.beamng.com/game/'
+        } elseif ($c -eq '8') {
+            Clear-Host
+            Write-Host "============================================================" -ForegroundColor Cyan
+            Write-Host "   Fixing a 'NOT reachable' external test result" -ForegroundColor Cyan
+            Write-Host "============================================================" -ForegroundColor Cyan
+            Write-Host ""
+            Write-Host "  The internet test can only pass while your server is LIVE." -ForegroundColor Yellow
+            Write-Host "  Work through these in order:" -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "  1. Server running?  Start it (option 1) and wait for 'SERVER IS LIVE!'" -ForegroundColor Gray
+            Write-Host "     Then reopen this menu (new window: Start_Here.bat fix) while it is live." -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "  2. Router forward?  Log into your router (192.168.0.1) and check that" -ForegroundColor Gray
+            Write-Host "     BOTH TCP and UDP $port point to your PC's LAN IP. Enable it if disabled." -ForegroundColor Gray
+            Write-Host "     Or press 7 here to open it via UPnP (no admin needed)." -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "  3. Windows Firewall?  Press 4 here to create the BeamMP rules" -ForegroundColor Gray
+            Write-Host "     (they must exist as ALLOW rules on the Public profile - option 4 does this)." -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "  4. VPN running?  Close Radmin VPN / Hamachi / ZeroTier - they break UDP." -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "  5. IP changed?  If your PC's LAN IP changed, the forward breaks." -ForegroundColor Gray
+            Write-Host "     Enable 'Lock my IP while hosting' (main menu option 6) to prevent this." -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "  Still stuck? Check your port manually on your phone:  https://checkbeammp.beammp.com" -ForegroundColor Cyan
+            Read-Host "  Press Enter to continue"
         } elseif ($c -eq '7') {
             if (Add-UpnpPortForward $port) {
                 Write-Host "  UPnP: port $port (TCP+UDP) forwarded on the router. Friends can now connect!" -ForegroundColor Green
