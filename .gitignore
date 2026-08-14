@@ -15,3 +15,4 @@ webhook.txt
 # Runtime session artifacts
 Server.log
 CONNECTING.txt
+staticip.cfg
