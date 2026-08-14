@@ -2,6 +2,31 @@
 
 All notable changes to **K BNG M Hoster** are documented here.
 
+## v0.6.0 — GUI edition: the console menus are now a window
+
+### 🪟 The whole tool is now a window (no console)
+- Every menu, screen and prompt from the console edition is now a **graphics window** — friendlier, clearer, and easier to use. The console window no longer opens (the launchers hide it)
+- **Works with mouse and keyboard:** every button has a tooltip explaining exactly what it does, and a keyboard shortcut (`Alt`+underlined letter, `Tab`/`Shift+Tab`, `Enter`, `Esc`, plus `Ctrl+S` Start, `Ctrl+X` Stop, `Ctrl+F` Fix, `Ctrl+V` VPN, `Ctrl+M` Mods, `Ctrl+T` Settings, `Ctrl+D` Diagnose, `Ctrl+C` Copy IP — listed in the status bar at all times)
+
+### 🖥️ Main window
+- **Dashboard:** live status ("SERVER IS LIVE" / "SERVER STOPPED"), server name + port, all connection lines for friends (this PC, LAN, every running VPN, Tailscale, public IP, router/UPnP state), a CGNAT warning badge, a Diagnose button and a Copy IP button
+- **Fix Problems page:** every check is one row with `[OK]` / `[X]` / `[?]` and its own Fix button (key, launcher, BeamNG, port, Visual C++, firewall, VPNs, public IP/CGNAT, external reachability), plus Re-scan and one-click UPnP forwarding
+- **VPN Manager page:** Radmin VPN / Hamachi / ZeroTier / Tailscale — installed / running / IP per row, Start and Download buttons, and Start-all-installed
+- **Mods page:** two lists (enabled / disabled), Disable / Enable / Scan-for-suspicious-files buttons, sizes shown
+- **Settings page:** server name, max players, port, "Lock my IP while hosting", server key setup and update check
+- **Clean personal info** button: wipes key, webhook, logs, IP files, IP-lock (restores DHCP first) — run it before zipping the folder to share
+- Activity log at the bottom shows everything the tool does and why; **EULA**, **key setup** and **CGNAT help** dialogs were carried over from the console edition
+
+### 🧠 Under the hood
+- Logic moved to `Server\HosterCore.ps1` (single source of truth); `Server\Play_BeamMP.ps1` is now only the window
+- Background tasks run off the UI thread, so the window never freezes while it scans, checks or starts the server
+- Closing the window stops the server cleanly (removes the key from `ServerConfig.toml`, restores DHCP when the IP lock is on) — same guarantees as before
+- Launchers (`Start_Here.bat`, `Server\Play_BeamMP.bat`) launch the window with a hidden console; utility modes still work: `Start_Here.bat mods|fix|setup|help`
+
+### ✅ Verified
+- Scripts parse cleanly; the window boots and stays responsive; all logic functions (connection info, fix report, VPN scan, mod list) return correct results in the new background-task model
+- CGNAT detection, VPN detection and the fix report behave exactly as in v0.5.4 (tested on the same real network)
+
 ## v0.5.4 — VPN support: VPN Manager, one-click start, CGNAT-friendly hosting
 
 ### 🖧 New VPN Manager (main menu option 7)

@@ -1,6 +1,5 @@
 @echo off
-title K BNG M Hoster v0.5 - Simplest Edition
+title K BNG M Hoster v0.6 - GUI
 :: START HERE - just double-click this file.
-:: All logic lives in Server\Play_BeamMP.ps1 (single source of truth).
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0Server\Play_BeamMP.ps1" %*
-if errorlevel 1 pause
+:: Launches the GUI (logic lives in Server\HosterCore.ps1).
+powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0Server\Play_BeamMP.ps1" %*
