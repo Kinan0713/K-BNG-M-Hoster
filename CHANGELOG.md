@@ -2,6 +2,24 @@
 
 All notable changes to **K BNG M Hoster** are documented here.
 
+## v0.6.1 — Polished GUI: rounded corners, responsive layout, smarter VPN page
+
+### 🎨 Visual polish
+- Every button, panel and dialog now has **rounded corners** (including the EULA, key-setup and CGNAT dialogs)
+- The **Clean personal info** button is now red, so it stands out from the other buttons
+- The window **scales to any size**: every control stretches and repositions when you resize the window — nothing overlaps or clips, from tiny windows to full screen
+- The whole window is now a single rounded window (no sharp corners) with a cleaner header
+
+### 🧠 Fix Problems page
+- The Fix rows now **grow to fit their text** — long explanations wrap onto multiple lines instead of being cut off
+
+### 🖧 VPN Manager page
+- Fixed: the Start/Download buttons on VPN rows were stuck in the corner of the page (they are now positioned on the right side of each row, where they belong)
+- Rows now span the full page width like the Fix page rows
+
+### ✅ Verified
+- Scripts parse cleanly; buttons verified rounded at the pixel level; the VPN rows, resize behaviour and EULA dialog verified on a real screen; no layout errors in the activity log across all pages and sizes
+
 ## v0.6.0 — GUI edition: the console menus are now a window
 
 ### 🪟 The whole tool is now a window (no console)
