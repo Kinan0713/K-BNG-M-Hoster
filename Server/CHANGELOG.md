@@ -2,6 +2,31 @@
 
 All notable changes to **K BNG M Hoster** are documented here.
 
+## v0.6.3 — Update 6, Fix 3: mods drag & drop, auto-update, polished Guide and Fix buttons
+
+### 🎮 Mods drag & drop
+- Drop any `.zip` mod **anywhere** on the Mods page (either list or the page itself) — it is scanned for executables (`.exe/.vbs/.cmd/.scr/.pif`) and added to `Resources\Client` automatically; suspicious files go to Quarantine instead
+- The list highlights green while you drag a zip over it, so you can see exactly where to drop
+- Replacing an existing mod shows "(replaced an existing file)" in the log
+
+### 🔄 Automatic updates (checks GitHub every time the app opens)
+- On every open, the tool silently checks your GitHub repo for a newer release
+- If one exists: **Download & install now / Open link / Not now**
+- Download is verified (must be a real K BNG M Hoster zip), then the app closes and reinstalls itself automatically — **your key, mods, settings and logs are kept**, old downloaded versions are deleted, and the new version starts by itself
+- Progress is logged to `Server\Logs\updater.log` if anything ever goes wrong
+
+### 📖 Guide page rebuilt (professional look, fixed text size)
+- The guide now sits in a **rounded card with real padding** — text no longer touches the edges
+- Fixed the text rendering bug: the control is created with an explicit font before any text is written, so everything renders at the intended size
+- Step headers (yellow, bold) and indented body text give it a clean, readable hierarchy; jump-buttons are right-aligned and auto-sized
+- New **STEP 8** explains how the auto-update works
+
+### 🛠 Fix Problems buttons now fit their text
+- The Fix/Info buttons on each row **auto-size to their text** (right-aligned, ellipsis fallback) — long labels like "Show step-by-step fixes for the NOT-reachable result" fit fully instead of clipping
+
+### ✅ Verified
+- All scripts parse cleanly; drag & drop, auto-update check + download chain, Guide rendering and fix-scan verified twice on a real screen; the app was re-scanned for personal info before release (no IPs, keys, webhooks or logs in the zip)
+
 ## v0.6.2 — Update 6, Fix 2: bulletproof launcher, everything in one folder, built-in Guide
 
 ### 🚀 Launcher fixed (no more "cmd opens then nothing")

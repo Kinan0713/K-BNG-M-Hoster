@@ -31,7 +31,7 @@ That's everything. The tool handles the server key, settings, ports and problems
 ### ✨ Key Features
 
 * **Full GUI (v0.6.0):** The whole tool is now a **window** - no console, no menus to memorize. Works with **mouse and keyboard**: every button explains itself in a tooltip, `Alt`+underlined letter, `Tab`/`Shift+Tab`, `Enter`, `Esc`, plus `Ctrl+S` Start, `Ctrl+X` Stop, `Ctrl+F` Fix, `Ctrl+V` VPN, `Ctrl+M` Mods, `Ctrl+T` Settings, `Ctrl+D` Diagnose, `Ctrl+C` Copy IP, `Ctrl+G` Guide. The shortcuts are always listed at the bottom of the window.
-* **Built-in Guide (v0.6.2):** The whole README is inside the app - press **Guide** (or `Ctrl+G`) for plain-language steps: start, key, how friends connect, firewall, mods, and sharing safely.
+* **Built-in Guide (v0.6.3):** The whole README is inside the app - press **Guide** (or `Ctrl+G`) for plain-language steps: start, key, how friends connect, firewall, mods, and sharing safely.
 * **Zero-Stress Automation:** Handles server startup and process management automatically.
 * **One-Click Launch:** Start the host via `Start_Here.bat`.
 * **Fix Problems page:** Every check is one row with [OK] / [X] / [?] and its own Fix button: key, launcher, BeamNG, port, Visual C++ runtime, firewall, VPNs, CGNAT and external reachability. Plus one-click UPnP forwarding.

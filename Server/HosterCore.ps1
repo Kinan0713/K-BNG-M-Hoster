@@ -1,5 +1,5 @@
 # ========================================================================================
-# K BNG M Hoster v0.6.2 - HosterCore.ps1
+# K BNG M Hoster v0.6.3 - HosterCore.ps1
 # All logic lives here (single source of truth). The GUI (Play_BeamMP.ps1) and every
 # background task load this file and call these functions. No console UI in this file.
 #
@@ -722,6 +722,40 @@ function Check-ForUpdates {
         } catch { $msg = '' }
     }
     return $msg
+}
+
+# ---------------------------------------------------------------------------------------
+# TOOL SELF-UPDATE (checks THIS app on GitHub - not the BeamMP server)
+# ---------------------------------------------------------------------------------------
+# Returns $null when up to date, or @{ Tag; Version; Url; ZipUrl; ZipName; Notes }.
+function Get-ToolUpdateInfo {
+    param([string]$CurrentVersion)
+    try {
+        $r = Invoke-RestMethod -Uri 'https://api.github.com/repos/Kinan0713/K-BNG-M-Hoster/releases/latest' -Headers @{ 'User-Agent' = 'K-BNG-M-Hoster' } -TimeoutSec 6
+        $tag = [string]$r.tag_name
+        $ver = $tag -replace '^[vV]', ''
+        if ($ver -notmatch '^\d+\.\d+\.\d+$') { return $null }
+        if ([version]$ver -le [version]$CurrentVersion) { return $null }
+        $zip = @($r.assets | Where-Object { $_.name -like '*.zip' } | Select-Object -First 1)
+        if (-not $zip) { return $null }
+        return [pscustomobject]@{ Tag = $tag; Version = $ver; Url = $r.html_url; ZipUrl = $zip[0].browser_download_url; ZipName = $zip[0].name; Notes = [string]$r.body }
+    } catch { return $null }
+}
+
+# Downloads + extracts the new release into Server\Backups\updates\<tag>. Returns the staging folder.
+function Invoke-ToolDownload {
+    param([string]$Tag, [string]$ZipUrl, [string]$ZipName)
+    $updates = $script:ServerDir + 'Backups\updates'
+    if (-not (Test-Path -LiteralPath $updates)) { New-Item -ItemType Directory -Path $updates -Force | Out-Null }
+    $zipPath = Join-Path $updates $ZipName
+    Invoke-WebRequest -Uri $ZipUrl -OutFile $zipPath -Headers @{ 'User-Agent' = 'K-BNG-M-Hoster' } -TimeoutSec 120
+    if (-not (Test-Path -LiteralPath $zipPath) -or (Get-Item -LiteralPath $zipPath).Length -eq 0) { throw 'The download failed (empty file). Try again, or download it from the browser instead.' }
+    $staging = Join-Path $updates $Tag
+    if (Test-Path -LiteralPath $staging) { Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue }
+    New-Item -ItemType Directory -Path $staging -Force | Out-Null
+    Expand-Archive -LiteralPath $zipPath -DestinationPath $staging -Force
+    if (-not (Test-Path -LiteralPath (Join-Path $staging 'Server\Play_BeamMP.ps1')) -or -not (Test-Path -LiteralPath (Join-Path $staging 'Start_Here.bat'))) { throw 'The downloaded file is not a K BNG M Hoster update - aborted.' }
+    return $staging
 }
 
 # Full fix-menu report: one object per check with Key / Label / Ok / Detail / Action / NeedsAction.
