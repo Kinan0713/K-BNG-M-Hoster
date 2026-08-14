@@ -1,16 +1,17 @@
 # ========================================================================================
-# K BNG M Hoster v0.6.1 - HosterCore.ps1
+# K BNG M Hoster v0.6.2 - HosterCore.ps1
 # All logic lives here (single source of truth). The GUI (Play_BeamMP.ps1) and every
 # background task load this file and call these functions. No console UI in this file.
 #
 # Folder layout (public release):
-#   Top level (visible):  Start_Here.bat, README.md, README.txt,
-#                         ServerConfig.toml, Resources\
-#   Server\ (engine):     this file, Play_BeamMP.ps1, BeamMP-Server.exe,
-#                         Launcher.cfg, logs, .env (your key), webhook.txt.
+#   Top level (all the user ever needs):  Start_Here.bat, README.md, README.txt,
+#                                         CHANGELOG.md, LICENSE
+#   Server\ (the engine - users never open it): this file, Play_BeamMP.ps1,
+#                         BeamMP-Server.exe, Launcher.cfg, ServerConfig.toml,
+#                         Resources\, logs, .env (your key), webhook.txt.
 #
-# The server process runs FROM the top-level folder, so the visible
-# ServerConfig.toml and Resources\ are the ones it actually uses.
+# The server process runs FROM the Server\ folder, so the ServerConfig.toml
+# and Resources\ it uses live next to it.
 #
 # Optional: drop your Discord webhook URL into "Server\webhook.txt"
 # to announce server online/offline and player join/leave events.

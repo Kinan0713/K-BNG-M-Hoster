@@ -1,5 +1,5 @@
 # ========================================================================================
-# K BNG M Hoster v0.6.1 - Simplest Edition (GUI)
+# K BNG M Hoster v0.6.2 - Simplest Edition (GUI)
 # All logic lives in HosterCore.ps1 (single source of truth). This file is the window.
 # Start_Here.bat / Play_BeamMP.bat only launch this file.
 #
@@ -24,19 +24,27 @@ elseif ($Mode -eq 'setup') { $Setup = $true }
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
-Add-Type @"
+try {
+    Add-Type @"
 using System;
 using System.Runtime.InteropServices;
 public class Win32R {
     [DllImport("user32.dll")] public static extern int SetWindowRgn(IntPtr hWnd, IntPtr hRgn, bool bRedraw);
 }
 "@
+} catch { }
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
 $ErrorActionPreference = 'SilentlyContinue'
 
 . (Join-Path $PSScriptRoot 'HosterCore.ps1')
 Initialize-HosterPaths
+
+# Top-level app folder (the one holding Start_Here.bat) - used by "Open Folder".
+$script:AppDir = $script:RootDir
+if ((Split-Path -Leaf $script:RootDir.TrimEnd('\')) -eq 'Server') {
+    $script:AppDir = (Split-Path -Parent $script:RootDir.TrimEnd('\')).TrimEnd('\') + '\'
+}
 
 if (-not (Test-Path -LiteralPath ($script:ServerDir + 'BeamMP-Server.exe')) -or -not (Test-Path -LiteralPath ($script:RootDir + 'ServerConfig.toml'))) {
     [System.Windows.Forms.MessageBox]::Show(
@@ -220,7 +228,7 @@ function Update-BusyUi {
 # MAIN FORM
 # ---------------------------------------------------------------------------------------
 $script:Form = New-Object System.Windows.Forms.Form
-$script:Form.Text = 'K BNG M Hoster v0.6.1 - by Kinan (@raed713)'
+$script:Form.Text = 'K BNG M Hoster v0.6.2 - by Kinan (@raed713)'
 $script:Form.Size = New-Object System.Drawing.Size(1000, 720)
 $script:Form.MinimumSize = New-Object System.Drawing.Size(960, 660)
 $script:Form.StartPosition = 'CenterScreen'
@@ -240,7 +248,7 @@ $header.Height = 62
 $header.BackColor = $C.panel
 $title = New-Lbl 'K BNG M Hoster' ([System.Drawing.Color]::White) 19 30 $true
 $title.Location = New-Object System.Drawing.Point(14, 6)
-$subtitle = New-Lbl 'v0.6.1  |  Simplest Edition  |  Sole Creator: Kinan  |  Discord: @raed713' $C.dim 9 18
+$subtitle = New-Lbl 'v0.6.2  |  Update 6 - Fix 2  |  Sole Creator: Kinan  |  Discord: @raed713' $C.dim 9 18
 $subtitle.Location = New-Object System.Drawing.Point(15, 38)
 $header.Controls.Add($title)
 $header.Controls.Add($subtitle)
@@ -274,7 +282,9 @@ $script:BtnClean.FlatAppearance.MouseOverBackColor = [System.Drawing.Color]::Fro
 $script:BtnClean.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(220, 60, 60)
 $script:BtnClean.ForeColor = [System.Drawing.Color]::White
 
-$btnOpen = New-Btn '&Open Folder' 'Open the K BNG M Hoster folder in Explorer.' { Start-Process explorer.exe -ArgumentList ('"' + $script:RootDir + '"') }
+$btnOpen = New-Btn '&Open Folder' 'Open the K BNG M Hoster folder in Explorer.' { Start-Process explorer.exe -ArgumentList ('"' + $script:AppDir + '"') }
+
+$script:BtnGuide = New-Btn '&Guide' 'How everything works, step by step - the whole README inside the app. (Ctrl+G)' { Show-GuidePage }
 
 # Design-time geometry for every chrome control (scaled on every resize).
 $script:ChromeSpecs = @(
@@ -285,11 +295,12 @@ $script:ChromeSpecs = @(
     @{ Btn = $script:BtnMods;     X = 440; Y = 6; W = 66;  H = 38 },
     @{ Btn = $script:BtnSettings; X = 512; Y = 6; W = 88;  H = 38 },
     @{ Btn = $script:BtnClean;    X = 606; Y = 6; W = 94;  H = 38 },
-    @{ Btn = $btnOpen;            X = 706; Y = 6; W = 98;  H = 38 }
+    @{ Btn = $btnOpen;            X = 706; Y = 6; W = 98;  H = 38 },
+    @{ Btn = $script:BtnGuide;    X = 810; Y = 6; W = 82;  H = 38 }
 )
 $script:ChromeReady = $false
 
-foreach ($b in @($script:BtnStart, $script:BtnStop, $script:BtnFix, $script:BtnVpn, $script:BtnMods, $script:BtnSettings, $script:BtnClean, $btnOpen)) { $toolbar.Controls.Add($b) }
+foreach ($b in @($script:BtnStart, $script:BtnStop, $script:BtnFix, $script:BtnVpn, $script:BtnMods, $script:BtnSettings, $script:BtnClean, $btnOpen, $script:BtnGuide)) { $toolbar.Controls.Add($b) }
 
 # Re-layout the fixed chrome (header / toolbar / status bar / log panel) to the window size.
 function Layout-Chrome {
@@ -324,7 +335,7 @@ $statusBar = New-Object System.Windows.Forms.Panel
 $statusBar.Dock = 'Bottom'
 $statusBar.Height = 26
 $statusBar.BackColor = $C.panel
-$script:LblShortcuts = New-Lbl 'Ctrl+S Start  |  Ctrl+X Stop  |  Ctrl+F Fix  |  Ctrl+V VPN  |  Ctrl+M Mods  |  Ctrl+T Settings  |  Ctrl+D Diagnose  |  Ctrl+C Copy IP  |  Tab = next  |  Enter = activate  |  Esc = close dialogs' $C.dim 8 20
+$script:LblShortcuts = New-Lbl 'Ctrl+S Start  |  Ctrl+X Stop  |  Ctrl+F Fix  |  Ctrl+V VPN  |  Ctrl+M Mods  |  Ctrl+T Settings  |  Ctrl+G Guide  |  Ctrl+D Diagnose  |  Ctrl+C Copy IP  |  Tab next  |  Enter activate  |  Esc close' $C.dim 8 20
 $script:LblShortcuts.AutoSize = $false
 $script:LblShortcuts.Width = 940
 $script:LblShortcuts.Location = New-Object System.Drawing.Point(10, 3)
@@ -1585,6 +1596,119 @@ $timerLive.Add_Tick({
 $timerLive.Start()
 
 # ---------------------------------------------------------------------------------------
+# GUIDE PAGE (the README lives inside the app)
+# ---------------------------------------------------------------------------------------
+function Add-GuideLine([string]$Text, [string]$Color = 'text', [bool]$Bold = $false, [float]$Size = 10.5) {
+    if (-not $script:GuideBox) { return }
+    $script:GuideBox.SelectionStart = $script:GuideBox.TextLength
+    $script:GuideBox.SelectionLength = 0
+    $script:GuideBox.SelectionColor = $C[$Color]
+    $script:GuideBox.SelectionFont = New-Object System.Drawing.Font('Segoe UI', $Size, $(if ($Bold) { [System.Drawing.FontStyle]::Bold } else { [System.Drawing.FontStyle]::Regular }))
+    $script:GuideBox.AppendText($Text + [Environment]::NewLine)
+}
+
+function Show-GuidePage {
+    $script:Content.Controls.Clear()
+    $p = New-Object System.Windows.Forms.Panel
+    $p.Dock = 'Fill'
+    $p.BackColor = $C.bg
+
+    $script:GuideHead = New-Lbl 'Guide  -  everything you need, no files to open' $C.blue 14 26 $true
+    $script:GuideHead.Location = New-Object System.Drawing.Point(14, 6)
+    $p.Controls.Add($script:GuideHead)
+
+    $script:GuideBtns = @(
+        (New-Btn '&Start Server' 'Go to the dashboard and start the server. (Ctrl+S)' { Show-DashboardPage }),
+        (New-Btn '&Fix Problems' 'Open the Fix Problems page. (Ctrl+F)' { Show-FixPage }),
+        (New-Btn '&VPN Manager' 'Open the VPN Manager page. (Ctrl+V)' { Show-VpnPage }),
+        (New-Btn '&Mods' 'Open the Mods page. (Ctrl+M)' { Show-ModsPage }),
+        (New-Btn '&Settings' 'Open the Settings page. (Ctrl+T)' { Show-SettingsPage }),
+        (New-Btn 'C&lean Info' 'Wipe personal files (key, webhook, logs, IP files) before sharing the folder.' { Run-CleanFlow })
+    )
+    foreach ($b in $script:GuideBtns) { $p.Controls.Add($b) }
+
+    $script:GuideBox = New-Object System.Windows.Forms.RichTextBox
+    $script:GuideBox.ReadOnly = $true
+    $script:GuideBox.DetectUrls = $false
+    $script:GuideBox.BackColor = $C.panel
+    $script:GuideBox.ForeColor = $C.text
+    $script:GuideBox.BorderStyle = 'None'
+    $script:GuideBox.WordWrap = $true
+    $script:GuideBox.ScrollBars = 'Vertical'
+    $p.Controls.Add($script:GuideBox)
+
+    Add-GuideLine 'STEP 1  -  START THE SERVER' 'yellow' $true 12
+    Add-GuideLine '  Double-click Start_Here.bat - this window opens.'
+    Add-GuideLine '  First time only: a small window asks for your server key.'
+    Add-GuideLine '      1. Get your free key at https://keymaster.beammp.com'
+    Add-GuideLine '      2. Paste it and click Save - it is stored privately in Server\.env'
+    Add-GuideLine '  Click Start Server (or Ctrl+S). The BeamMP Launcher opens automatically.'
+    Add-GuideLine '  In BeamNG: More... -> BeamMP -> Direct Connect, use the address'
+    Add-GuideLine '  shown under "THIS PC (test it now)" to test on your own PC.'
+    Add-GuideLine ''
+    Add-GuideLine 'STEP 2  -  HOW YOUR FRIENDS CONNECT' 'yellow' $true 12
+    Add-GuideLine '  Send them ONE line from the dashboard. In BeamNG they open'
+    Add-GuideLine '  More... -> BeamMP -> Direct Connect and type the address you send.'
+    Add-GuideLine '      - "THIS PC (test it now)"       just testing on your own machine'
+    Add-GuideLine '      - "Friends (same WiFi)"         LAN - same network only'
+    Add-GuideLine '      - "Friends (VPN) / Tailscale"   works anywhere, even without'
+    Add-GuideLine '        port forwarding (best behind CGNAT)'
+    Add-GuideLine '      - "Anyone (internet)"           needs the port forwarded on the router'
+    Add-GuideLine '  IMPORTANT: never click your own server in the BeamMP list - it uses'
+    Add-GuideLine '  your public IP and fails from inside your network. Always use'
+    Add-GuideLine '  Direct Connect with the address from this window.'
+    Add-GuideLine ''
+    Add-GuideLine 'STEP 3  -  CANNOT CONNECT? RUN FIX PROBLEMS' 'yellow' $true 12
+    Add-GuideLine '  Click Fix Problems (or Ctrl+F). It checks everything - key, port,'
+    Add-GuideLine '  firewall, VPNs, CGNAT, reachability - and fixes most issues with'
+    Add-GuideLine '  one click. Follow the instructions on each row.'
+    Add-GuideLine '  If your ISP uses CGNAT, port forwarding can NEVER work:'
+    Add-GuideLine '  use the VPN Manager (Ctrl+V) instead - VPNs bypass CGNAT.'
+    Add-GuideLine ''
+    Add-GuideLine 'STEP 4  -  MODS' 'yellow' $true 12
+    Add-GuideLine '  Click Mods (or Ctrl+M). Drop mod .zip files into'
+    Add-GuideLine '  Server\Resources\Client\ and they sync to everyone who joins.'
+    Add-GuideLine '  Suspicious files (exe, vbs, cmd, scr, pif) are auto-quarantined.'
+    Add-GuideLine ''
+    Add-GuideLine 'STEP 5  -  SETTINGS' 'yellow' $true 12
+    Add-GuideLine '  Click Settings (or Ctrl+T): server name, max players, free port,'
+    Add-GuideLine '  IP lock and your server key. No config files needed - the GUI'
+    Add-GuideLine '  saves everything for you.'
+    Add-GuideLine ''
+    Add-GuideLine 'STEP 6  -  BEFORE SHARING THE FOLDER' 'yellow' $true 12
+    Add-GuideLine '  Click Clean Info (the red button) - it wipes your key, webhook,'
+    Add-GuideLine '  logs, backups and IP files so the folder is safe to zip and share.'
+    Add-GuideLine '  NEVER share Server\.env or Server\webhook.txt.'
+    Add-GuideLine ''
+    Add-GuideLine 'STEP 7  -  STUCK? CHECK THE ACTIVITY LOG' 'yellow' $true 12
+    Add-GuideLine '  The log at the bottom of the window says exactly what the tool is'
+    Add-GuideLine '  doing and why. Every button also explains itself in a tooltip -'
+    Add-GuideLine '  hover any button to see what it does.'
+    Add-GuideLine ''
+
+    $script:Content.Controls.Add($p)
+    $script:PageLayout = { Layout-Guide }
+}
+
+function Layout-Guide {
+    if (-not $script:GuideBox) { return }
+    try {
+        $w = $script:Content.ClientSize.Width
+        $h = $script:Content.ClientSize.Height
+        $script:GuideHead.Location = New-Object System.Drawing.Point((SX 14), (SY 6))
+        $by = SY 40
+        for ($i = 0; $i -lt $script:GuideBtns.Count; $i++) {
+            $bx = SX (14 + $i * 118)
+            $script:GuideBtns[$i].Location = New-Object System.Drawing.Point($bx, $by)
+            $script:GuideBtns[$i].Size = New-Object System.Drawing.Size((SX 112), (SY 32))
+            Set-Round $script:GuideBtns[$i] 7
+        }
+        $script:GuideBox.Location = New-Object System.Drawing.Point((SX 14), (SY 82))
+        $script:GuideBox.Size = New-Object System.Drawing.Size(($w - (SX 28)), ($h - (SY 96)))
+    } catch { Write-Log "[LAYOUT-ERROR] GUIDE $($_.Exception.Message)" }
+}
+
+# ---------------------------------------------------------------------------------------
 # KEYBOARD SHORTCUTS
 # ---------------------------------------------------------------------------------------
 $script:Form.Add_KeyDown({
@@ -1598,6 +1722,7 @@ $script:Form.Add_KeyDown({
             'V' { Show-VpnPage; $e.SuppressKeyPress = $true }
             'M' { Show-ModsPage; $e.SuppressKeyPress = $true }
             'T' { Show-SettingsPage; $e.SuppressKeyPress = $true }
+            'G' { Show-GuidePage; $e.SuppressKeyPress = $true }
             'D' { Run-Diagnose; $e.SuppressKeyPress = $true }
             'C' { Copy-ConnectionLine; $e.SuppressKeyPress = $true }
         }
@@ -1630,14 +1755,11 @@ $script:Form.Add_FormClosing({
 })
 
 $script:Form.Add_Shown({
-    if ($script:Help) {
-        [System.Windows.Forms.MessageBox]::Show(
-            "K BNG M Hoster v0.6.1 - Usage`n`nJust double-click Start_Here.bat - that's all.`n`nStart_Here.bat mods  ->  opens the Mod Manager`nStart_Here.bat fix   ->  opens Fix Problems`nStart_Here.bat setup ->  opens the key setup dialog`n`nEverything else is buttons and keyboard shortcuts (see the status bar).",
-            'K BNG M Hoster', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
-    }
     if ($Setup) {
         $null = Show-KeySetupDialog $script:Form
         Show-DashboardPage
+    } elseif ($Help) {
+        Show-GuidePage
     } elseif ($Fix) {
         Show-FixPage
     } elseif ($Mods) {
@@ -1657,9 +1779,17 @@ $logDir = $script:ServerDir + 'Logs'
 if (-not (Test-Path -LiteralPath $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
 Write-Log "===== Launcher started (GUI) ====="
 
-if (-not (Show-EulaDialog)) { exit 0 }
+try {
+    if (-not (Show-EulaDialog)) { exit 0 }
 
-[void][System.Windows.Forms.Application]::Run($script:Form)
+    [void][System.Windows.Forms.Application]::Run($script:Form)
+} catch {
+    try {
+        [System.Windows.Forms.MessageBox]::Show(
+            "K BNG M Hoster hit an unexpected error:`n`n$($_.Exception.Message)",
+            'K BNG M Hoster', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
+    } catch { }
+}
 
 if ($script:SessionPs) {
     try { $script:SessionPs.Dispose() } catch { }

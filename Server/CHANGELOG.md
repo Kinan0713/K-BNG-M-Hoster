@@ -2,7 +2,26 @@
 
 All notable changes to **K BNG M Hoster** are documented here.
 
-## v0.6.1 — Polished GUI: rounded corners, responsive layout, smarter VPN page
+## v0.6.2 — Update 6, Fix 2: bulletproof launcher, everything in one folder, built-in Guide
+
+### 🚀 Launcher fixed (no more "cmd opens then nothing")
+- `Start_Here.bat` launches the GUI and closes itself instantly — no black console window on screen. The GUI still works exactly the same (mouse, keyboard, all pages)
+- If the launcher can't find the GUI script (for example when double-clicked inside the zip without extracting), it now shows a **clear error message** instead of silently closing
+- The GUI startup is wrapped in error handling — any fatal problem shows a message box instead of the window vanishing
+
+### 📁 Everything in one folder (the user only sees `Start_Here.bat`)
+- The release ZIP top level now contains **only** `Start_Here.bat` — that is the only file anyone ever needs to click
+- Everything else lives inside the `Server\` folder: `ServerConfig.toml`, `Resources\Client\` (mods), the server engine, scripts, `README.txt`, `CHANGELOG.md`, examples and support files
+- Server settings (name, players, port, key) are all managed from the GUI Settings page — no config file ever needs to be opened
+
+### 📖 Built-in Guide (the README is now inside the app)
+- New **Guide** page (`Ctrl+G` or the Guide button, also `Start_Here.bat help`): plain-language steps for start, key setup, how friends connect (this PC / LAN / VPN / internet), firewall & port forwarding, mods, and sharing the folder safely
+- No need to open any files — everything is one button away
+
+### ✅ Verified
+- GUI launches from the new layout with no console window; all paths still resolve (config, mods, logs, key, webhook); all pages and modes (`mods`, `fix`, `setup`, `help`) work
+
+## v0.6.1 — Update 6, Fix 1: polished GUI: rounded corners, responsive layout, smarter VPN page
 
 ### 🎨 Visual polish
 - Every button, panel and dialog now has **rounded corners** (including the EULA, key-setup and CGNAT dialogs)
