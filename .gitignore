@@ -16,3 +16,6 @@ webhook.txt
 Server.log
 CONNECTING.txt
 staticip.cfg
+
+# Release zip (upload to GitHub Releases instead)
+K.BNG.M.Hoster.v*.zip

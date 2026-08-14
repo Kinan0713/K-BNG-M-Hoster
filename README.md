@@ -12,11 +12,11 @@
 
 # 🚗 K BNG M Hoster
 
-### *(Kinan BeamNG Multiplayer Hoster)* — **v0.6.1**
+### *(Kinan BeamNG Multiplayer Hoster)* — **v0.6.2** *(Update 6 - Fix 2)*
 
 **The All-In-One Automated BeamMP Hosting & Joining Tool**
 
-> 🔽 **Download the latest release:** [K BNG M Hoster v0.6.1 ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
+> 🔽 **Download the latest release:** [K BNG M Hoster v0.6.2-FIX ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
 
 > ⚠️ **Official download only:** Get K BNG M Hoster exclusively from the [GitHub Releases page](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest) above. Please do **not** share, reupload, or forward this tool to others — everyone should download it from here so they always get the latest version.
 
@@ -32,7 +32,8 @@
 
 | Feature | What it does for you |
 | --- | --- |
-| 🪟 **Full GUI (v0.6.1)** | The whole tool is now a **window** — no console, no menus to memorize. Works with **mouse and keyboard**: every button explains itself in a tooltip, `Alt`+underlined letter, `Tab`/`Shift+Tab`, `Enter`, `Esc`, plus `Ctrl+S` Start, `Ctrl+X` Stop, `Ctrl+F` Fix, `Ctrl+V` VPN, `Ctrl+M` Mods, `Ctrl+T` Settings, `Ctrl+D` Diagnose, `Ctrl+C` Copy IP. The shortcuts are always listed at the bottom of the window. |
+| 🪟 **Full GUI (v0.6.0)** | The whole tool is now a **window** — no console, no menus to memorize. Works with **mouse and keyboard**: every button explains itself in a tooltip, `Alt`+underlined letter, `Tab`/`Shift+Tab`, `Enter`, `Esc`, plus `Ctrl+S` Start, `Ctrl+X` Stop, `Ctrl+F` Fix, `Ctrl+V` VPN, `Ctrl+M` Mods, `Ctrl+T` Settings, `Ctrl+D` Diagnose, `Ctrl+C` Copy IP, `Ctrl+G` Guide. The shortcuts are always listed at the bottom of the window. |
+| 📖 **Built-in Guide** | The whole README is inside the app — press **Guide** (or `Ctrl+G`) for plain-language steps: start, key, how friends connect, firewall, mods, and sharing safely. |
 | 🖱️ **One-Click Launch** | Double-click `Start_Here.bat`. Everything else is automatic. |
 | 🔑 **Auto AuthKey** | Paste your BeamMP key once — the tool stores it privately, injects it at start, and removes it again when the session ends. |
 | 🩺 **Fix Problems page** | Every check is one row with `[OK]` / `[X]` / `[?]` and its own Fix button: key, launcher, BeamNG, port, Visual C++ runtime, firewall, VPNs, CGNAT and external reachability. Plus one-click UPnP forwarding. |
@@ -45,7 +46,7 @@
 | 🖧 **VPN Manager page** | Sees if **Radmin VPN / Hamachi / ZeroTier / Tailscale** are installed and running, starts any of them with one click, or opens the official download page when missing. If you have two VPNs running at once it tells you — friends must be on the same one as the IP you send. |
 | 🔗 **VPN Hosting** | VPNs (Radmin VPN, Hamachi, ZeroTier, Tailscale) are supported connection methods that work even behind **CGNAT** — the Dashboard shows the VPN IP line for friends automatically. |
 | 🔄 **Busy-Port Auto-Switch** | If your port is taken, picks a free one and warns you loudly. |
-| 🎮 **Mods page** | List, enable/disable and scan your `Resources/Client/` mods. |
+| 🎮 **Mods page** | List, enable/disable and scan your `Server\Resources\Client\` mods. |
 | 🔐 **Malware Guard** | Scans mod ZIPs for executables and quarantines anything suspicious. |
 | 👥 **Live Player Activity** | Shows who's online, with optional Discord join/leave notifications. |
 | 🧹 **Privacy Cleaner** | One button removes all personal/temporary files from the folder. |
@@ -86,12 +87,12 @@ Keep it simple — the top level only shows the things you actually use:
 | Top level (visible) | What it is |
 | --- | --- |
 | `Start_Here.bat` | **Just double-click this to start.** |
-| `ServerConfig.toml` | Your server settings (name, port, players, map...) |
-| `Resources/` | Your mods (drop mod `.zip` files into `Resources/Client/`) |
 | `README.md` / `README.txt` | This documentation |
 
 | `Server/` (the engine — you never need to open it) | What it is |
 | --- | --- |
+| `ServerConfig.toml` | Your server settings (name, port, players, map...) — edit from the GUI Settings page |
+| `Resources/Client/` | Your mods (drop mod `.zip` files here) |
 | `BeamMP-Server.exe` | The official BeamMP server program |
 | `Play_BeamMP.ps1` / `.bat` | The window (GUI) |
 | `HosterCore.ps1` | The logic (single source of truth) |
@@ -99,7 +100,7 @@ Keep it simple — the top level only shows the things you actually use:
 | `Launcher.cfg`, `webhook.example.txt` | Support files |
 | `Logs/`, `Server.log`, `CONNECTING.txt` *(created automatically)* | Logs, IP caches and session files |
 
-> The server always runs using the **top-level** `ServerConfig.toml` and `Resources/` — that is why they stay visible. Everything personal or temporary lives inside `Server\`, and the **Clean personal info** button removes all personal information from the folder.
+> Everything runs inside `Server\` — you only ever need `Start_Here.bat`. The **Clean personal info** button (in the GUI) removes all personal information from the folder.
 
 ### 1️⃣ Input Your Auth Key *(Automatic — Recommended)*
 
@@ -110,7 +111,7 @@ Keep it simple — the top level only shows the things you actually use:
 
 > **Alternative — Windows environment variable:** set a system/user variable named `BEAMMP_AUTHKEY`. The environment variable takes priority over `.env`.
 >
-> **Manual fallback:** you can still paste the key directly into `ServerConfig.toml` (line 7, `AuthKey = "..."`); the launcher leaves an already-set key untouched if neither `.env` nor the environment variable exists.
+> **Manual fallback:** you can still paste the key directly into `Server\ServerConfig.toml` (line 7, `AuthKey = "..."`); the launcher leaves an already-set key untouched if neither `.env` nor the environment variable exists.
 
 ### 2️⃣ Note on Ports
 
@@ -224,12 +225,12 @@ To load custom vehicles, maps, or physics mods onto your server:
 
 1. Open the project folder and navigate to:
    ```
-   Resources/Client/
+   Server\Resources\Client\
    ```
 2. Drop your mod `.zip` files directly into this directory.
 3. Restart the server by running `Start_Here.bat` again to sync mods automatically with everyone who joins.
 
-> **Security note:** On launch the tool scans `Resources/Client/` (including inside `.zip` mods) and moves any suspicious executable files (`*.exe`, `*.vbs`, `*.cmd`, `*.scr`, `*.pif`) to the `Quarantine/` folder. Everything it does is written to `Logs/launcher.log`.
+> **Security note:** On launch the tool scans `Server\Resources\Client\` (including inside `.zip` mods) and moves any suspicious executable files (`*.exe`, `*.vbs`, `*.cmd`, `*.scr`, `*.pif`) to the `Quarantine/` folder. Everything it does is written to `Logs/launcher.log`.
 >
 > **Tip:** Open the **Mods page** (button or `Ctrl+M`): it lists your mods with sizes, lets you disable/enable them (moved to `Server\Backups\mods\`), re-runs the security scan, and opens the folder in Explorer.
 
@@ -312,7 +313,7 @@ This project is distributed under a proprietary EULA. By using this software you
 
 - Running the unmodified packaged software
 - Editing authorized configuration files (`ServerConfig.toml`) only as instructed
-- Adding mod archive files to `Resources/Client/` to enable mod syncing
+- Adding mod archive files to `Server\Resources\Client\` to enable mod syncing
 
 ### ❌ Strictly Prohibited
 
