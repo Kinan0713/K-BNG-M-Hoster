@@ -1,5 +1,5 @@
 # ========================================================================================
-# K BNG M Hoster v0.6.2 - Simplest Edition (GUI)
+# K BNG M Hoster v0.6.3 - Simplest Edition (GUI)
 # All logic lives in HosterCore.ps1 (single source of truth). This file is the window.
 # Start_Here.bat / Play_BeamMP.bat only launch this file.
 #
@@ -71,7 +71,11 @@ $script:State = @{
     Diag          = ''
     FixReport     = $null
     UpdateMsg     = ''
+    ToolUpdate    = $null
+    ToolUpdateReady = $null
+    ToolUpdateErr = ''
 }
+$script:AppVersion = '0.6.3'
 $script:CorePath = Join-Path $PSScriptRoot 'HosterCore.ps1'
 $script:CoreText = "`$script:CorePath = '" + ($script:CorePath -replace "'", "''") + "'`r`n" + (Get-Content -LiteralPath $script:CorePath -Raw)
 $script:PendingAction = $null
@@ -228,7 +232,7 @@ function Update-BusyUi {
 # MAIN FORM
 # ---------------------------------------------------------------------------------------
 $script:Form = New-Object System.Windows.Forms.Form
-$script:Form.Text = 'K BNG M Hoster v0.6.2 - by Kinan (@raed713)'
+$script:Form.Text = 'K BNG M Hoster v0.6.3 - by Kinan (@raed713)'
 $script:Form.Size = New-Object System.Drawing.Size(1000, 720)
 $script:Form.MinimumSize = New-Object System.Drawing.Size(960, 660)
 $script:Form.StartPosition = 'CenterScreen'
@@ -248,7 +252,7 @@ $header.Height = 62
 $header.BackColor = $C.panel
 $title = New-Lbl 'K BNG M Hoster' ([System.Drawing.Color]::White) 19 30 $true
 $title.Location = New-Object System.Drawing.Point(14, 6)
-$subtitle = New-Lbl 'v0.6.2  |  Update 6 - Fix 2  |  Sole Creator: Kinan  |  Discord: @raed713' $C.dim 9 18
+$subtitle = New-Lbl 'v0.6.3  |  Update 6 - Fix 3  |  Sole Creator: Kinan  |  Discord: @raed713' $C.dim 9 18
 $subtitle.Location = New-Object System.Drawing.Point(15, 38)
 $header.Controls.Add($title)
 $header.Controls.Add($subtitle)
@@ -642,10 +646,13 @@ function Add-FixRow($row) {
     if ($row.Action) {
         $prefix = if ($row.NeedsAction) { 'Fix: ' } else { 'Info: ' }
         $btn = New-Btn ("&$prefix$($row.Action)") $row.Action { FixRowAction $row.Key }
-        $btn.Size = New-Object System.Drawing.Size(250, 30)
-        $btn.Location = New-Object System.Drawing.Point(690, 7)
-        $btn.Height = 30
         $btn.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+        $g = $script:Form.CreateGraphics()
+        try { $tw = [int][math]::Ceiling($g.MeasureString($btn.Text, $btn.Font).Width) } finally { $g.Dispose() }
+        $btnW = [int][math]::Max(140, [math]::Min(430, $tw + 30))
+        $btn.Size = New-Object System.Drawing.Size($btnW, 30)
+        $btn.AutoEllipsis = $true
+        $btn.Location = New-Object System.Drawing.Point(690, 7)
         $rowPanel.Controls.Add($btn)
     }
     $script:FixRowRefs += @{ Row = $rowPanel; Lbl = $lbl2; Btn = $btn }
@@ -662,7 +669,9 @@ function Layout-FixRows {
         }
         foreach ($r in $script:FixRowRefs) {
             $r.Row.Width = $w
-            $lblW = [int][math]::Max(200, $w - 320)
+            $btnW = if ($r.Btn) { $r.Btn.Width } else { 0 }
+            $bxp = $w - $btnW - 12
+            $lblW = [int][math]::Max(200, $bxp - 70)
             $r.Lbl.Width = $lblW
             $m = Measure-Text $r.Lbl.Text $r.Lbl.Font $lblW
             $lh = [int]($m.Lines * 20 + 12)
@@ -672,7 +681,6 @@ function Layout-FixRows {
             $ly = [int](($rh - $lh) / 2)
             $r.Lbl.Location = New-Object System.Drawing.Point(54, $ly)
             if ($r.Btn) {
-                $bxp = $w - 262
                 $byp = [int](($rh - 30) / 2)
                 $r.Btn.Location = New-Object System.Drawing.Point($bxp, $byp)
             }
@@ -873,6 +881,70 @@ function Layout-VpnRows {
     } catch { Write-Log "[LAYOUT-ERROR] VPNROWS $($_.Exception.Message)" }
 }
 
+# Makes a control accept dropped .zip mod files (green highlight while dragging).
+function Add-DropTarget($Ctrl) {
+    $Ctrl.AllowDrop = $true
+    $Ctrl.Add_DragEnter({
+        param($s, $e)
+        $s.Tag = $s.BackColor
+        if ($e.Data.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop)) {
+            $files = @($e.Data.GetData([System.Windows.Forms.DataFormats]::FileDrop))
+            if ($files | Where-Object { $_.ToLower().EndsWith('.zip') }) {
+                $e.Effect = [System.Windows.Forms.DragDropEffects]::Copy
+                $s.BackColor = [System.Drawing.Color]::FromArgb(42, 88, 52)
+            } else {
+                $e.Effect = [System.Windows.Forms.DragDropEffects]::None
+                $s.BackColor = $s.Tag
+            }
+        } else {
+            $e.Effect = [System.Windows.Forms.DragDropEffects]::None
+            $s.BackColor = $s.Tag
+        }
+    })
+    $Ctrl.Add_DragLeave({ param($s, $e) if ($s.Tag) { $s.BackColor = $s.Tag } })
+    $Ctrl.Add_DragDrop({
+        param($s, $e)
+        if ($s.Tag) { $s.BackColor = $s.Tag }
+        if (-not $e.Data.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop)) { return }
+        $files = @($e.Data.GetData([System.Windows.Forms.DataFormats]::FileDrop)) | Where-Object { $_.ToLower().EndsWith('.zip') }
+        if (-not $files.Count) { return }
+        Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+        $clientDir = $script:RootDir + 'Resources\Client'
+        if (-not (Test-Path -LiteralPath $clientDir)) { New-Item -ItemType Directory -Path $clientDir -Force | Out-Null }
+        $quar = $script:ServerDir + 'Quarantine'
+        $added = 0
+        $bad = 0
+        foreach ($f in $files) {
+            $name = Split-Path $f -Leaf
+            try {
+                $suspicious = $false
+                $arc = [System.IO.Compression.ZipFile]::OpenRead($f)
+                try {
+                    foreach ($en in $arc.Entries) { if ($en.FullName -match '\.(exe|vbs|cmd|scr|pif)$') { $suspicious = $true; break } }
+                } finally { $arc.Dispose() }
+                if ($suspicious) {
+                    if (-not (Test-Path -LiteralPath $quar)) { New-Item -ItemType Directory -Path $quar -Force | Out-Null }
+                    Move-Item -LiteralPath $f -Destination (Join-Path $quar $name) -Force
+                    $bad++
+                    Add-Log "[SECURITY] $name contains an executable - moved to Quarantine, not added."
+                } else {
+                    $dest = Join-Path $clientDir $name
+                    $replaced = Test-Path -LiteralPath $dest
+                    Copy-Item -LiteralPath $f -Destination $dest -Force
+                    $added++
+                    Add-Log "[INFO] Mod added: $name$(if ($replaced) { ' (replaced an existing file)' })"
+                }
+            } catch { Add-Log "[ERROR] Could not add $name : $($_.Exception.Message)" }
+        }
+        Show-ModsPage
+        if ($bad -gt 0) {
+            [System.Windows.Forms.MessageBox]::Show("Added $added mod(s). $bad file(s) contained executables and were moved to Quarantine.", 'Mods', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
+        } elseif ($added -gt 0) {
+            Add-Log "[INFO] $added mod(s) added to Resources\Client."
+        }
+    })
+}
+
 function Show-ModsPage {
     $script:Content.Controls.Clear()
     $p = New-Object System.Windows.Forms.Panel
@@ -908,6 +980,9 @@ function Show-ModsPage {
 
     $script:ModsListPanel.Controls.Add($script:ListEnabled)
     $script:ModsListPanel.Controls.Add($script:ListDisabled)
+    Add-DropTarget $script:ModsListPanel
+    Add-DropTarget $script:ListEnabled
+    Add-DropTarget $script:ListDisabled
 
     $script:ModsTop = New-Object System.Windows.Forms.Panel
     $script:ModsTop.Dock = 'Top'
@@ -917,7 +992,7 @@ function Show-ModsPage {
     $head = New-Lbl 'Mod Manager  -  Resources\Client' $C.blue 14 26 $true
     $head.Location = New-Object System.Drawing.Point(4, 2)
     $script:ModsTop.Controls.Add($head)
-    $sub = New-Lbl 'Disabled mods are moved to Server\Backups\mods and are NOT loaded by the server. Mods in .zip are synced to everyone who joins automatically.' $C.dim 9 20  $false 940
+    $sub = New-Lbl 'Drop .zip mod files anywhere here to add them (they are scanned for executables first). Disabled mods are moved to Server\Backups\mods and are NOT loaded. .zip mods are synced to everyone who joins automatically.' $C.dim 9 20  $false 940
     $sub.Location = New-Object System.Drawing.Point(4, 30)
     $script:ModsTop.Controls.Add($sub)
 
@@ -1512,6 +1587,86 @@ function Run-CleanFlow {
 }
 
 # ---------------------------------------------------------------------------------------
+# TOOL SELF-UPDATE (check GitHub on every open; download + self-install; delete old versions)
+# ---------------------------------------------------------------------------------------
+function Start-ToolUpdateCheck {
+    Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$State.ToolUpdate = Get-ToolUpdateInfo -CurrentVersion '$($script:AppVersion)'" 'toolcheck'
+}
+
+function Show-UpdateDialog {
+    $u = $script:State.ToolUpdate
+    if (-not $u) { return }
+    $notes = (($u.Notes -replace 'https?://\S+', '[link]') -split "`n" | Where-Object { $_ -match '[A-Za-z0-9]' } | Select-Object -First 6) -join "`n"
+    $msg = "A new version of K BNG M Hoster is available:  $($u.Tag)`n`nWhat's new (short):`n$notes`n`nDownload and install it now?`n(Your key, mods and settings are kept - old downloaded versions are deleted automatically.)"
+    $r = [System.Windows.Forms.MessageBox]::Show($msg, 'K BNG M Hoster - update available', [System.Windows.Forms.MessageBoxButtons]::YesNoCancel, [System.Windows.Forms.MessageBoxIcon]::Information)
+    if ($r -eq 'Yes') {
+        Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay ""Downloading the update, one moment...""`ntry { `$State.ToolUpdateReady = Invoke-ToolDownload -Tag '$($u.Tag)' -ZipUrl '$($u.ZipUrl)' -ZipName '$($u.ZipName)' } catch { `$State.ToolUpdateErr = `$_.Exception.Message }" 'toolupdate'
+    } elseif ($r -eq 'No') {
+        Start-Process $u.Url
+        Add-Log "[INFO] Update page opened in your browser."
+    } else {
+        Add-Log "[INFO] Update skipped - I will ask again next time."
+    }
+}
+
+function Ask-ApplyUpdate {
+    $staging = $script:State.ToolUpdateReady
+    if (-not $staging -or -not (Test-Path -LiteralPath $staging)) { Add-Log '[INFO] The downloaded update is gone - I will re-check next time.'; return }
+    $tag = $script:State.ToolUpdate.Tag
+    $r = [System.Windows.Forms.MessageBox]::Show(
+        "The update ($tag) is downloaded and ready.`n`nClose the app now - the new version installs itself and starts again automatically (about 10 seconds).",
+        'K BNG M Hoster - update ready', [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Question)
+    if ($r -ne 'Yes') { Add-Log '[INFO] Update not applied yet - I will ask again next time.'; return }
+    $updates = $script:ServerDir + 'Backups\updates'
+    if (-not (Test-Path -LiteralPath $updates)) { New-Item -ItemType Directory -Path $updates -Force | Out-Null }
+    $updaterPath = Join-Path $updates 'apply_update.ps1'
+    $tpl = @'
+$ErrorActionPreference = 'Stop'
+$log = '__SRV__Logs\updater.log'
+function WLog([string]$m) { try { Add-Content -LiteralPath $log -Value ((Get-Date -Format 'HH:mm:ss') + '  ' + $m) } catch { } }
+try {
+    WLog 'Updater started.'
+    for ($i = 0; $i -lt 40 -and (Get-Process -Id __PID__ -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
+    Start-Sleep -Seconds 2
+    foreach ($n in 'BeamMP-Server', 'BeamMP-Launcher') { for ($i = 0; $i -lt 20 -and (Get-Process -Name $n -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 } }
+    WLog 'Old app is closed. Copying the new files...'
+    $src = '__STAGE__'
+    $appDir = '__APP__'
+    $srv = '__SRV__'
+    $skip = @('ServerConfig.toml', '.env', 'webhook.txt', 'staticip.cfg', 'Launcher.cfg', 'Server.log', 'Resources', 'Logs', 'Backups', 'Quarantine')
+    foreach ($item in Get-ChildItem -LiteralPath (Join-Path $src 'Server') -Force) {
+        if ($skip -contains $item.Name) { WLog ('Kept your ' + $item.Name + '.'); continue }
+        $dst = Join-Path $srv $item.Name
+        for ($try = 0; $try -lt 10; $try++) {
+            try { Copy-Item -LiteralPath $item.FullName -Destination $dst -Recurse -Force -ErrorAction Stop; break }
+            catch { if ($try -eq 9) { throw }; Start-Sleep -Seconds 1 }
+        }
+        WLog ('Updated ' + $item.Name + '.')
+    }
+    Copy-Item -LiteralPath (Join-Path $src 'Start_Here.bat') -Destination (Join-Path $appDir 'Start_Here.bat') -Force
+    WLog 'Updated Start_Here.bat.'
+    $updates = '__SRV__Backups\updates'
+    Get-ChildItem -LiteralPath $updates -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne '__TAG__' } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    Get-ChildItem -LiteralPath $updates -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne '__ZIP__' -and $_.Name -ne 'apply_update.ps1' } | Remove-Item -Force -ErrorAction SilentlyContinue
+    WLog 'Old versions deleted.'
+    WLog 'Done. Relaunching the app...'
+    Start-Process -FilePath (Join-Path $appDir 'Start_Here.bat') -WorkingDirectory $appDir
+    exit 0
+} catch {
+    WLog ('FAILED: ' + $_.Exception.Message)
+    WLog 'The update did not finish - run Start_Here.bat again and retry the update.'
+    exit 1
+}
+'@
+    $updater = $tpl.Replace('__PID__', "$PID").Replace('__APP__', $script:AppDir).Replace('__SRV__', $script:ServerDir).Replace('__STAGE__', $staging).Replace('__TAG__', $tag).Replace('__ZIP__', $script:State.ToolUpdate.ZipName)
+    Set-Content -LiteralPath $updaterPath -Value $updater -Encoding UTF8
+    Add-Log '[INFO] Applying the update - the app closes now and restarts itself.'
+    Start-Process -FilePath 'powershell.exe' -ArgumentList ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $updaterPath + '"') -WindowStyle Hidden
+    $script:AllowClose = $true
+    $script:Form.Close()
+}
+
+# ---------------------------------------------------------------------------------------
 # TIMERS
 # ---------------------------------------------------------------------------------------
 $timerMain = New-Object System.Windows.Forms.Timer
@@ -1545,6 +1700,14 @@ $timerMain.Add_Tick({
             'modscan' { Show-ModsPage }
             'settings' { $script:LblSettingsResult.Text = 'Settings saved.'; $script:LblSettingsResult.ForeColor = $C.green }
             'update' { $script:LblSettingsResult.Text = $(if ($script:State.UpdateMsg) { "Update available: $($script:State.UpdateMsg)" } else { 'Checked.' }); $script:LblSettingsResult.ForeColor = $C.green }
+            'toolcheck' { if ($script:State.ToolUpdate) { Show-UpdateDialog } }
+            'toolupdate' {
+                if ($script:State.ToolUpdateReady) { Ask-ApplyUpdate }
+                elseif ($script:State.ToolUpdateErr) {
+                    [System.Windows.Forms.MessageBox]::Show("Update failed: $($script:State.ToolUpdateErr)", 'K BNG M Hoster - update failed', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
+                    $script:State.ToolUpdateErr = ''
+                }
+            }
         }
     }
 
@@ -1598,10 +1761,14 @@ $timerLive.Start()
 # ---------------------------------------------------------------------------------------
 # GUIDE PAGE (the README lives inside the app)
 # ---------------------------------------------------------------------------------------
-function Add-GuideLine([string]$Text, [string]$Color = 'text', [bool]$Bold = $false, [float]$Size = 10.5) {
+function Add-GuideLine([string]$Text, [string]$Color = 'text', [bool]$Bold = $false, [float]$Size = 10, [int]$Indent = -1) {
     if (-not $script:GuideBox) { return }
+    if (-not $script:GuideBox.IsHandleCreated) { [void]$script:GuideBox.Handle }
+    if ($Indent -lt 0) { $Indent = if ($Bold -and $Size -ge 12) { 0 } else { 24 } }
     $script:GuideBox.SelectionStart = $script:GuideBox.TextLength
     $script:GuideBox.SelectionLength = 0
+    $script:GuideBox.SelectionIndent = $Indent
+    $script:GuideBox.SelectionRightIndent = 6
     $script:GuideBox.SelectionColor = $C[$Color]
     $script:GuideBox.SelectionFont = New-Object System.Drawing.Font('Segoe UI', $Size, $(if ($Bold) { [System.Drawing.FontStyle]::Bold } else { [System.Drawing.FontStyle]::Regular }))
     $script:GuideBox.AppendText($Text + [Environment]::NewLine)
@@ -1613,9 +1780,13 @@ function Show-GuidePage {
     $p.Dock = 'Fill'
     $p.BackColor = $C.bg
 
-    $script:GuideHead = New-Lbl 'Guide  -  everything you need, no files to open' $C.blue 14 26 $true
-    $script:GuideHead.Location = New-Object System.Drawing.Point(14, 6)
+    $script:GuideHead = New-Lbl 'Guide' $C.blue 16 30 $true
+    $script:GuideHead.Location = New-Object System.Drawing.Point(16, 8)
     $p.Controls.Add($script:GuideHead)
+
+    $script:GuideSub = New-Lbl 'Everything you need to know - no files to open. Jump to any page with the buttons on the right, or read on.' $C.dim 9 18
+    $script:GuideSub.Location = New-Object System.Drawing.Point(16, 40)
+    $p.Controls.Add($script:GuideSub)
 
     $script:GuideBtns = @(
         (New-Btn '&Start Server' 'Go to the dashboard and start the server. (Ctrl+S)' { Show-DashboardPage }),
@@ -1625,7 +1796,22 @@ function Show-GuidePage {
         (New-Btn '&Settings' 'Open the Settings page. (Ctrl+T)' { Show-SettingsPage }),
         (New-Btn 'C&lean Info' 'Wipe personal files (key, webhook, logs, IP files) before sharing the folder.' { Run-CleanFlow })
     )
+    $g = $script:Form.CreateGraphics()
+    try {
+        foreach ($b in $script:GuideBtns) {
+            $tw = [int][math]::Ceiling($g.MeasureString($b.Text, $b.Font).Width)
+            $b.Tag = [int][math]::Max(64, $tw + 26)
+        }
+    } finally { $g.Dispose() }
     foreach ($b in $script:GuideBtns) { $p.Controls.Add($b) }
+
+    # Rounded card with real padding - the text never touches the edges.
+    $script:GuideCard = New-Object System.Windows.Forms.Panel
+    $script:GuideCard.BackColor = $C.panel
+    $script:GuideCard.Padding = New-Object System.Windows.Forms.Padding(22, 16, 22, 16)
+    $script:GuideCard.Location = New-Object System.Drawing.Point(14, 78)
+    $script:GuideCard.Size = New-Object System.Drawing.Size(960, 400)
+    $p.Controls.Add($script:GuideCard)
 
     $script:GuideBox = New-Object System.Windows.Forms.RichTextBox
     $script:GuideBox.ReadOnly = $true
@@ -1635,7 +1821,13 @@ function Show-GuidePage {
     $script:GuideBox.BorderStyle = 'None'
     $script:GuideBox.WordWrap = $true
     $script:GuideBox.ScrollBars = 'Vertical'
-    $p.Controls.Add($script:GuideBox)
+    $script:GuideBox.Dock = 'Fill'
+    # Create the handle FIRST with an explicit base font - otherwise the per-line
+    # fonts below get rendered at the wrong size (the "broken size" look).
+    $script:GuideBox.Font = New-Object System.Drawing.Font('Segoe UI', 10)
+    [void]$script:GuideBox.Handle
+    $script:GuideBox.ZoomFactor = 1.0
+    $script:GuideCard.Controls.Add($script:GuideBox)
 
     Add-GuideLine 'STEP 1  -  START THE SERVER' 'yellow' $true 12
     Add-GuideLine '  Double-click Start_Here.bat - this window opens.'
@@ -1666,9 +1858,10 @@ function Show-GuidePage {
     Add-GuideLine '  use the VPN Manager (Ctrl+V) instead - VPNs bypass CGNAT.'
     Add-GuideLine ''
     Add-GuideLine 'STEP 4  -  MODS' 'yellow' $true 12
-    Add-GuideLine '  Click Mods (or Ctrl+M). Drop mod .zip files into'
-    Add-GuideLine '  Server\Resources\Client\ and they sync to everyone who joins.'
-    Add-GuideLine '  Suspicious files (exe, vbs, cmd, scr, pif) are auto-quarantined.'
+    Add-GuideLine '  Click Mods (or Ctrl+M). Drag & drop .zip mod files anywhere on'
+    Add-GuideLine '  the page - they are scanned for executables and added for'
+    Add-GuideLine '  everyone to download automatically when they join.'
+    Add-GuideLine '  Suspicious files (exe, vbs, cmd, scr, pif) are quarantined.'
     Add-GuideLine ''
     Add-GuideLine 'STEP 5  -  SETTINGS' 'yellow' $true 12
     Add-GuideLine '  Click Settings (or Ctrl+T): server name, max players, free port,'
@@ -1685,6 +1878,12 @@ function Show-GuidePage {
     Add-GuideLine '  doing and why. Every button also explains itself in a tooltip -'
     Add-GuideLine '  hover any button to see what it does.'
     Add-GuideLine ''
+    Add-GuideLine 'STEP 8  -  KEEPING THE APP UPDATED' 'yellow' $true 12
+    Add-GuideLine '  Every time this window opens, the tool checks GitHub for a new'
+    Add-GuideLine '  version. If one exists it offers to download and install it'
+    Add-GuideLine '  automatically - your key, mods and settings are kept, and old'
+    Add-GuideLine '  downloaded versions are deleted.'
+    Add-GuideLine ''
 
     $script:Content.Controls.Add($p)
     $script:PageLayout = { Layout-Guide }
@@ -1695,16 +1894,22 @@ function Layout-Guide {
     try {
         $w = $script:Content.ClientSize.Width
         $h = $script:Content.ClientSize.Height
-        $script:GuideHead.Location = New-Object System.Drawing.Point((SX 14), (SY 6))
-        $by = SY 40
-        for ($i = 0; $i -lt $script:GuideBtns.Count; $i++) {
-            $bx = SX (14 + $i * 118)
-            $script:GuideBtns[$i].Location = New-Object System.Drawing.Point($bx, $by)
-            $script:GuideBtns[$i].Size = New-Object System.Drawing.Size((SX 112), (SY 32))
-            Set-Round $script:GuideBtns[$i] 7
+        if ($w -le 0 -or $h -le 0) { return }
+        $script:GuideHead.Location = New-Object System.Drawing.Point((SX 16), (SY 8))
+        $script:GuideSub.Location = New-Object System.Drawing.Point((SX 16), (SY 40))
+        $total = 0
+        foreach ($b in $script:GuideBtns) { $total += SX ([int]$b.Tag) }
+        $total += (SX 8) * ($script:GuideBtns.Count - 1)
+        $bx = $w - $total - (SX 16)
+        foreach ($b in $script:GuideBtns) {
+            $b.Location = New-Object System.Drawing.Point($bx, (SY 12))
+            $b.Size = New-Object System.Drawing.Size((SX ([int]$b.Tag)), (SY 34))
+            $bx += (SX ([int]$b.Tag)) + (SX 8)
+            Set-Round $b 7
         }
-        $script:GuideBox.Location = New-Object System.Drawing.Point((SX 14), (SY 82))
-        $script:GuideBox.Size = New-Object System.Drawing.Size(($w - (SX 28)), ($h - (SY 96)))
+        $script:GuideCard.Location = New-Object System.Drawing.Point((SX 14), (SY 78))
+        $script:GuideCard.Size = New-Object System.Drawing.Size(($w - (SX 28)), [int][math]::Max(140, ($h - (SY 92))))
+        Set-Round $script:GuideCard 10
     } catch { Write-Log "[LAYOUT-ERROR] GUIDE $($_.Exception.Message)" }
 }
 
@@ -1770,6 +1975,7 @@ $script:Form.Add_Shown({
     Layout-Chrome
     Set-Round $script:Form 12
     if ($script:PageLayout) { & $script:PageLayout }
+    Start-ToolUpdateCheck
 })
 
 # ---------------------------------------------------------------------------------------
