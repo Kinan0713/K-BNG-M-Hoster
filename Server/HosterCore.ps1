@@ -1,5 +1,5 @@
 # ========================================================================================
-# K BNG M Hoster v0.6.0 - HosterCore.ps1
+# K BNG M Hoster v0.6.1 - HosterCore.ps1
 # All logic lives here (single source of truth). The GUI (Play_BeamMP.ps1) and every
 # background task load this file and call these functions. No console UI in this file.
 #

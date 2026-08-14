@@ -1,5 +1,5 @@
 # ========================================================================================
-# K BNG M Hoster v0.6.0 - Simplest Edition (GUI)
+# K BNG M Hoster v0.6.1 - Simplest Edition (GUI)
 # All logic lives in HosterCore.ps1 (single source of truth). This file is the window.
 # Start_Here.bat / Play_BeamMP.bat only launch this file.
 #
@@ -24,6 +24,13 @@ elseif ($Mode -eq 'setup') { $Setup = $true }
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class Win32R {
+    [DllImport("user32.dll")] public static extern int SetWindowRgn(IntPtr hWnd, IntPtr hRgn, bool bRedraw);
+}
+"@
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
 $ErrorActionPreference = 'SilentlyContinue'
@@ -99,6 +106,8 @@ function New-Btn([string]$Text, [string]$Tip, [scriptblock]$OnClick) {
     $b.AutoSize = $false
     $b.Height = 34
     $b.Cursor = [System.Windows.Forms.Cursors]::Hand
+    $b.Add_SizeChanged({ Set-Round $this 7 })
+    $b.Add_HandleCreated({ Set-Round $this 7 })
     if ($Tip) { $script:Tip.SetToolTip($b, $Tip) }
     if ($OnClick) { $b.Add_Click($OnClick) }
     return $b
@@ -113,6 +122,57 @@ function New-Lbl([string]$Text, [System.Drawing.Color]$Color, [float]$Size = 9.5
     if ($Width) { $l.AutoSize = $false; $l.Width = $Width } else { $l.AutoSize = $true }
     $l.Height = $Height
     return $l
+}
+
+# ---------------------------------------------------------------------------------------
+# RESPONSIVE LAYOUT HELPERS (design size 1000x720, everything scales with the window)
+# ---------------------------------------------------------------------------------------
+$script:DW = 1000
+$script:DH = 720
+
+function SX([double]$V) {
+    return [int][math]::Round($V * $script:Form.ClientSize.Width / $script:DW)
+}
+function SY([double]$V) {
+    return [int][math]::Round($V * $script:Form.ClientSize.Height / $script:DH)
+}
+
+# Rounded corners (works with the dark theme; re-apply after any size change).
+function Set-Round($Ctrl, [int]$Radius) {
+    if (-not $Ctrl -or $Ctrl.Width -le 0 -or $Ctrl.Height -le 0) { return }
+    $max = [int]([math]::Min($Ctrl.Width, $Ctrl.Height) / 2)
+    if ($Radius -gt $max) { $Radius = $max }
+    if ($Radius -lt 1) { $Radius = 1 }
+    try {
+        $d = $Radius * 2
+        $p = New-Object System.Drawing.Drawing2D.GraphicsPath
+        $p.AddArc(0, 0, $d, $d, 180, 90)
+        $p.AddArc($Ctrl.Width - $d, 0, $d, $d, 270, 90)
+        $p.AddArc($Ctrl.Width - $d, $Ctrl.Height - $d, $d, $d, 0, 90)
+        $p.AddArc(0, $Ctrl.Height - $d, $d, $d, 90, 90)
+        $p.CloseFigure()
+        $Ctrl.Region = New-Object System.Drawing.Region($p)
+        $p.Dispose()
+        if ($Ctrl.IsHandleCreated) {
+            $g = $Ctrl.CreateGraphics()
+            try {
+                $hr = $Ctrl.Region.GetHrgn($g)
+                [Win32R]::SetWindowRgn($Ctrl.Handle, $hr, $true)
+            } finally { $g.Dispose() }
+        }
+    } catch { Write-Log "SR-ERR Set-Round $($_.Exception.Message)" }
+}
+
+# How many lines does $Text need inside $MaxWidth with $Font?
+function Measure-Text([string]$Text, [System.Drawing.Font]$Font, [int]$MaxWidth) {
+    $g = $script:Form.CreateGraphics()
+    try {
+        $s = $g.MeasureString($Text, $Font, $MaxWidth)
+        return [pscustomobject]@{
+            Lines  = [int][math]::Max(1, [math]::Ceiling($s.Height / [math]::Max(1, $Font.Height)))
+            Height = [int][math]::Ceiling($s.Height)
+        }
+    } finally { $g.Dispose() }
 }
 
 function Add-Log([string]$Line) {
@@ -160,7 +220,7 @@ function Update-BusyUi {
 # MAIN FORM
 # ---------------------------------------------------------------------------------------
 $script:Form = New-Object System.Windows.Forms.Form
-$script:Form.Text = 'K BNG M Hoster v0.6.0 - by Kinan (@raed713)'
+$script:Form.Text = 'K BNG M Hoster v0.6.1 - by Kinan (@raed713)'
 $script:Form.Size = New-Object System.Drawing.Size(1000, 720)
 $script:Form.MinimumSize = New-Object System.Drawing.Size(960, 660)
 $script:Form.StartPosition = 'CenterScreen'
@@ -180,7 +240,7 @@ $header.Height = 62
 $header.BackColor = $C.panel
 $title = New-Lbl 'K BNG M Hoster' ([System.Drawing.Color]::White) 19 30 $true
 $title.Location = New-Object System.Drawing.Point(14, 6)
-$subtitle = New-Lbl 'v0.6.0  |  Simplest Edition  |  Sole Creator: Kinan  |  Discord: @raed713' $C.dim 9 18
+$subtitle = New-Lbl 'v0.6.1  |  Simplest Edition  |  Sole Creator: Kinan  |  Discord: @raed713' $C.dim 9 18
 $subtitle.Location = New-Object System.Drawing.Point(15, 38)
 $header.Controls.Add($title)
 $header.Controls.Add($subtitle)
@@ -196,46 +256,77 @@ $script:BtnStart = New-Btn '&Start Server' 'Start the BeamMP server and open the
 $script:BtnStart.BackColor = [System.Drawing.Color]::FromArgb(35, 100, 60)
 $script:BtnStart.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(63, 185, 80)
 $script:BtnStart.Font = New-Object System.Drawing.Font('Segoe UI', 10.5, [System.Drawing.FontStyle]::Bold)
-$script:BtnStart.Size = New-Object System.Drawing.Size(120, 38)
-$script:BtnStart.Location = New-Object System.Drawing.Point(10, 6)
 
 $script:BtnStop = New-Btn 'Sto&p' 'Stop the running server. Closing the launcher window also stops it. (Ctrl+X)' { Stop-ServerFlow }
-$script:BtnStop.Size = New-Object System.Drawing.Size(74, 38)
-$script:BtnStop.Location = New-Object System.Drawing.Point(136, 6)
 $script:BtnStop.Enabled = $false
 
 $script:BtnFix = New-Btn '&Fix Problems' 'Scan your setup and repair common issues (key, port, firewall, CGNAT, VPN). (Ctrl+F)' { Show-FixPage }
-$script:BtnFix.Size = New-Object System.Drawing.Size(104, 38)
-$script:BtnFix.Location = New-Object System.Drawing.Point(216, 6)
 
 $script:BtnVpn = New-Btn '&VPN Manager' 'Radmin VPN / Hamachi / ZeroTier / Tailscale: start or download them, see their IPs. Needed when port forwarding can''t work (CGNAT). (Ctrl+V)' { Show-VpnPage }
-$script:BtnVpn.Size = New-Object System.Drawing.Size(108, 38)
-$script:BtnVpn.Location = New-Object System.Drawing.Point(326, 6)
 
 $script:BtnMods = New-Btn '&Mods' 'Manage your mods (Resources\Client): enable, disable, scan for suspicious files. (Ctrl+M)' { Show-ModsPage }
-$script:BtnMods.Size = New-Object System.Drawing.Size(66, 38)
-$script:BtnMods.Location = New-Object System.Drawing.Point(440, 6)
 
 $script:BtnSettings = New-Btn 'Se&ttings' 'Server name, max players, port, IP lock, server key. (Ctrl+T)' { Show-SettingsPage }
-$script:BtnSettings.Size = New-Object System.Drawing.Size(88, 38)
-$script:BtnSettings.Location = New-Object System.Drawing.Point(512, 6)
 
 $script:BtnClean = New-Btn 'C&lean Info' 'Remove personal/runtime files (key, logs, webhook, IP files) so the folder is safe to zip and share.' { Run-CleanFlow }
-$script:BtnClean.Size = New-Object System.Drawing.Size(94, 38)
-$script:BtnClean.Location = New-Object System.Drawing.Point(606, 6)
+$script:BtnClean.BackColor = [System.Drawing.Color]::FromArgb(122, 26, 26)
+$script:BtnClean.FlatAppearance.MouseOverBackColor = [System.Drawing.Color]::FromArgb(158, 34, 34)
+$script:BtnClean.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(220, 60, 60)
+$script:BtnClean.ForeColor = [System.Drawing.Color]::White
 
 $btnOpen = New-Btn '&Open Folder' 'Open the K BNG M Hoster folder in Explorer.' { Start-Process explorer.exe -ArgumentList ('"' + $script:RootDir + '"') }
-$btnOpen.Size = New-Object System.Drawing.Size(98, 38)
-$btnOpen.Location = New-Object System.Drawing.Point(706, 6)
+
+# Design-time geometry for every chrome control (scaled on every resize).
+$script:ChromeSpecs = @(
+    @{ Btn = $script:BtnStart;    X = 10;  Y = 6; W = 120; H = 38 },
+    @{ Btn = $script:BtnStop;     X = 136; Y = 6; W = 74;  H = 38 },
+    @{ Btn = $script:BtnFix;      X = 216; Y = 6; W = 104; H = 38 },
+    @{ Btn = $script:BtnVpn;      X = 326; Y = 6; W = 108; H = 38 },
+    @{ Btn = $script:BtnMods;     X = 440; Y = 6; W = 66;  H = 38 },
+    @{ Btn = $script:BtnSettings; X = 512; Y = 6; W = 88;  H = 38 },
+    @{ Btn = $script:BtnClean;    X = 606; Y = 6; W = 94;  H = 38 },
+    @{ Btn = $btnOpen;            X = 706; Y = 6; W = 98;  H = 38 }
+)
+$script:ChromeReady = $false
 
 foreach ($b in @($script:BtnStart, $script:BtnStop, $script:BtnFix, $script:BtnVpn, $script:BtnMods, $script:BtnSettings, $script:BtnClean, $btnOpen)) { $toolbar.Controls.Add($b) }
+
+# Re-layout the fixed chrome (header / toolbar / status bar / log panel) to the window size.
+function Layout-Chrome {
+    if (-not $script:ChromeReady -or -not $script:Form) { return }
+    try {
+        $w = $script:Form.ClientSize.Width
+        $c = $script:Chrome
+        $c.Header.Height = SY(62)
+        Set-Round $c.Header 10
+        $c.Toolbar.Height = SY(52)
+        $c.StatusBar.Height = SY(26)
+        Set-Round $c.StatusBar 10
+        $c.LogPanel.Height = SY(190)
+        Set-Round $c.LogPanel 10
+        foreach ($s in $script:ChromeSpecs) {
+            $bx = SX $s.X; $by = SY $s.Y; $bw = SX $s.W; $bh = SY $s.H
+            $s.Btn.Location = New-Object System.Drawing.Point($bx, $by)
+            $s.Btn.Size = New-Object System.Drawing.Size($bw, $bh)
+            Set-Round $s.Btn 7
+        }
+        $c.LblShortcuts.Width = $w - (SX 430)
+        $c.LblPlayers.Width = SX 390
+        $px = $w - (SX 400)
+        $c.LblPlayers.Location = New-Object System.Drawing.Point($px, 3)
+        $cx = $w - (SX 66)
+        $c.BtnClearLog.Location = New-Object System.Drawing.Point($cx, 0)
+    } catch { Write-Log "[LAYOUT-ERROR] CHROME $($_.Exception.Message)" }
+}
 
 # ---------------- Status bar ----------------
 $statusBar = New-Object System.Windows.Forms.Panel
 $statusBar.Dock = 'Bottom'
 $statusBar.Height = 26
 $statusBar.BackColor = $C.panel
-$script:LblShortcuts = New-Lbl 'Keyboard:  Ctrl+S Start  |  Ctrl+X Stop  |  Ctrl+F Fix  |  Ctrl+V VPN  |  Ctrl+M Mods  |  Ctrl+T Settings  |  Ctrl+D Diagnose  |  Ctrl+C Copy IP  |  Tab = next button  |  Enter = activate  |  Esc = close dialogs' $C.dim 8 20
+$script:LblShortcuts = New-Lbl 'Ctrl+S Start  |  Ctrl+X Stop  |  Ctrl+F Fix  |  Ctrl+V VPN  |  Ctrl+M Mods  |  Ctrl+T Settings  |  Ctrl+D Diagnose  |  Ctrl+C Copy IP  |  Tab = next  |  Enter = activate  |  Esc = close dialogs' $C.dim 8 20
+$script:LblShortcuts.AutoSize = $false
+$script:LblShortcuts.Width = 940
 $script:LblShortcuts.Location = New-Object System.Drawing.Point(10, 3)
 $script:LblPlayers = New-Lbl '' $C.blue 8.5 20 $true 380
 $script:LblPlayers.Location = New-Object System.Drawing.Point(580, 3)
@@ -270,6 +361,8 @@ $logPanel.Controls.Add($btnClearLog)
 $logPanel.Controls.Add($logTitle)
 $logPanel.Controls.Add($script:LogBox)
 
+$script:Chrome = @{ Header = $header; Toolbar = $toolbar; StatusBar = $statusBar; LogPanel = $logPanel; LblShortcuts = $script:LblShortcuts; LblPlayers = $script:LblPlayers; BtnClearLog = $btnClearLog }
+
 # ---------------- Content area (added FIRST so the docked bars lay out around it) --------
 $script:Content = New-Object System.Windows.Forms.Panel
 $script:Content.Dock = 'Fill'
@@ -281,6 +374,18 @@ $script:Form.Controls.Add($logPanel)
 $script:Form.Controls.Add($toolbar)
 $script:Form.Controls.Add($header)
 
+$script:ChromeReady = $true
+Layout-Chrome
+
+# One resize handler drives the whole UI: chrome + the active page's layout.
+$script:Form.Add_Resize({
+    try {
+        Set-Round $script:Form 12
+        Layout-Chrome
+        if ($script:PageLayout) { & $script:PageLayout }
+    } catch { Write-Log "[LAYOUT-ERROR] $($_.Exception.Message)" }
+})
+
 # ---------------- Content pages ----------------
 function Show-DashboardPage {
     $script:Content.Controls.Clear()
@@ -288,15 +393,15 @@ function Show-DashboardPage {
     $p.Dock = 'Fill'
     $p.BackColor = $C.bg
 
-    $connCard = New-Object System.Windows.Forms.Panel
-    $connCard.Dock = 'Fill'
-    $connCard.BackColor = $C.bg
+    $script:ConnCard = New-Object System.Windows.Forms.Panel
+    $script:ConnCard.Dock = 'Fill'
+    $script:ConnCard.BackColor = $C.bg
 
     $connTitle = New-Lbl 'How your friends connect  (BeamNG -> More... -> BeamMP -> Direct Connect)' $C.blue 12 26 $true
     $connTitle.Location = New-Object System.Drawing.Point(16, 4)
-    $connCard.Controls.Add($connTitle)
+    $script:ConnCard.Controls.Add($connTitle)
 
-    $script:LblConnThis = New-Lbl '' [System.Drawing.Color]::White 10.5 22
+    $script:LblConnThis = New-Lbl '' ([System.Drawing.Color]::White) 10.5 22
     $script:LblConnThis.Location = New-Object System.Drawing.Point(16, 34)
     $script:LblConnLan = New-Lbl '' $C.dim 10 22
     $script:LblConnLan.Location = New-Object System.Drawing.Point(16, 58)
@@ -311,20 +416,18 @@ function Show-DashboardPage {
     $script:LblConnNote = New-Lbl '' $C.yellow 9 42  $false 900
     $script:LblConnNote.Location = New-Object System.Drawing.Point(16, 178)
 
-    $btnDiag = New-Btn '&Diagnose' 'Run a full live diagnosis and show a plain-language report of any problem. (Ctrl+D)' { Run-Diagnose }
-    $btnDiag.Size = New-Object System.Drawing.Size(110, 36)
-    $btnDiag.Location = New-Object System.Drawing.Point(16, 230)
+    $script:BtnDiag = New-Btn '&Diagnose' 'Run a full live diagnosis and show a plain-language report of any problem. (Ctrl+D)' { Run-Diagnose }
+    $script:BtnDiag.Size = New-Object System.Drawing.Size(110, 36)
 
-    $btnCopy = New-Btn '&Copy IP' 'Copy the best address for your friends to the clipboard (LAN > VPN > Tailscale > internet). (Ctrl+C)' { Copy-ConnectionLine }
-    $btnCopy.Size = New-Object System.Drawing.Size(110, 36)
-    $btnCopy.Location = New-Object System.Drawing.Point(136, 230)
+    $script:BtnCopy = New-Btn '&Copy IP' 'Copy the best address for your friends to the clipboard (LAN > VPN > Tailscale > internet). (Ctrl+C)' { Copy-ConnectionLine }
+    $script:BtnCopy.Size = New-Object System.Drawing.Size(110, 36)
 
-    foreach ($l in @($script:LblConnThis, $script:LblConnLan, $script:LblConnVpn, $script:LblConnTail, $script:LblConnPub, $script:LblConnRouter, $script:LblConnNote, $btnDiag, $btnCopy)) { $connCard.Controls.Add($l) }
+    foreach ($l in @($script:LblConnThis, $script:LblConnLan, $script:LblConnVpn, $script:LblConnTail, $script:LblConnPub, $script:LblConnRouter, $script:LblConnNote, $script:BtnDiag, $script:BtnCopy)) { $script:ConnCard.Controls.Add($l) }
 
-    $statusCard = New-Object System.Windows.Forms.Panel
-    $statusCard.Dock = 'Top'
-    $statusCard.Height = 104
-    $statusCard.BackColor = $C.panel
+    $script:StatusCard = New-Object System.Windows.Forms.Panel
+    $script:StatusCard.Dock = 'Top'
+    $script:StatusCard.Height = 104
+    $script:StatusCard.BackColor = $C.panel
 
     $script:LblStatusBig = New-Lbl 'SERVER STOPPED' $C.red 20 34 $true
     $script:LblStatusBig.Location = New-Object System.Drawing.Point(16, 10)
@@ -340,15 +443,53 @@ function Show-DashboardPage {
     $script:LblStatusHint = New-Lbl 'Press Start Server (or Ctrl+S). Everything is automatic: key check, safety scan, firewall, port, then it opens the BeamMP Launcher.' $C.dim 9.5 40  $false 620
     $script:LblStatusHint.Location = New-Object System.Drawing.Point(320, 14)
 
-    $statusCard.Controls.Add($script:LblStatusHint)
-    $statusCard.Controls.Add($script:LblCgnatBadge)
-    $statusCard.Controls.Add($script:LblServerMeta)
-    $statusCard.Controls.Add($script:LblStatusBig)
+    $script:StatusCard.Controls.Add($script:LblStatusHint)
+    $script:StatusCard.Controls.Add($script:LblCgnatBadge)
+    $script:StatusCard.Controls.Add($script:LblServerMeta)
+    $script:StatusCard.Controls.Add($script:LblStatusBig)
 
-    $p.Controls.Add($connCard)
-    $p.Controls.Add($statusCard)
+    $p.Controls.Add($script:ConnCard)
+    $p.Controls.Add($script:StatusCard)
     $script:Content.Controls.Add($p)
+    $script:PageLayout = { Layout-Dashboard }
     Refresh-Dashboard
+}
+
+function Layout-Dashboard {
+    if (-not $script:ConnCard) { return }
+    try {
+        $cw = $script:ConnCard.ClientSize.Width - 32
+        $labels = @($script:LblConnThis, $script:LblConnLan, $script:LblConnVpn, $script:LblConnTail, $script:LblConnPub, $script:LblConnRouter)
+        $y = SY(34)
+        for ($i = 0; $i -lt $labels.Count; $i++) {
+            $labels[$i].AutoSize = $false
+            $labels[$i].Width = $cw
+            $m = Measure-Text $labels[$i].Text $labels[$i].Font $cw
+            $lh = [int][math]::Max(22, $m.Lines * 24 + 4)
+            $labels[$i].Height = $lh
+            $labels[$i].Location = New-Object System.Drawing.Point(16, $y)
+            $y += $lh
+        }
+        $script:LblConnNote.AutoSize = $false
+        $script:LblConnNote.Width = $cw
+        $m = Measure-Text $script:LblConnNote.Text $script:LblConnNote.Font $cw
+        $noteH = [int]($m.Lines * 24 + 6)
+        $script:LblConnNote.Height = $noteH
+        $script:LblConnNote.Location = New-Object System.Drawing.Point(16, $y)
+        $btnY = ($y + $noteH + 12)
+        $bx2 = SX 136
+        $script:BtnDiag.Location = New-Object System.Drawing.Point(16, $btnY)
+        $script:BtnCopy.Location = New-Object System.Drawing.Point($bx2, $btnY)
+        $script:StatusCard.Height = SY(104)
+        Set-Round $script:StatusCard 10
+        $sw = $script:StatusCard.ClientSize.Width - 336
+        $script:LblStatusHint.Width = $sw
+        $hx = SX 320
+        $hy = SY 14
+        $hh = $script:StatusCard.ClientSize.Height - 28
+        $script:LblStatusHint.Location = New-Object System.Drawing.Point($hx, $hy)
+        $script:LblStatusHint.Height = $hh
+    } catch { Write-Log "[LAYOUT-ERROR] DASHBOARD $($_.Exception.Message)" }
 }
 
 function Refresh-Dashboard {
@@ -413,6 +554,7 @@ function Refresh-Dashboard {
     } else {
         $script:LblConnNote.Text = "IMPORTANT: do NOT click your own server in the BeamMP server list - it uses your public IP and fails from inside your own network. Always use Direct Connect."
     }
+    Layout-Dashboard
 }
 
 function Show-FixPage {
@@ -428,36 +570,39 @@ function Show-FixPage {
     $script:FixRowsPanel.AutoScroll = $true
     $script:FixRowsPanel.BackColor = $C.bg
 
-    $top = New-Object System.Windows.Forms.Panel
-    $top.Dock = 'Top'
-    $top.Height = 96
-    $top.BackColor = $C.bg
+    $script:FixTop = New-Object System.Windows.Forms.Panel
+    $script:FixTop.Dock = 'Top'
+    $script:FixTop.Height = 96
+    $script:FixTop.BackColor = $C.bg
 
     $head = New-Lbl 'Help / Fix Problems' $C.blue 14 26 $true
     $head.Location = New-Object System.Drawing.Point(4, 2)
-    $top.Controls.Add($head)
+    $script:FixTop.Controls.Add($head)
     $sub = New-Lbl 'Every check is run for you. [OK] = fine, [X] = fix it (use the button on that row), [?] = needs your attention. Start the server first if you want the internet test to run.' $C.dim 9 20  $false 900
     $sub.Location = New-Object System.Drawing.Point(4, 30)
-    $top.Controls.Add($sub)
+    $script:FixTop.Controls.Add($sub)
 
     $btnScan = New-Btn 'Re-&scan everything' 'Run every check again (key, launcher, port, firewall, CGNAT, internet reachability...).' { Run-FixScan }
     $btnScan.Size = New-Object System.Drawing.Size(160, 34)
     $btnScan.Location = New-Object System.Drawing.Point(4, 54)
-    $top.Controls.Add($btnScan)
+    $script:FixTop.Controls.Add($btnScan)
 
     $btnUpnp = New-Btn 'Open port on router via UPnP' 'Ask the router to forward the server port (TCP+UDP) automatically - no admin needed.' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$port = Get-ServerPort`nif (Add-UpnpPortForward `$port) { Say ""UPnP: port `$port (TCP+UDP) forwarded on the router. Friends can now connect!"" } else { Say ""UPnP failed. Enable UPnP in your router settings, or forward port `$port (TCP+UDP) manually."" }" 'upnp' }
     $btnUpnp.Size = New-Object System.Drawing.Size(210, 34)
     $btnUpnp.Location = New-Object System.Drawing.Point(172, 54)
-    $top.Controls.Add($btnUpnp)
+    $script:FixTop.Controls.Add($btnUpnp)
 
     $p.Controls.Add($script:FixRowsPanel)
-    $p.Controls.Add($top)
+    $p.Controls.Add($script:FixTop)
     $script:Content.Controls.Add($p)
+    $script:FixRowRefs = @()
+    $script:PageLayout = { Layout-FixRows }
     Run-FixScan
 }
 
 function Run-FixScan {
     $script:FixRowsPanel.Controls.Clear()
+    $script:FixRowRefs = @()
     $wait = New-Lbl 'Scanning... (this takes a few seconds)' $C.dim 10 22
     $wait.Location = New-Object System.Drawing.Point(4, 4)
     $script:FixRowsPanel.Controls.Add($wait)
@@ -466,7 +611,7 @@ function Run-FixScan {
 
 function Add-FixRow($row) {
     $rowPanel = New-Object System.Windows.Forms.Panel
-    $rowPanel.Width = 950
+    $rowPanel.Width = $script:FixRowsPanel.ClientSize.Width - 22
     $rowPanel.Height = 44
     $rowPanel.BackColor = $C.panel
     $rowPanel.Padding = New-Object System.Windows.Forms.Padding(8, 5, 8, 5)
@@ -480,9 +625,9 @@ function Add-FixRow($row) {
 
     $lbl2 = New-Lbl ("$($row.Label):  $($row.Detail)") ([System.Drawing.Color]::White) 9.5 30  $false 630
     $lbl2.Location = New-Object System.Drawing.Point(54, 7)
-    $lbl2.AutoEllipsis = $true
     $rowPanel.Controls.Add($lbl2)
 
+    $btn = $null
     if ($row.Action) {
         $prefix = if ($row.NeedsAction) { 'Fix: ' } else { 'Info: ' }
         $btn = New-Btn ("&$prefix$($row.Action)") $row.Action { FixRowAction $row.Key }
@@ -492,7 +637,37 @@ function Add-FixRow($row) {
         $btn.Font = New-Object System.Drawing.Font('Segoe UI', 9)
         $rowPanel.Controls.Add($btn)
     }
+    $script:FixRowRefs += @{ Row = $rowPanel; Lbl = $lbl2; Btn = $btn }
     $script:FixRowsPanel.Controls.Add($rowPanel)
+}
+
+function Layout-FixRows {
+    if (-not $script:FixRowsPanel -or -not $script:FixRowRefs) { return }
+    try {
+        $w = $script:FixRowsPanel.ClientSize.Width - 22
+        if ($script:FixTop) {
+            $script:FixTop.Height = SY(96)
+            foreach ($c in $script:FixTop.Controls) { if ($c -is [System.Windows.Forms.Label] -and $c.Width -gt 400) { $c.Width = $script:FixTop.ClientSize.Width - 8 } }
+        }
+        foreach ($r in $script:FixRowRefs) {
+            $r.Row.Width = $w
+            $lblW = [int][math]::Max(200, $w - 320)
+            $r.Lbl.Width = $lblW
+            $m = Measure-Text $r.Lbl.Text $r.Lbl.Font $lblW
+            $lh = [int]($m.Lines * 20 + 12)
+            $rh = [int][math]::Max(44, $lh + 10)
+            $r.Row.Height = $rh
+            $r.Lbl.Height = $lh
+            $ly = [int](($rh - $lh) / 2)
+            $r.Lbl.Location = New-Object System.Drawing.Point(54, $ly)
+            if ($r.Btn) {
+                $bxp = $w - 262
+                $byp = [int](($rh - 30) / 2)
+                $r.Btn.Location = New-Object System.Drawing.Point($bxp, $byp)
+            }
+            Set-Round $r.Row 10
+        }
+    } catch { Write-Log "[LAYOUT-ERROR] FIXROWS $($_.Exception.Message)" }
 }
 
 function FixRowAction([string]$Key) {
@@ -576,46 +751,49 @@ function Show-VpnPage {
     $script:VpnRowsPanel.AutoScroll = $true
     $script:VpnRowsPanel.BackColor = $C.bg
 
-    $top = New-Object System.Windows.Forms.Panel
-    $top.Dock = 'Top'
-    $top.Height = 110
-    $top.BackColor = $C.bg
+    $script:VpnTop = New-Object System.Windows.Forms.Panel
+    $script:VpnTop.Dock = 'Top'
+    $script:VpnTop.Height = 110
+    $script:VpnTop.BackColor = $C.bg
 
     $head = New-Lbl 'VPN Manager  -  Radmin VPN / Hamachi / ZeroTier / Tailscale' $C.blue 14 26 $true
     $head.Location = New-Object System.Drawing.Point(4, 2)
-    $top.Controls.Add($head)
+    $script:VpnTop.Controls.Add($head)
     $safety = New-Lbl 'SAFETY: a VPN puts friends on a virtual LAN with your PC - they can reach file sharing / Remote Desktop etc. Only invite people you TRUST. Never invite random players into your VPN network.' $C.yellow 9 20  $false 940
     $safety.Location = New-Object System.Drawing.Point(4, 30)
-    $top.Controls.Add($safety)
+    $script:VpnTop.Controls.Add($safety)
     $sub = New-Lbl 'Port forwarding (Fix Problems) is the #1 way to host for STRANGERS. These VPNs are the fallback for when forwarding can''t work (e.g. CGNAT ISPs).' $C.dim 9 20  $false 940
     $sub.Location = New-Object System.Drawing.Point(4, 52)
-    $top.Controls.Add($sub)
+    $script:VpnTop.Controls.Add($sub)
 
     $btnRefresh = New-Btn '&Refresh' 'Re-check which VPNs are installed / running and their IPs.' { Show-VpnPage }
     $btnRefresh.Size = New-Object System.Drawing.Size(90, 32)
     $btnRefresh.Location = New-Object System.Drawing.Point(4, 76)
-    $top.Controls.Add($btnRefresh)
+    $script:VpnTop.Controls.Add($btnRefresh)
 
     $btnAll = New-Btn '&Start all installed VPNs' 'Start every VPN that is installed on this PC.' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$started = 0`nforeach (`$app in Get-InstalledVpns | Where-Object { `$_.Installed -and `$_.Exe }) { `$r = Start-OrDownload-Vpn `$app 6; Say `$r; if (`$r -match 'connected') { `$started++ } }`nif (`$started -eq 0) { Say ""No VPN could be started. Install one first (see the rows below) and try again."" }`n`$State.VpnRefresh = (Get-Date).ToString('o')" 'vpns' }
     $btnAll.Size = New-Object System.Drawing.Size(150, 32)
     $btnAll.Location = New-Object System.Drawing.Point(100, 76)
-    $top.Controls.Add($btnAll)
+    $script:VpnTop.Controls.Add($btnAll)
 
     $p.Controls.Add($script:VpnRowsPanel)
-    $p.Controls.Add($top)
+    $p.Controls.Add($script:VpnTop)
     $script:Content.Controls.Add($p)
+    $script:PageLayout = { Layout-VpnRows }
     Refresh-VpnRows
+    Layout-VpnRows
 }
 
 function Refresh-VpnRows {
     if (-not $script:VpnRowsPanel) { return }
     $script:VpnRowsPanel.Controls.Clear()
+    $script:VpnRowRefs = @()
     $apps = @(Get-InstalledVpns)
     $running = @(Get-VpnIps)
     foreach ($app in $apps) {
         $run = @($running | Where-Object { $_.Key -eq $app.Key })
         $rowPanel = New-Object System.Windows.Forms.Panel
-        $rowPanel.Width = 950
+        $rowPanel.Width = $script:VpnRowsPanel.ClientSize.Width - 22
         $rowPanel.Height = 46
         $rowPanel.BackColor = $C.panel
         $rowPanel.Padding = New-Object System.Windows.Forms.Padding(8, 5, 8, 5)
@@ -641,26 +819,47 @@ function Refresh-VpnRows {
         $lbl.Width = 380
         $rowPanel.Controls.Add($lbl)
 
+        $btn = $null
         if (-not $app.Installed) {
             $btn = New-Btn '&Download (official page)' "Open the official download page for $($app.Name)." { Start-Process $app.Url }
             $btn.Size = New-Object System.Drawing.Size(170, 30)
-            $btn.Location = New-Object System.Drawing.Point(750, 8)
             $btn.Height = 30
             $btn.Font = New-Object System.Drawing.Font('Segoe UI', 9)
             $rowPanel.Controls.Add($btn)
         } elseif (-not ($run.Count -and $run[0].Ip)) {
             $btn = New-Btn '&Start' "Start $($app.Name) and wait for it to connect. Friends must be on the same VPN network as you." { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$app = (Get-InstalledVpns | Where-Object { `$_.Key -eq '$($app.Key)' } | Select-Object -First 1)`nSay (Start-OrDownload-Vpn `$app)`n`$State.VpnRefresh = (Get-Date).ToString('o')" 'vpn' }
             $btn.Size = New-Object System.Drawing.Size(170, 30)
-            $btn.Location = New-Object System.Drawing.Point(750, 8)
             $btn.Height = 30
             $btn.Font = New-Object System.Drawing.Font('Segoe UI', 9)
             $rowPanel.Controls.Add($btn)
         }
+        $script:VpnRowRefs += @{ Row = $rowPanel; Lbl = $lbl; Btn = $btn }
         $script:VpnRowsPanel.Controls.Add($rowPanel)
     }
-    $note = New-Lbl 'Tip: only ONE VPN should be used at a time - friends must be on the SAME one as the IP line you send them. Close the unused VPNs.' $C.dim 9 30  $false 940
-    $note.Location = New-Object System.Drawing.Point(0, 4)
-    $script:VpnRowsPanel.Controls.Add($note)
+    $script:VpnNote = New-Lbl 'Tip: only ONE VPN should be used at a time - friends must be on the SAME one as the IP line you send them. Close the unused VPNs.' $C.dim 9 30  $false 940
+    $script:VpnNote.Location = New-Object System.Drawing.Point(0, 4)
+    $script:VpnRowsPanel.Controls.Add($script:VpnNote)
+}
+
+function Layout-VpnRows {
+    if (-not $script:VpnRowsPanel) { return }
+    try {
+        $w = $script:VpnRowsPanel.ClientSize.Width - 22
+        if ($script:VpnTop) {
+            $script:VpnTop.Height = SY(110)
+            foreach ($c in $script:VpnTop.Controls) { if ($c -is [System.Windows.Forms.Label] -and $c.Width -gt 400) { $c.Width = $script:VpnTop.ClientSize.Width - 8 } }
+        }
+        foreach ($r in $script:VpnRowRefs) {
+            $r.Row.Width = $w
+            $r.Lbl.Width = $w - 210
+            if ($r.Btn) {
+                $bxv = $w - 190
+                $r.Btn.Location = New-Object System.Drawing.Point($bxv, 8)
+            }
+            Set-Round $r.Row 10
+        }
+        if ($script:VpnNote) { $script:VpnNote.Width = $w }
+    } catch { Write-Log "[LAYOUT-ERROR] VPNROWS $($_.Exception.Message)" }
 }
 
 function Show-ModsPage {
@@ -669,14 +868,14 @@ function Show-ModsPage {
     $p.Dock = 'Fill'
     $p.BackColor = $C.bg
 
-    $listPanel = New-Object System.Windows.Forms.Panel
-    $listPanel.Dock = 'Fill'
-    $listPanel.BackColor = $C.bg
-    $listPanel.Padding = New-Object System.Windows.Forms.Padding(0, 4, 0, 0)
+    $script:ModsListPanel = New-Object System.Windows.Forms.Panel
+    $script:ModsListPanel.Dock = 'Fill'
+    $script:ModsListPanel.BackColor = $C.bg
+    $script:ModsListPanel.Padding = New-Object System.Windows.Forms.Padding(0, 4, 0, 0)
 
     $lblOn = New-Lbl 'Enabled mods (click to select)' $C.green 9.5 18 $true
     $lblOn.Location = New-Object System.Drawing.Point(0, 2)
-    $listPanel.Controls.Add($lblOn)
+    $script:ModsListPanel.Controls.Add($lblOn)
     $script:ListEnabled = New-Object System.Windows.Forms.ListBox
     $script:ListEnabled.Location = New-Object System.Drawing.Point(0, 24)
     $script:ListEnabled.Size = New-Object System.Drawing.Size(470, 280)
@@ -687,7 +886,7 @@ function Show-ModsPage {
 
     $lblOff = New-Lbl 'Disabled mods (click to select)' $C.yellow 9.5 18 $true
     $lblOff.Location = New-Object System.Drawing.Point(480, 2)
-    $listPanel.Controls.Add($lblOff)
+    $script:ModsListPanel.Controls.Add($lblOff)
     $script:ListDisabled = New-Object System.Windows.Forms.ListBox
     $script:ListDisabled.Location = New-Object System.Drawing.Point(480, 24)
     $script:ListDisabled.Size = New-Object System.Drawing.Size(470, 280)
@@ -696,55 +895,72 @@ function Show-ModsPage {
     $script:ListDisabled.BorderStyle = 'FixedSingle'
     $script:ListDisabled.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 
-    $listPanel.Controls.Add($script:ListEnabled)
-    $listPanel.Controls.Add($script:ListDisabled)
+    $script:ModsListPanel.Controls.Add($script:ListEnabled)
+    $script:ModsListPanel.Controls.Add($script:ListDisabled)
 
-    $top = New-Object System.Windows.Forms.Panel
-    $top.Dock = 'Top'
-    $top.Height = 96
-    $top.BackColor = $C.bg
+    $script:ModsTop = New-Object System.Windows.Forms.Panel
+    $script:ModsTop.Dock = 'Top'
+    $script:ModsTop.Height = 96
+    $script:ModsTop.BackColor = $C.bg
 
     $head = New-Lbl 'Mod Manager  -  Resources\Client' $C.blue 14 26 $true
     $head.Location = New-Object System.Drawing.Point(4, 2)
-    $top.Controls.Add($head)
+    $script:ModsTop.Controls.Add($head)
     $sub = New-Lbl 'Disabled mods are moved to Server\Backups\mods and are NOT loaded by the server. Mods in .zip are synced to everyone who joins automatically.' $C.dim 9 20  $false 940
     $sub.Location = New-Object System.Drawing.Point(4, 30)
-    $top.Controls.Add($sub)
+    $script:ModsTop.Controls.Add($sub)
 
     $btnDisable = New-Btn '&Disable selected' 'Move the selected enabled mod to Backups\mods (not loaded).' { ModAction 'disable' }
     $btnDisable.Size = New-Object System.Drawing.Size(130, 32)
     $btnDisable.Location = New-Object System.Drawing.Point(4, 54)
-    $top.Controls.Add($btnDisable)
+    $script:ModsTop.Controls.Add($btnDisable)
 
     $btnEnable = New-Btn '&Enable selected' 'Move the selected disabled mod back to Resources\Client (loaded).' { ModAction 'enable' }
     $btnEnable.Size = New-Object System.Drawing.Size(130, 32)
     $btnEnable.Location = New-Object System.Drawing.Point(140, 54)
-    $top.Controls.Add($btnEnable)
+    $script:ModsTop.Controls.Add($btnEnable)
 
     $btnScan = New-Btn '&Scan for suspicious files' 'Check all mods and zips for executables (.exe/.vbs/.cmd/...) and quarantine anything found.' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Scan-Mods)`n`$State.ModsRefresh = (Get-Date).ToString('o')" 'modscan' }
     $btnScan.Size = New-Object System.Drawing.Size(190, 32)
     $btnScan.Location = New-Object System.Drawing.Point(276, 54)
-    $top.Controls.Add($btnScan)
+    $script:ModsTop.Controls.Add($btnScan)
 
     $btnOpen = New-Btn '&Open folder' 'Open Resources\Client in Explorer.' { Start-Process explorer.exe -ArgumentList ('"' + ($script:RootDir + 'Resources\Client') + '"') }
     $btnOpen.Size = New-Object System.Drawing.Size(110, 32)
     $btnOpen.Location = New-Object System.Drawing.Point(472, 54)
-    $top.Controls.Add($btnOpen)
+    $script:ModsTop.Controls.Add($btnOpen)
 
     $btnRefresh = New-Btn '&Refresh list' 'Reload the mod list.' { Show-ModsPage }
     $btnRefresh.Size = New-Object System.Drawing.Size(110, 32)
     $btnRefresh.Location = New-Object System.Drawing.Point(588, 54)
-    $top.Controls.Add($btnRefresh)
+    $script:ModsTop.Controls.Add($btnRefresh)
 
-    $p.Controls.Add($listPanel)
-    $p.Controls.Add($top)
+    $p.Controls.Add($script:ModsListPanel)
+    $p.Controls.Add($script:ModsTop)
     $script:Content.Controls.Add($p)
+    $script:PageLayout = { Layout-Mods }
 
     $info = Get-ModsInfo
     $script:ListEnabled.Items.Clear()
     foreach ($f in $info.Enabled) { [void]$script:ListEnabled.Items.Add(("{0}  ({1:N1} MB)" -f $f.Name, ($f.Length / 1MB))) }
     $script:ListDisabled.Items.Clear()
     foreach ($f in $info.Disabled) { [void]$script:ListDisabled.Items.Add($f.Name) }
+}
+
+function Layout-Mods {
+    if (-not $script:ModsListPanel) { return }
+    try {
+        $script:ModsTop.Height = SY(96)
+        foreach ($c in $script:ModsTop.Controls) { if ($c -is [System.Windows.Forms.Label] -and $c.Width -gt 400) { $c.Width = $script:ModsTop.ClientSize.Width - 8 } }
+        $w = $script:ModsListPanel.ClientSize.Width
+        $h = $script:ModsListPanel.ClientSize.Height
+        $colW = [int](($w - 10) / 2)
+        $listH = [int][math]::Max(60, $h - 32)
+        $x2 = $colW + 10
+        $script:ListEnabled.Size = New-Object System.Drawing.Size($colW, $listH)
+        $script:ListDisabled.Size = New-Object System.Drawing.Size($colW, $listH)
+        $script:ListDisabled.Location = New-Object System.Drawing.Point($x2, 24)
+    } catch { Write-Log "[LAYOUT-ERROR] MODS $($_.Exception.Message)" }
 }
 
 function ModAction([string]$Which) {
@@ -782,9 +998,9 @@ function Show-SettingsPage {
     $script:ChkLock.Checked = (Test-StaticIpLocked)
     $p.Controls.Add($script:ChkLock)
 
-    $lbl1 = New-Lbl 'Server name (shown in the BeamMP list):' $C.dim 9.5 20
-    $lbl1.Location = New-Object System.Drawing.Point(8, 74)
-    $p.Controls.Add($lbl1)
+    $script:LblSettings1 = New-Lbl 'Server name (shown in the BeamMP list):' $C.dim 9.5 20
+    $script:LblSettings1.Location = New-Object System.Drawing.Point(8, 74)
+    $p.Controls.Add($script:LblSettings1)
     $script:TxtName = New-Object System.Windows.Forms.TextBox
     $script:TxtName.Location = New-Object System.Drawing.Point(8, 96)
     $script:TxtName.Size = New-Object System.Drawing.Size(300, 26)
@@ -795,9 +1011,9 @@ function Show-SettingsPage {
     if ($m) { $script:TxtName.Text = $m.Matches[0].Groups[1].Value }
     $p.Controls.Add($script:TxtName)
 
-    $lbl2 = New-Lbl 'Max players:' $C.dim 9.5 20
-    $lbl2.Location = New-Object System.Drawing.Point(8, 130)
-    $p.Controls.Add($lbl2)
+    $script:LblSettings2 = New-Lbl 'Max players:' $C.dim 9.5 20
+    $script:LblSettings2.Location = New-Object System.Drawing.Point(8, 130)
+    $p.Controls.Add($script:LblSettings2)
     $script:TxtPlayers = New-Object System.Windows.Forms.TextBox
     $script:TxtPlayers.Location = New-Object System.Drawing.Point(8, 152)
     $script:TxtPlayers.Size = New-Object System.Drawing.Size(120, 26)
@@ -808,37 +1024,67 @@ function Show-SettingsPage {
     if ($m2) { $script:TxtPlayers.Text = $m2.Matches[0].Groups[1].Value }
     $p.Controls.Add($script:TxtPlayers)
 
-    $btnSave = New-Btn '&Save settings' 'Save the server name and max players.' { Save-Settings }
-    $btnSave.Size = New-Object System.Drawing.Size(120, 34)
-    $btnSave.Location = New-Object System.Drawing.Point(8, 188)
-    $p.Controls.Add($btnSave)
+    $script:BtnSave = New-Btn '&Save settings' 'Save the server name and max players.' { Save-Settings }
+    $script:BtnSave.Size = New-Object System.Drawing.Size(120, 34)
+    $script:BtnSave.Location = New-Object System.Drawing.Point(8, 188)
+    $p.Controls.Add($script:BtnSave)
 
-    $lbl3 = New-Lbl ("Port: $((Get-ServerPort))  (change it automatically if it is ever busy)") $C.dim 9.5 20  $false 600
-    $lbl3.Location = New-Object System.Drawing.Point(8, 240)
-    $p.Controls.Add($lbl3)
-    $btnPort = New-Btn '&Use a free port' 'Pick a free port and write it to ServerConfig.toml. Remember: the router must forward the NEW port (TCP+UDP).' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Set-FreePort -Port (Get-FreePort))" 'setport' }
-    $btnPort.Size = New-Object System.Drawing.Size(130, 34)
-    $btnPort.Location = New-Object System.Drawing.Point(8, 264)
-    $p.Controls.Add($btnPort)
+    $script:LblSettings3 = New-Lbl ("Port: $((Get-ServerPort))  (change it automatically if it is ever busy)") $C.dim 9.5 20  $false 600
+    $script:LblSettings3.Location = New-Object System.Drawing.Point(8, 240)
+    $p.Controls.Add($script:LblSettings3)
+    $script:BtnPort = New-Btn '&Use a free port' 'Pick a free port and write it to ServerConfig.toml. Remember: the router must forward the NEW port (TCP+UDP).' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Set-FreePort -Port (Get-FreePort))" 'setport' }
+    $script:BtnPort.Size = New-Object System.Drawing.Size(130, 34)
+    $script:BtnPort.Location = New-Object System.Drawing.Point(8, 264)
+    $p.Controls.Add($script:BtnPort)
 
-    $lbl4 = New-Lbl 'Server key (BEAMMP_AUTHKEY) - stored in Server\.env, never shown again:' $C.dim 9.5 20  $false 600
-    $lbl4.Location = New-Object System.Drawing.Point(8, 316)
-    $p.Controls.Add($lbl4)
-    $btnKey = New-Btn '&Set up / change my server key' 'Open the key setup dialog. Get your free key at https://keymaster.beammp.com' { Show-KeySetupDialog $script:Form }
-    $btnKey.Size = New-Object System.Drawing.Size(200, 34)
-    $btnKey.Location = New-Object System.Drawing.Point(8, 340)
-    $p.Controls.Add($btnKey)
+    $script:LblSettings4 = New-Lbl 'Server key (BEAMMP_AUTHKEY) - stored in Server\.env, never shown again:' $C.dim 9.5 20  $false 600
+    $script:LblSettings4.Location = New-Object System.Drawing.Point(8, 316)
+    $p.Controls.Add($script:LblSettings4)
+    $script:BtnKey = New-Btn '&Set up / change my server key' 'Open the key setup dialog. Get your free key at https://keymaster.beammp.com' { Show-KeySetupDialog $script:Form }
+    $script:BtnKey.Size = New-Object System.Drawing.Size(200, 34)
+    $script:BtnKey.Location = New-Object System.Drawing.Point(8, 340)
+    $p.Controls.Add($script:BtnKey)
 
-    $btnUpdate = New-Btn '&Check for BeamMP-Server updates' 'Ask GitHub if a newer BeamMP-Server build exists (cached 24h).' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$msg = Check-ForUpdates`n`$State.UpdateMsg = `$msg`nif (`$msg) { Say `$msg } else { Say ""BeamMP-Server is up to date."" }" 'update' }
-    $btnUpdate.Size = New-Object System.Drawing.Size(220, 34)
-    $btnUpdate.Location = New-Object System.Drawing.Point(8, 390)
-    $p.Controls.Add($btnUpdate)
+    $script:BtnUpdate = New-Btn '&Check for BeamMP-Server updates' 'Ask GitHub if a newer BeamMP-Server build exists (cached 24h).' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$msg = Check-ForUpdates`n`$State.UpdateMsg = `$msg`nif (`$msg) { Say `$msg } else { Say ""BeamMP-Server is up to date."" }" 'update' }
+    $script:BtnUpdate.Size = New-Object System.Drawing.Size(220, 34)
+    $script:BtnUpdate.Location = New-Object System.Drawing.Point(8, 390)
+    $p.Controls.Add($script:BtnUpdate)
 
     $script:LblSettingsResult = New-Lbl '' $C.green 9.5 40  $false 800
     $script:LblSettingsResult.Location = New-Object System.Drawing.Point(8, 434)
     $p.Controls.Add($script:LblSettingsResult)
 
     $script:Content.Controls.Add($p)
+    $script:PageLayout = { Layout-Settings }
+}
+
+function Layout-Settings {
+    if (-not $script:TxtName) { return }
+    try {
+        $w = $script:Content.ClientSize.Width - 16
+        $y36 = SY 36; $y74 = SY 74; $y96 = SY 96; $y130 = SY 130; $y152 = SY 152
+        $y188 = SY 188; $y240 = SY 240; $y264 = SY 264; $y316 = SY 316; $y340 = SY 340
+        $y390 = SY 390; $y434 = SY 434
+        $tw = SX 300; $pw2 = SX 120
+        $script:ChkLock.Width = $w
+        $script:ChkLock.Location = New-Object System.Drawing.Point(8, $y36)
+        $script:LblSettings1.Location = New-Object System.Drawing.Point(8, $y74)
+        $script:TxtName.Location = New-Object System.Drawing.Point(8, $y96)
+        $script:TxtName.Size = New-Object System.Drawing.Size($tw, 26)
+        $script:LblSettings2.Location = New-Object System.Drawing.Point(8, $y130)
+        $script:TxtPlayers.Location = New-Object System.Drawing.Point(8, $y152)
+        $script:TxtPlayers.Size = New-Object System.Drawing.Size($pw2, 26)
+        $script:BtnSave.Location = New-Object System.Drawing.Point(8, $y188)
+        $script:LblSettings3.Location = New-Object System.Drawing.Point(8, $y240)
+        $script:LblSettings3.Width = $w
+        $script:BtnPort.Location = New-Object System.Drawing.Point(8, $y264)
+        $script:LblSettings4.Location = New-Object System.Drawing.Point(8, $y316)
+        $script:LblSettings4.Width = $w
+        $script:BtnKey.Location = New-Object System.Drawing.Point(8, $y340)
+        $script:BtnUpdate.Location = New-Object System.Drawing.Point(8, $y390)
+        $script:LblSettingsResult.Location = New-Object System.Drawing.Point(8, $y434)
+        $script:LblSettingsResult.Width = $w
+    } catch { Write-Log "[LAYOUT-ERROR] SETTINGS $($_.Exception.Message)" }
 }
 
 function Save-Settings {
@@ -963,6 +1209,8 @@ function Show-EulaDialog {
     $dlg.Controls.Add($decline)
     $dlg.AcceptButton = $accept
     $dlg.CancelButton = $decline
+    $null = $dlg.Handle
+    Set-Round $dlg 10
 
     $r = $dlg.ShowDialog()
     if ($r -eq 'OK') {
@@ -1058,6 +1306,8 @@ function Show-KeySetupDialog($owner) {
 
     $dlg.AcceptButton = $save
     $dlg.CancelButton = $skip
+    $null = $dlg.Handle
+    Set-Round $dlg 10
     $r = $dlg.ShowDialog($owner)
     $dlg.Dispose()
     return ($r -eq 'OK')
@@ -1092,6 +1342,9 @@ function Show-CgnatPrompt($owner) {
     $btnCancel.Size = New-Object System.Drawing.Size(100, 38)
     $btnCancel.Location = New-Object System.Drawing.Point(334, 150)
     $dlg.Controls.Add($btnCancel)
+
+    $null = $dlg.Handle
+    Set-Round $dlg 10
 
     $r = $dlg.ShowDialog($owner)
     $dlg.Dispose()
@@ -1269,7 +1522,9 @@ $timerMain.Add_Tick({
             'fixscan' {
                 if ($script:State.FixReport) {
                     $script:FixRowsPanel.Controls.Clear()
+                    $script:FixRowRefs = @()
                     foreach ($row in $script:State.FixReport) { Add-FixRow $row }
+                    Layout-FixRows
                 }
             }
             'diag' { Show-DiagResult }
@@ -1377,7 +1632,7 @@ $script:Form.Add_FormClosing({
 $script:Form.Add_Shown({
     if ($script:Help) {
         [System.Windows.Forms.MessageBox]::Show(
-            "K BNG M Hoster v0.6.0 - Usage`n`nJust double-click Start_Here.bat - that's all.`n`nStart_Here.bat mods  ->  opens the Mod Manager`nStart_Here.bat fix   ->  opens Fix Problems`nStart_Here.bat setup ->  opens the key setup dialog`n`nEverything else is buttons and keyboard shortcuts (see the status bar).",
+            "K BNG M Hoster v0.6.1 - Usage`n`nJust double-click Start_Here.bat - that's all.`n`nStart_Here.bat mods  ->  opens the Mod Manager`nStart_Here.bat fix   ->  opens Fix Problems`nStart_Here.bat setup ->  opens the key setup dialog`n`nEverything else is buttons and keyboard shortcuts (see the status bar).",
             'K BNG M Hoster', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
     }
     if ($Setup) {
@@ -1390,6 +1645,9 @@ $script:Form.Add_Shown({
     } else {
         Show-DashboardPage
     }
+    Layout-Chrome
+    Set-Round $script:Form 12
+    if ($script:PageLayout) { & $script:PageLayout }
 })
 
 # ---------------------------------------------------------------------------------------
@@ -1407,3 +1665,5 @@ if ($script:SessionPs) {
     try { $script:SessionPs.Dispose() } catch { }
 }
 exit 0
+
+
