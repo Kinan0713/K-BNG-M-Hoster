@@ -256,7 +256,7 @@ $title.AutoSize = $false
 $title.Size = New-Object System.Drawing.Size(240, 34)
 $title.Location = New-Object System.Drawing.Point(16, 6)
 $script:LblSubtitle = New-Lbl 'v0.6.5  ·  Update 6 - Fix 5  ·  by Kinan  ·  Discord: @raed713' $C.dim 9 18
-$script:LblSubtitle.Location = New-Object System.Drawing.Point(17, 46)
+$script:LblSubtitle.Location = New-Object System.Drawing.Point(17, 44)
 $script:LblVersionChip = New-Object System.Windows.Forms.Panel
 $script:LblVersionChip.BackColor = [System.Drawing.Color]::FromArgb(52, 52, 58)
 $script:LblVersionChip.Size = New-Object System.Drawing.Size(112, 34)
@@ -496,6 +496,7 @@ function Show-HomePage {
 
     $script:LblCgnatBadge = New-Lbl '' $C.yellow 10 20 $true
     $script:LblCgnatBadge.Location = New-Object System.Drawing.Point(16, 78)
+    $script:LblCgnatBadge.AutoSize = $false
     $script:LblCgnatBadge.Height = 0
 
     $script:LblStatusHint = New-Lbl 'Press Start Server (or Ctrl+S). Everything is automatic: key check, safety scan, firewall, port, then it opens the BeamMP Launcher.' $C.dim 9.5 40  $false 620
@@ -536,6 +537,7 @@ function Show-HomePage {
 function Layout-Home {
     if (-not $script:ConnCard) { return }
     if ($script:ConnCard.ClientSize.Width -le 0 -or $script:ConnCard.ClientSize.Height -le 0) { return }
+    if ($script:StatusCard -and $script:StatusCard.ClientSize.Width -le 0) { return }
     try {
         $cw = $script:ConnCard.ClientSize.Width - 32
         $labels = @($script:LblConnThis, $script:LblConnLan, $script:LblConnVpn, $script:LblConnTail, $script:LblConnPub, $script:LblConnRouter)
@@ -578,7 +580,7 @@ function Layout-Home {
         }
         $script:StatusCard.Height = [int][math]::Max((SY 104), ($badgeY + $badgeH + 8))
         Set-Round $script:StatusCard 10
-        $sw = $script:StatusCard.ClientSize.Width - 336
+        $sw = $script:StatusCard.ClientSize.Width - (SX 320) - 32
         $script:LblStatusHint.Width = $sw
         $hx = SX 320
         $hy = SY 14
@@ -938,9 +940,9 @@ function Show-VpnPage {
     $script:VpnTop.Controls.Add($btnRefresh)
 
     $btnAll = New-Btn '&Start all installed VPNs' 'Start every VPN that is installed on this PC.' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$started = 0`nforeach (`$app in Get-InstalledVpns | Where-Object { `$_.Installed -and `$_.Exe }) { `$r = Start-OrDownload-Vpn `$app 6; Say `$r; if (`$r -match 'connected') { `$started++ } }`nif (`$started -eq 0) { Say ""No VPN could be started. Install one first (see the rows below) and try again."" }`n`$State.VpnRefresh = (Get-Date).ToString('o')" 'vpns' }
-    $btnAll.Size = New-Object System.Drawing.Size(150, 32)
+    $btnAll.Size = New-Object System.Drawing.Size(160, 32)
     $btnAll.Location = New-Object System.Drawing.Point(100, 76)
-    $btnAll.Tag = @{ X = 100; Y = 76; W = 150; H = 32 }
+    $btnAll.Tag = @{ X = 100; Y = 76; W = 160; H = 32 }
     $script:VpnTop.Controls.Add($btnAll)
 
     $p.Controls.Add($script:VpnRowsPanel)
@@ -1185,26 +1187,31 @@ function Show-ModsPage {
     $btnDisable = New-Btn '&Disable selected' 'Move the selected enabled mod to Backups\mods (not loaded).' { ModAction 'disable' }
     $btnDisable.Size = New-Object System.Drawing.Size(130, 32)
     $btnDisable.Location = New-Object System.Drawing.Point(4, 54)
+    $btnDisable.Tag = @{ X = 4; Y = 54; W = 130; H = 32 }
     $script:ModsTop.Controls.Add($btnDisable)
 
     $btnEnable = New-Btn '&Enable selected' 'Move the selected disabled mod back to Resources\Client (loaded).' { ModAction 'enable' }
     $btnEnable.Size = New-Object System.Drawing.Size(130, 32)
     $btnEnable.Location = New-Object System.Drawing.Point(140, 54)
+    $btnEnable.Tag = @{ X = 140; Y = 54; W = 130; H = 32 }
     $script:ModsTop.Controls.Add($btnEnable)
 
     $btnScan = New-Btn '&Scan for suspicious files' 'Check all mods and zips for executables (.exe/.vbs/.cmd/...) and quarantine anything found.' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Scan-Mods)`n`$State.ModsRefresh = (Get-Date).ToString('o')" 'modscan' }
     $btnScan.Size = New-Object System.Drawing.Size(190, 32)
     $btnScan.Location = New-Object System.Drawing.Point(276, 54)
+    $btnScan.Tag = @{ X = 276; Y = 54; W = 190; H = 32 }
     $script:ModsTop.Controls.Add($btnScan)
 
     $btnOpen = New-Btn '&Open folder' 'Open Resources\Client in Explorer.' { Start-Process explorer.exe -ArgumentList ('"' + ($script:RootDir + 'Resources\Client') + '"') }
     $btnOpen.Size = New-Object System.Drawing.Size(110, 32)
     $btnOpen.Location = New-Object System.Drawing.Point(472, 54)
+    $btnOpen.Tag = @{ X = 472; Y = 54; W = 110; H = 32 }
     $script:ModsTop.Controls.Add($btnOpen)
 
     $btnRefresh = New-Btn '&Refresh list' 'Reload the mod list from disk.' { Refresh-ModListsAsync }
     $btnRefresh.Size = New-Object System.Drawing.Size(110, 32)
     $btnRefresh.Location = New-Object System.Drawing.Point(588, 54)
+    $btnRefresh.Tag = @{ X = 588; Y = 54; W = 110; H = 32 }
     $script:ModsTop.Controls.Add($btnRefresh)
 
     $p.Controls.Add($script:ModsListPanel)
@@ -1238,7 +1245,10 @@ function Layout-Mods {
     try {
         $script:ModsTop.Height = SY(96)
         foreach ($c in $script:ModsTop.Controls) {
-            if ($c -is [System.Windows.Forms.Label] -and $c.Width -gt 400) {
+            if ($c -is [System.Windows.Forms.Button] -and $c.Tag -is [hashtable] -and $c.Tag.ContainsKey('X')) {
+                $c.Location = New-Object System.Drawing.Point((SX $c.Tag.X), (SY $c.Tag.Y))
+                $c.Size = New-Object System.Drawing.Size((SX $c.Tag.W), (SY $c.Tag.H))
+            } elseif ($c -is [System.Windows.Forms.Label] -and $c.Width -gt 400) {
                 $c.Width = $script:ModsTop.ClientSize.Width - 8
                 $m = Measure-Text $c.Text $c.Font $c.Width
                 $c.Height = [int][math]::Max(20, $m.Lines * 20)
@@ -1353,7 +1363,7 @@ function Show-SettingsPage {
     $p.Controls.Add($script:BtnKey)
 
     $script:BtnUpdate = New-Btn '&Check for BeamMP-Server updates' 'Ask GitHub if a newer BeamMP-Server build exists (cached 24h).' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$msg = Check-ForUpdates`n`$State.UpdateMsg = `$msg`nif (`$msg) { Say `$msg } else { Say ""BeamMP-Server is up to date."" }" 'update' }
-    $script:BtnUpdate.Size = New-Object System.Drawing.Size(220, 34)
+    $script:BtnUpdate.Size = New-Object System.Drawing.Size(230, 34)
     $script:BtnUpdate.Location = New-Object System.Drawing.Point(8, 390)
     $p.Controls.Add($script:BtnUpdate)
 
