@@ -26,6 +26,24 @@
 
 All notable changes to **K BNG M Hoster** are documented here.
 
+## v0.6.4 — Update 6, Fix 4: map picker (all your maps + map mods), mods multi-select, and every text now fits its frame
+
+- **Map picker (Settings):** scan all maps found on your PC — the game's built-in maps
+  (gridmap, utah, west coast, east coast, italy, industrial, ...) and your MAP MODS.
+  Pick one and press Apply map. Map mods are hosted automatically and sent to players
+  when they join. The map applies on the next server start — the tool offers to restart
+  for you. Changing maps from inside the game is no longer needed (it broke the
+  multiplayer player/ping display).
+- **Fix Problems** now checks the map: if ServerConfig.toml points to a map that is not
+  found on this PC, the row turns red with a one-click fix.
+- **Mods multi-select:** Ctrl+click picks several mods, Shift+click selects a range,
+  Ctrl+A selects all — just like Windows Explorer. Disable/Enable acts on every selected
+  mod. A tip line under the lists explains the shortcuts.
+- **Guide page:** removed the duplicate jump buttons (the toolbar on top does that).
+- **Everything fits now:** status bar shortcuts, dashboard server line, CGNAT warning,
+  VPN tips, mods header and settings page (scrollable) — all text is measured against
+  its frame at every window size and never clips or overlaps.
+
 ## v0.6.3 — Update 6, Fix 3: mods drag & drop, auto-update, polished Guide and Fix buttons
 
 ### 🎮 Mods drag & drop

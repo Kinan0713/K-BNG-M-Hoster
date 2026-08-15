@@ -12,11 +12,11 @@
 
 # 🚗 K BNG M Hoster
 
-### *(Kinan BeamNG Multiplayer Hoster)* — **v0.6.3** *(Update 6 - Fix 3)*
+### *(Kinan BeamNG Multiplayer Hoster)* — **v0.6.5** *(Update 6 - Fix 5)*
 
 **The All-In-One Automated BeamMP Hosting & Joining Tool**
 
-> 🔽 **Download the latest release:** [K BNG M Hoster v0.6.3-FIX ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
+> 🔽 **Download the latest release:** [K BNG M Hoster v0.6.5-FIX ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
 
 > ⚠️ **Official download only:** Get K BNG M Hoster exclusively from the [GitHub Releases page](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest) above. Please do **not** share, reupload, or forward this tool to others — everyone should download it from here so they always get the latest version.
 
@@ -36,7 +36,7 @@
 | 📖 **Built-in Guide** | The whole README is inside the app — press **Guide** (or `Ctrl+G`) for plain-language steps: start, key, how friends connect, firewall, mods, and sharing safely. |
 | 🖱️ **One-Click Launch** | Double-click `Start_Here.bat`. Everything else is automatic. |
 | 🔑 **Auto AuthKey** | Paste your BeamMP key once — the tool stores it privately, injects it at start, and removes it again when the session ends. |
-| 🩺 **Fix Problems page** | Every check is one row with `[OK]` / `[X]` / `[?]` and its own Fix button: key, launcher, BeamNG, port, Visual C++ runtime, firewall, VPNs, CGNAT and external reachability. Plus one-click UPnP forwarding. |
+| 🩺 **Fix Problems page** | Every check is one row with `[OK]` / `[X]` / `[?]` and its own Fix button: key, launcher, BeamNG, port, Visual C++ runtime, firewall, VPNs, CGNAT and external reachability. Plus one-click UPnP forwarding and **Fix all possible** — one click that frees the port, adds the firewall rule, applies a valid map and forwards via UPnP. |
 | 🔄 **Auto Diagnostics** | If the server fails to start, the tool reads the server log and tells you *exactly* why (bad key, busy port, missing runtime, bad map). |
 | 🌍 **UPnP Port Forwarding** | Automatically forwards your port (TCP+UDP) on router-enabled setups — no manual router login needed. |
 | 🛡️ **Auto Firewall** | Opens the correct Windows Firewall rules with one polite UAC prompt — existing rules are detected and never duplicated (v0.5.3). |
@@ -182,7 +182,7 @@ Choose **one** of the hosting methods below depending on how you want players to
    Port = 30814
    ```
 4. Double-click **`Start_Here.bat`** and press **Start Server**.
-5. Watch the **Dashboard**: it shows whether your `public IP:port` is **reachable** from the internet, warns about CGNAT networks that block players, and lists every VPN connection line for friends.
+5. Watch the **Home page**: it shows whether your `public IP:port` is **reachable** from the internet, warns about CGNAT networks that block players, and lists every VPN connection line for friends.
 6. Open **BeamNG.drive** and connect via `Direct Connect` (`127.0.0.1:30814`).
 
 #### 👥 How Friends Join
@@ -202,14 +202,14 @@ Choose **one** of the hosting methods below depending on how you want players to
 
 1. Install a P2P VPN — any of **Radmin VPN**, **Hamachi**, or **ZeroTier** (or Tailscale, Method A). All are free and safe.
 2. Start it (via the **VPN Manager page**, or yourself) and **create/join a network** inside the VPN app.
-3. Double-click **`Start_Here.bat`** — the Dashboard now shows `Friends (VPN <name>): <26.x.x.x/25.x.x.x> : port`.
+3. Double-click **`Start_Here.bat`** — the Home page now shows `Friends (VPN <name>): <26.x.x.x/25.x.x.x> : port`.
 4. Open **BeamNG.drive** → `More...` ➔ `BeamMP` ➔ `Direct Connect` (`127.0.0.1:30814`).
 
 #### 👥 How Friends Join
 
 1. **Every friend installs the same VPN app** and joins **the same network** as the host.
 2. BeamNG → `More...` ➔ `BeamMP` ➔ `Direct Connect`.
-3. **IP Address:** the host's **VPN IP** shown on the Dashboard (press **Ctrl+C** to copy it). **Port:** `30814`.
+3. **IP Address:** the host's **VPN IP** shown on the Home page (press **Ctrl+C** to copy it). **Port:** `30814`.
 
 > ℹ️ **Two VPNs running at once?** The tool lists each one with its own IP and reminds you: friends must be on the **same VPN** as the line you send them. Close the unused one to avoid routing confusion.
 >
