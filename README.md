@@ -1,16 +1,6 @@
 <div align="center">
 
-```text
-██   ██  ██████  ███    ██  ██████   ███    ███     ██   ██ ██████  ███████ ████████ ███████
-██  ██   ██   ██ ████   ██ ██        ████  ████     ██   ██ ██    ██ ██         ██    ██     
-█████    ██████  ██ ██  ██ ██   ███  ██ ████ ██     ███████ ██    ██ ███████    ██    █████  
-██  ██   ██   ██ ██  ██  ██ ██    ██  ██  ██  ██     ██   ██ ██    ██      ██    ██    ██     
-██   ██  ██████  ██   ████  ██████   ██      ██     ██   ██  ██████  ███████    ██    ███████
-```
-
-</div>
-
-# 🚗 K BNG M Hoster
+# K BNG M Hoster
 
 ### *(Kinan BeamNG Multiplayer Hoster)* — **v0.6.6** *(Update 6 - Fix 6)*
 
@@ -18,311 +8,97 @@
 
 > 🔽 **Download the latest release:** [K BNG M Hoster v0.6.6-FIX ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
 
-> ⚠️ **Official download only:** Get K BNG M Hoster exclusively from the [GitHub Releases page](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest) above. Please do **not** share, reupload, or forward this tool to others — everyone should download it from here so they always get the latest version.
+> ⚠️ **Official download only:** Get K BNG M Hoster exclusively from the GitHub Releases page above. Please do **not** share, reupload, or forward this tool — everyone should download it from here so they always get the latest version.
 
 *Solely created and developed by **Kinan** (`@raed713`)*
 
----
-
-## 📌 What is K BNG M Hoster?
-
-**K BNG M Hoster** is an all-in-one automation utility designed to make hosting, configuring, and joining BeamMP multiplayer servers effortless. Built entirely from scratch, it handles process execution, automates background server management, and streamlines the direct connection workflow so you and your friends can drive together in seconds.
-
-### ✨ Key Features
-
-| Feature | What it does for you |
-| --- | --- |
-| 🪟 **Full GUI (v0.6.0)** | The whole tool is now a **window** — no console, no menus to memorize. Works with **mouse and keyboard**: every button explains itself in a tooltip, `Tab`/`Shift+Tab`, `Enter`, `Esc`, plus `Ctrl+H` Home, `Ctrl+S` Start, `Ctrl+X` Stop, `Ctrl+F` Fix, `Ctrl+V` VPN, `Ctrl+M` Mods, `Ctrl+T` Customisation, `Ctrl+D` Diagnose, `Ctrl+C` Copy IP, `Ctrl+G` Guide, `F11`/`Alt+Enter` fullscreen. The shortcuts are always listed at the bottom of the window. |
-| 📖 **Built-in Guide** | The whole README is inside the app — press **Guide** (or `Ctrl+G`) for plain-language steps: start, key, how friends connect, firewall, mods, and sharing safely. |
-| 🖱️ **One-Click Launch** | Double-click `Start_Here.bat`. Everything else is automatic. |
-| 🔑 **Auto AuthKey** | Paste your BeamMP key once — the tool stores it privately, injects it at start, and removes it again when the session ends. |
-| 🎛️ **Customisation on Home (v0.6.6)** | All settings live right on the Home page in a collapsible **Customisation** section — server name, max players, free port, IP lock, server key, public/private and the map. No separate Settings tab; `Ctrl+T` opens it from anywhere. |
-| 🩺 **Fix Problems page** | Every check is one row with `[OK]` / `[X]` / `[?]` and its own Fix button: key, launcher, BeamNG, port, Visual C++ runtime, firewall, VPNs, CGNAT and external reachability. Plus one-click UPnP forwarding and **Fix all possible** — one click that frees the port, adds the firewall rule, applies a valid map and forwards via UPnP. The scan only runs when you press the button — never on its own. |
-| 🔄 **Auto Diagnostics** | If the server fails to start, the tool reads the server log and tells you *exactly* why (bad key, busy port, missing runtime, bad map). |
-| 🌍 **UPnP Port Forwarding** | Automatically forwards your port (TCP+UDP) on router-enabled setups — no manual router login needed. |
-| 🛡️ **Auto Firewall** | Opens the correct Windows Firewall rules with one polite UAC prompt — existing rules are detected and never duplicated (v0.5.3). |
-| 🔒 **Lock my IP while hosting** | Keeps your LAN IP fixed during a session so router port-forwards never break on DHCP renewals; auto-returns to DHCP when the session ends (v0.5.3, Customisation on the Home page). |
-| 🧭 **Reachability Test** | Checks whether your public IP:port is actually reachable from the internet and shows the result on the Dashboard — with retries and a fallback service (v0.5.3), plus a full scan inside the Fix Problems page. |
-| ⚠️ **Smart Warnings** | Detects CGNAT ISPs (checks both your public IP **and your router's WAN IP** via UPnP — v0.5.3) and tells you exactly what to do. |
-| 🖧 **VPN Manager page** | Sees if **Radmin VPN / Hamachi / ZeroTier / Tailscale** are installed and running, starts any of them with one click, or opens the official download page when missing. If you have two VPNs running at once it tells you — friends must be on the same one as the IP you send. |
-| 🔗 **VPN Hosting** | VPNs (Radmin VPN, Hamachi, ZeroTier, Tailscale) are supported connection methods that work even behind **CGNAT** — the Dashboard shows the VPN IP line for friends automatically. |
-| 🔄 **Busy-Port Auto-Switch** | If your port is taken, picks a free one and warns you loudly. |
-| 🎮 **Mods page** | List, enable/disable and scan your `Server\Resources\Client\` mods. |
-| 🔐 **Malware Guard** | Scans mod ZIPs for executables and quarantines anything suspicious. |
-| 👥 **Live Player Activity** | Shows who's online, with optional Discord join/leave notifications. |
-| 🧹 **Privacy Cleaner** | One button removes all personal/temporary files from the folder. |
-| 📡 **Flexible Hosting** | Works with **Tailscale**, **Radmin VPN / Hamachi / ZeroTier** (no port forwarding) **or** public port forwarding. |
+</div>
 
 ---
 
-## 🚀 QUICK START (30 seconds)
+## 🚀 Quick Start (30 seconds)
 
 1. **Extract** the ZIP to any folder.
-2. **Double-click `Start_Here.bat`** — a window opens. That's it, no other setup.
-3. First time: accept the license, then the tool asks you to **paste your BeamMP key**, and your server starts automatically.
-4. While playing, tell players to connect using the address shown on the window (press **Ctrl+C** or the **Copy IP** button to copy it).
+2. **Double-click `Start_Here.bat`** — a window opens. That's it.
+3. First time: accept the license, then paste your **BeamMP key** — your server starts automatically.
+4. Send your friends the address shown on the window (press **Ctrl+C** or the **Copy IP** button).
 
-That's everything. The tool handles the server key, settings, ports and problems for you.
+That's everything. The tool handles the key, settings, ports and problems for you.
 
 ---
 
-## ⚡ Setup Requirements
+## 🧰 What it does
 
-| Requirement | Purpose | Download Link |
+- **Starts and runs your BeamMP server** with one click — no config files, no console commands.
+- **Home page** shows your live status and every address friends can use to join (LAN / VPN / internet).
+- **Customisation** (Home page, or `Ctrl+T`): server name, max players, port, IP lock, server key, map, and Public/Private — all in plain language.
+- **Fix Problems page** (`Ctrl+F`): checks key, port, firewall, VPNs, maps and more — each with its own one-click Fix. It only scans when you press "Re-scan everything" or "Fix all possible".
+- **VPN Manager** (`Ctrl+V`): starts Radmin VPN / Hamachi / ZeroTier / Tailscale for you, or opens their download pages.
+- **Mods page** (`Ctrl+M`): list, enable/disable and scan your mods for safety.
+- **Built-in Guide** (`Ctrl+G`): the whole README, explained step by step inside the app.
+- **Fullscreen**: press `F11` (or `Alt+Enter`) anytime; `Esc` to exit.
+- Shortcuts are always shown at the bottom of the window: `Ctrl+H` Home, `Ctrl+S` Start, `Ctrl+X` Stop, `Ctrl+D` Diagnose, `Ctrl+C` Copy IP.
+
+---
+
+## 📡 How friends connect
+
+Pick **one** method:
+
+| Method | When to use it | What friends do |
 |---|---|---|
-| **BeamMP Keymaster** | Get your free server authentication key | [Keymaster Portal](https://keymaster.beammp.com) |
-| **BeamMP Client** | Official multiplayer client for BeamNG.drive | [Download Client](https://beammp.com) |
-| **Tailscale** *(Method A)* | Secure direct connection without changing router settings | [Download Tailscale](https://tailscale.com) |
-| **Radmin VPN** *(Method C)* | Free P2P VPN — friends join your virtual network | [Download Radmin VPN](https://www.radmin-vpn.com/) |
-| **Hamachi** *(Method C)* | Free P2P VPN (up to 5 devices per network) | [Download Hamachi](https://www.vpn.net/) |
-| **ZeroTier** *(Method C)* | Free, open-source P2P VPN | [Download ZeroTier](https://www.zerotier.com/download/) |
+| **Tailscale** | Easy, no router changes, private group | They join your Tailscale network, then Direct Connect to your Tailscale IP |
+| **Port forwarding** (Public) | You want anyone to find your server in the BeamMP list | They search your server name in the BeamMP browser, or Direct Connect to your public IP |
+| **P2P VPN** (Radmin / Hamachi / ZeroTier) | Your ISP blocks port forwarding (CGNAT) | They install the same VPN app, join your network, then Direct Connect to your VPN IP |
+
+> Stuck? Open **Fix Problems** (`Ctrl+F`) or press **Diagnose** (`Ctrl+D`) — the tool checks everything for you and explains the fix.
 
 ---
 
-## ⚙️ Step-by-Step Configuration Guide
+## 📦 What's inside
 
-### 📁 Folder Layout
+| File | What it is |
+|---|---|
+| `Start_Here.bat` | Just double-click this. Everything else is automatic. |
+| `Server/Play_BeamMP.ps1` + `.bat` | The window (GUI) |
+| `Server/HosterCore.ps1` | The logic |
+| `Server/ServerConfig.toml` | Your server settings (edit them in Customisation) |
+| `Server/Resources/Client/` | Your mods (drop mod `.zip` files here) |
+| `Server/.env` *(created automatically)* | Your secret server key — never shared |
 
-Keep it simple — the top level only shows the things you actually use:
-
-| Top level (visible) | What it is |
-| --- | --- |
-| `Start_Here.bat` | **Just double-click this to start.** |
-| `README.md` / `README.txt` | This documentation |
-
-| `Server/` (the engine — you never need to open it) | What it is |
-| --- | --- |
-| `ServerConfig.toml` | Your server settings (name, port, players, map...) — edit from the GUI Customisation section on the Home page |
-| `Resources/Client/` | Your mods (drop mod `.zip` files here) |
-| `BeamMP-Server.exe` | The official BeamMP server program |
-| `Play_BeamMP.ps1` / `.bat` | The window (GUI) |
-| `HosterCore.ps1` | The logic (single source of truth) |
-| `.env` *(created automatically)* | Your secret server key |
-| `Launcher.cfg`, `webhook.example.txt` | Support files |
-| `Logs/`, `Server.log`, `CONNECTING.txt` *(created automatically)* | Logs, IP caches and session files |
-
-> Everything runs inside `Server\` — you only ever need `Start_Here.bat`. The **Clean personal info** button (in the GUI) removes all personal information from the folder.
-
-### 1️⃣ Input Your Auth Key *(Automatic — Recommended)*
-
-1. Go to [BeamMP Keymaster](https://keymaster.beammp.com) and generate a new key.
-2. Run `Start_Here.bat` — on first launch the **key setup window** asks you to paste the key once, then saves it into `Server\.env` automatically. (You can also open it anytime from the Customisation section on the Home page or the Fix Problems page.)
-3. Before every launch, the tool reads `Server\.env`, writes your key into `AuthKey` inside `ServerConfig.toml`, starts the server, and **removes the key from the config again when the session ends** so nothing personal is ever left behind.
-4. `Server\.env` is your private file — you can remove all personal information with the **Clean personal info** button.
-
-> **Alternative — Windows environment variable:** set a system/user variable named `BEAMMP_AUTHKEY`. The environment variable takes priority over `.env`.
->
-> **Manual fallback:** you can still paste the key directly into `Server\ServerConfig.toml` (line 7, `AuthKey = "..."`); the launcher leaves an already-set key untouched if neither `.env` nor the environment variable exists.
-
-### 2️⃣ Note on Ports
-
-The server port is read from `Port` in `ServerConfig.toml` (default **30814**, the BeamMP standard). Adjust the connection examples below (and your router/Tailscale rules) to match whatever port you set there. BeamMP requires **both TCP and UDP** on the same port.
-
-### 2️⃣.5️⃣ Locking your IP while hosting (v0.5.3)
-
-If your ISP/router assigns your PC a **new local IP** from time to time, your port-forward rule silently breaks and players can no longer join. The **Customisation section — "Lock my IP while hosting"** fixes this:
-
-- When **ON**, the tool sets your network adapter to a static IP at server start and **restores DHCP automatically** when your session ends.
-- A small `Server/staticip.cfg` marker remembers your choice between sessions; the previous DHCP state is backed up in `Server/Logs/staticip.undo.json` so it can always be restored.
-- The tool never touches adapters it didn't lock itself (a manually configured static IP is left exactly as it is).
-
-### 3️⃣ Utility Commands
-
-| Command | What it does |
-| --- | --- |
-| `Start_Here.bat` | **Just double-click this.** The window opens — everything else is automatic |
-| `Start_Here.bat mods` | Open the window on the Mods page (list, disable, enable, scan mods) |
-| `Start_Here.bat fix` | Open the window on the Fix Problems page (firewall, UPnP, port, key, VPN checks) |
-| `Start_Here.bat setup` | Open the window with the key setup dialog |
-| `Start_Here.bat help` | Show usage |
-
-*(All commands just launch `Server\Play_BeamMP.ps1` — one codebase. PowerShell users: `.\Play_BeamMP.ps1 -Mods`, `.\Play_BeamMP.ps1 -Fix`, `.\Play_BeamMP.ps1 -Setup`, `.\Play_BeamMP.ps1 -Help`)*
+You only ever need `Start_Here.bat`. The **Clean personal info** button removes all personal files from the folder.
 
 ---
 
-## 🌐 Server Launch & Connection Methods
+## 🛠️ Requirements
 
-Choose **one** of the hosting methods below depending on how you want players to connect:
-
-### 🔹 METHOD A: Tailscale (Private / No Port Forwarding)
-
-*Best for playing privately with a group of friends without altering router settings.*
-
-#### 🛠️ Host Setup & Connection
-
-1. Launch **Tailscale** on your PC.
-2. Double-click **`Start_Here.bat`** and press **Start Server** (or `Ctrl+S`).
-3. Open **BeamNG.drive**.
-4. Go to: `More...` ➔ `BeamMP` ➔ `Direct Connect`
-5. Connect using:
-   - **IP Address:** `127.0.0.1`
-   - **Port:** `30814` *(or whatever `Port` is set to in ServerConfig.toml)*
-
-#### 👥 How Friends Join
-
-1. Ensure all players are connected to the Host's network inside **Tailscale**.
-2. Open BeamNG via the official **BeamMP Launcher**.
-3. Go to: `More...` ➔ `BeamMP` ➔ `Direct Connect`
-4. Connect using:
-   - **IP Address:** Host's Tailscale IP (`100.x.x.x`)
-   - **Port:** `30814`
+| Requirement | What it's for | Download |
+|---|---|---|
+| **BeamMP Keymaster** | Your free server key | [keymaster.beammp.com](https://keymaster.beammp.com) |
+| **BeamMP Client** | Play multiplayer in BeamNG | [beammp.com](https://beammp.com) |
+| **Tailscale** (optional) | Private hosting without router setup | [tailscale.com](https://tailscale.com) |
+| **Radmin VPN / Hamachi / ZeroTier** (optional) | VPN hosting when port forwarding can't work | [radmin-vpn.com](https://www.radmin-vpn.com/) · [vpn.net](https://www.vpn.net/) · [zerotier.com](https://www.zerotier.com/download/) |
 
 ---
 
-### 🔹 METHOD B: Port Forwarding (Public Server List)
+## ❓ Common questions
 
-*Best for hosting publicly so anyone can find your server in the BeamMP Server Browser or join via your Public IP. This is also the **right method when hosting for random/unknown players** — it exposes only the game port (TCP+UDP 30814), nothing else on your PC is reachable.*
+**"My server closes instantly."**
+Your `AuthKey` is probably missing or wrong. The tool walks you through it on first run — or open the key setup from Fix Problems.
 
-#### 🛠️ Host Setup & Connection
+**"Friends can't connect."**
+Usually one of three things: your ISP blocks port forwarding (CGNAT) — use a VPN instead; only TCP is forwarded (BeamMP needs TCP **and** UDP); or Windows Firewall blocks the server. **Fix Problems** checks all of these.
 
-1. **Let the tool try first:** on server start the launcher automatically attempts a **UPnP** port forward (TCP+UDP) — no router login needed on UPnP-enabled routers.
-2. **Manual fallback:** if your router has no UPnP (like many ISP routers), log into your router admin page and forward the port from `ServerConfig.toml` (default **`30814`**, **TCP and UDP**) to your PC's local IP address.
-3. Open `ServerConfig.toml` and verify your settings:
-   ```toml
-   Private = false
-   Port = 30814
-   ```
-4. Double-click **`Start_Here.bat`** and press **Start Server**.
-5. Watch the **Home page**: it shows whether your `public IP:port` is **reachable** from the internet, warns about CGNAT networks that block players, and lists every VPN connection line for friends.
-6. Open **BeamNG.drive** and connect via `Direct Connect` (`127.0.0.1:30814`).
-
-#### 👥 How Friends Join
-
-- **Option 1 (Server Browser):** players can search for your Server Name in the official BeamMP Server Browser.
-- **Option 2 (Direct Connect):** players go to `More...` ➔ `BeamMP` ➔ `Direct Connect` and enter your **Public IP** and Port from `ServerConfig.toml`.
-
-> ⚠️ **Why won't players connect?** The usual culprits, in order: (1) **you're behind CGNAT** — if the tool shows a CGNAT warning, public hosting can never work; use a VPN instead (see Method C); (2) **UDP is not forwarded** — BeamMP needs both TCP *and* UDP; (3) **Windows Firewall** doesn't allow `BeamMP-Server.exe`. The **Fix Problems page** checks all of these for you. If the problem appeared after a router reboot, your PC may have a new local IP — enable **"Lock my IP while hosting"** (Customisation, Home page) to prevent that.
+**"Is it safe?"**
+Yes. No data collection, no phoning home. Your key lives in `Server\.env`, is injected only while hosting, and is wiped when you stop. Mods are scanned for executables before being served.
 
 ---
 
-### 🔹 METHOD C: P2P VPN — Radmin VPN / Hamachi / ZeroTier (Private, no port forwarding)
+## 📄 More
 
-*Best when port forwarding is impossible (e.g. CGNAT ISPs) and you play with a small group of friends. The **VPN Manager page** handles everything below for you: it shows which VPNs are installed and running, starts them with one click, and opens the official download page for any that are missing.*
+- **[Changelog](Server/CHANGELOG.md)** — everything that changed in every version
+- **Credits:** early co-development by **Ali Alldoboni** (`@alialldoboni`) for v0.2–v0.5.2
+- **Discord:** [Innocent BeamMP Server Community](https://discord.gg/2FxsJvKr4a)
+- **License:** proprietary EULA — see `LICENSE`. By using this software you agree to its terms.
 
-#### 🛠️ Host Setup & Connection
-
-1. Install a P2P VPN — any of **Radmin VPN**, **Hamachi**, or **ZeroTier** (or Tailscale, Method A). All are free and safe.
-2. Start it (via the **VPN Manager page**, or yourself) and **create/join a network** inside the VPN app.
-3. Double-click **`Start_Here.bat`** — the Home page now shows `Friends (VPN <name>): <26.x.x.x/25.x.x.x> : port`.
-4. Open **BeamNG.drive** → `More...` ➔ `BeamMP` ➔ `Direct Connect` (`127.0.0.1:30814`).
-
-#### 👥 How Friends Join
-
-1. **Every friend installs the same VPN app** and joins **the same network** as the host.
-2. BeamNG → `More...` ➔ `BeamMP` ➔ `Direct Connect`.
-3. **IP Address:** the host's **VPN IP** shown on the Home page (press **Ctrl+C** to copy it). **Port:** `30814`.
-
-> ℹ️ **Two VPNs running at once?** The tool lists each one with its own IP and reminds you: friends must be on the **same VPN** as the line you send them. Close the unused one to avoid routing confusion.
->
-> ℹ️ **Honest note:** BeamMP officially recommends **Tailscale** for VPN hosting. Radmin VPN / Hamachi / ZeroTier work for most users, but occasionally UDP traffic can be unreliable through them — if friends can connect but lag or drop, switch to Tailscale (Method A).
->
-> ⚠️ **SAFETY with strangers:** a P2P VPN puts players on a virtual LAN with your PC — they can reach other things on your machine (file sharing, Remote Desktop, printers). **Only invite people you trust.** To host for random players use **Method B (port forwarding)** — it exposes only the game port — or rent a VPS. Never share your VPN network with strangers. The VPN Manager page warns about this on screen.
-
----
-
-## 📦 Adding Custom Mods
-
-To load custom vehicles, maps, or physics mods onto your server:
-
-1. Open the project folder and navigate to:
-   ```
-   Server\Resources\Client\
-   ```
-2. Drop your mod `.zip` files directly into this directory.
-3. Restart the server by running `Start_Here.bat` again to sync mods automatically with everyone who joins.
-
-> **Security note:** On launch the tool scans `Server\Resources\Client\` (including inside `.zip` mods) and moves any suspicious executable files (`*.exe`, `*.vbs`, `*.cmd`, `*.scr`, `*.pif`) to the `Quarantine/` folder. Everything it does is written to `Logs/launcher.log`.
->
-> **Tip:** Open the **Mods page** (button or `Ctrl+M`): it lists your mods with sizes, lets you disable/enable them (moved to `Server\Backups\mods\`), re-runs the security scan, and opens the folder in Explorer.
-
----
-
-## 🔌 Optional: Discord Server Announcements
-
-1. Create a webhook in your Discord channel (`Channel Settings > Integrations > Webhooks`).
-2. Copy `webhook.example.txt` to `webhook.txt` inside `Server\`.
-3. Paste your webhook URL into `webhook.txt` and save.
-4. The launcher posts an **`[ONLINE]`** embed when the server starts, an **`[OFFLINE]`** embed when it stops, and **join/leave** embeds when players enter or leave the server.
-   Leave `webhook.txt` empty or deleted to disable this feature.
-
----
-
-## 🛠️ Troubleshooting & FAQ
-
-> **"Invalid ZIP File" Pop-up?**
-> Ignore this message! BeamNG scans files while BeamMP streams them in real time. Simply let the progress bar finish loading.
-
-> **Server Window Closes Instantly?**
-> Check your `ServerConfig.toml` file. This usually happens if the `AuthKey` was pasted incorrectly or left blank. With the launcher, make sure your `.env` file contains a valid `BEAMMP_AUTHKEY=...` (or the `BEAMMP_AUTHKEY` environment variable is set).
-
-> **Tool says the server failed to start?**
-> The tool waits for the server to actually listen on the configured port before showing "SERVER IS LIVE!". If it fails, it **auto-diagnoses the cause** — bad/empty AuthKey, port already in use, missing Visual C++ runtime, unreachable BeamMP backend, or a missing map — and shows you the exact fix.
-
-> **"NOT reachable" on the external test?**
-> That means players from the internet can't reach your port. Open the **Fix Problems page** and follow its instructions: check the CGNAT warning (if shown, public hosting can never work — use a VPN via the **VPN Manager page**), forward **TCP+UDP 30814** to your PC, and allow `BeamMP-Server.exe` through Windows Firewall. While the server is live, press **Ctrl+D** (or the Diagnose button) for a one-screen diagnosis of everything.
-
-> **Does everyone use the same port?**
-> Yes — port 30814 is the BeamMP standard for everyone. That's fine: every host has a unique public IP, so `IP:port` never collides between different networks. The only exception is two hosts sharing one public IP (same LAN/VPN) — the launcher auto-switches the port in that case.
-
-> **I don't want to touch my router at all.**
-> Use **Method A (Tailscale)** or **Method C (Radmin VPN / Hamachi / ZeroTier)** — no port forwarding needed, works over any network, even behind CGNAT. The **VPN Manager page** starts or installs them for you.
-
-> **Can I host for random/unknown players?**
-> Yes — use **Method B (port forwarding)** or a VPS: it exposes only the game port, so strangers can't reach anything else on your PC. Do **not** invite strangers into a P2P VPN network (Method C) — they'd be on a virtual LAN with your PC and could probe other services. The VPN Manager page warns about this on screen.
-
----
-
-## 🔐 Security & Privacy
-
-- **No data collection.** The tool is offline, local-only software. It never phones home, sends logs, or uploads anything except the normal BeamMP server traffic.
-- **Your key stays yours.** The AuthKey lives in `Server\.env` (private, git-ignored), is injected into the config only during a session, and is wiped when the session ends.
-- **Clean personal info:** the button removes all personal information from the folder (keys, webhooks, logs, backups and session files) at any time.
-- **Mod safety.** ZIP mods are scanned for executable payloads before being served to players.
-
----
-
-## 📜 Version History
-
-See [CHANGELOG.md](./CHANGELOG.md) for all changes.
-
----
-
-## 👑 Credits & Ownership
-
-- **Sole Developer & Creator:** **Kinan** (`@raed713`)
-- *All original code, tools, scripts, and rights belong strictly and exclusively to Kinan.*
-- **Official Discord:** [Innocent BeamMP Server Community](https://discord.gg/2FxsJvKr4a)
-
-### 🤝 Contributions
-
-- **Ali Alldoboni** (`@alialldoboni`) — early co-development of the launcher:
-  - v0.2: initial launcher, README, server config, port fixes
-  - v0.3: launcher bug fixes and improvements
-  - v0.4: user-friendly features and auto-diagnostics
-  - v0.5: zero-skill "Simplest Edition" — guided setup + auto-fix
-  - v0.5.1 / v0.5.2: IPv4/IPv6 binding fixes so same-PC clients can connect
-
-*(Changes by contributors are merged only after review and approval by Kinan.)*
-
----
-
-## 📜 License & Legal
-
-This project is distributed under a proprietary EULA. By using this software you agree to the terms set in [LICENSE](./LICENSE).
-
-### ✅ Permitted Actions
-
-- Running the unmodified packaged software
-- Editing authorized configuration files (`ServerConfig.toml`) only as instructed
-- Adding mod archive files to `Server\Resources\Client\` to enable mod syncing
-
-### ❌ Strictly Prohibited
-
-- Modifying source code or scripts that are not explicitly authorized
-- Reverse-engineering, decompilation, or extraction of internal logic
-- Reuploading, mirroring, forking, redistributing, or selling the software
-- Sharing the ZIP or the tool itself outside the official [GitHub Releases page](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
-- Removing, altering, or obscuring author attribution (Kinan / @raed713)
-- Accessing internal scripts or proprietary files not explicitly permitted
-
-**For permissions, DMCA, or legal inquiries:** open an [issue on GitHub](https://github.com/Kinan0713/K-BNG-M-Hoster/issues)
+*All original code, tools, scripts, and rights belong strictly and exclusively to Kinan.*
