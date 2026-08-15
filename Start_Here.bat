@@ -1,5 +1,5 @@
 @echo off
-title K BNG M Hoster v0.6.5
+title K BNG M Hoster v0.6.6
 :: START HERE - just double-click this file. That's all you ever need to do.
 :: Everything else lives in the "Server" folder - you never need to open it.
 if not exist "%~dp0Server\Play_BeamMP.ps1" (

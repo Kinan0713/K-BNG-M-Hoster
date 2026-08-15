@@ -22,6 +22,30 @@
 - **Guide:** new step explaining Public vs Private, updated for the Home page and the
   Fix-all button.
 
+## v0.6.6 - Update 6, Fix 6: the v0.6.5 crash fixed, Settings moved onto the Home page, and small quality-of-life fixes
+
+- **Fixes the v0.6.5 crash:** when a Fix scan finished, the app hit an unexpected error
+  window ("Fix Problems is broken"). The root cause was a PowerShell variable-name clash
+  inside the color table - a fix-row label leaked into the row builder and turned a
+  harmless property set into a fatal exception. The color table is renamed and the crash
+  is gone. The Fix page also now completes cleanly after scans and "Fix all possible".
+- **Settings moved into the Home page ("Customisation"):** there is no separate Settings
+  tab anymore. The Home page has a collapsible **Customisation** section with everything:
+  server name, max players, free port, IP lock, server key, public/private and the map
+  picker. Open it by clicking the section header, or press **Ctrl+T** from anywhere
+  (the Fix "map" row opens it too).
+- **Fix page no longer scans on its own:** opening Fix Problems does nothing until you
+  press "Re-scan everything" or "Fix all possible" - no surprise background scan, no
+  repeated disk work on every visit.
+- **Fullscreen (F11 / Alt+Enter):** borderless fullscreen toggle for the whole window,
+  press F11 again or Esc to leave. Every page relayouts correctly the first time it
+  opens (not only after a resize), so maximize/fullscreen never leaves a stale layout.
+- **No more Alt-underline artifacts:** the ampersands that used to draw underlines in
+  button labels are gone (the tool never used real Alt-menu mnemonics) - labels are
+  clean text now.
+- **Docs updated:** README and the in-app Guide describe the Customisation section,
+  the new shortcuts and the on-demand Fix scan.
+
 # Changelog
 
 All notable changes to **K BNG M Hoster** are documented here.

@@ -12,11 +12,11 @@
 
 # 🚗 K BNG M Hoster
 
-### *(Kinan BeamNG Multiplayer Hoster)* — **v0.6.5** *(Update 6 - Fix 5)*
+### *(Kinan BeamNG Multiplayer Hoster)* — **v0.6.6** *(Update 6 - Fix 6)*
 
 **The All-In-One Automated BeamMP Hosting & Joining Tool**
 
-> 🔽 **Download the latest release:** [K BNG M Hoster v0.6.5-FIX ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
+> 🔽 **Download the latest release:** [K BNG M Hoster v0.6.6-FIX ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
 
 > ⚠️ **Official download only:** Get K BNG M Hoster exclusively from the [GitHub Releases page](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest) above. Please do **not** share, reupload, or forward this tool to others — everyone should download it from here so they always get the latest version.
 
@@ -32,15 +32,16 @@
 
 | Feature | What it does for you |
 | --- | --- |
-| 🪟 **Full GUI (v0.6.0)** | The whole tool is now a **window** — no console, no menus to memorize. Works with **mouse and keyboard**: every button explains itself in a tooltip, `Alt`+underlined letter, `Tab`/`Shift+Tab`, `Enter`, `Esc`, plus `Ctrl+S` Start, `Ctrl+X` Stop, `Ctrl+F` Fix, `Ctrl+V` VPN, `Ctrl+M` Mods, `Ctrl+T` Settings, `Ctrl+D` Diagnose, `Ctrl+C` Copy IP, `Ctrl+G` Guide. The shortcuts are always listed at the bottom of the window. |
+| 🪟 **Full GUI (v0.6.0)** | The whole tool is now a **window** — no console, no menus to memorize. Works with **mouse and keyboard**: every button explains itself in a tooltip, `Tab`/`Shift+Tab`, `Enter`, `Esc`, plus `Ctrl+H` Home, `Ctrl+S` Start, `Ctrl+X` Stop, `Ctrl+F` Fix, `Ctrl+V` VPN, `Ctrl+M` Mods, `Ctrl+T` Customisation, `Ctrl+D` Diagnose, `Ctrl+C` Copy IP, `Ctrl+G` Guide, `F11`/`Alt+Enter` fullscreen. The shortcuts are always listed at the bottom of the window. |
 | 📖 **Built-in Guide** | The whole README is inside the app — press **Guide** (or `Ctrl+G`) for plain-language steps: start, key, how friends connect, firewall, mods, and sharing safely. |
 | 🖱️ **One-Click Launch** | Double-click `Start_Here.bat`. Everything else is automatic. |
 | 🔑 **Auto AuthKey** | Paste your BeamMP key once — the tool stores it privately, injects it at start, and removes it again when the session ends. |
-| 🩺 **Fix Problems page** | Every check is one row with `[OK]` / `[X]` / `[?]` and its own Fix button: key, launcher, BeamNG, port, Visual C++ runtime, firewall, VPNs, CGNAT and external reachability. Plus one-click UPnP forwarding and **Fix all possible** — one click that frees the port, adds the firewall rule, applies a valid map and forwards via UPnP. |
+| 🎛️ **Customisation on Home (v0.6.6)** | All settings live right on the Home page in a collapsible **Customisation** section — server name, max players, free port, IP lock, server key, public/private and the map. No separate Settings tab; `Ctrl+T` opens it from anywhere. |
+| 🩺 **Fix Problems page** | Every check is one row with `[OK]` / `[X]` / `[?]` and its own Fix button: key, launcher, BeamNG, port, Visual C++ runtime, firewall, VPNs, CGNAT and external reachability. Plus one-click UPnP forwarding and **Fix all possible** — one click that frees the port, adds the firewall rule, applies a valid map and forwards via UPnP. The scan only runs when you press the button — never on its own. |
 | 🔄 **Auto Diagnostics** | If the server fails to start, the tool reads the server log and tells you *exactly* why (bad key, busy port, missing runtime, bad map). |
 | 🌍 **UPnP Port Forwarding** | Automatically forwards your port (TCP+UDP) on router-enabled setups — no manual router login needed. |
 | 🛡️ **Auto Firewall** | Opens the correct Windows Firewall rules with one polite UAC prompt — existing rules are detected and never duplicated (v0.5.3). |
-| 🔒 **Lock my IP while hosting** | Keeps your LAN IP fixed during a session so router port-forwards never break on DHCP renewals; auto-returns to DHCP when the session ends (v0.5.3, Settings page). |
+| 🔒 **Lock my IP while hosting** | Keeps your LAN IP fixed during a session so router port-forwards never break on DHCP renewals; auto-returns to DHCP when the session ends (v0.5.3, Customisation on the Home page). |
 | 🧭 **Reachability Test** | Checks whether your public IP:port is actually reachable from the internet and shows the result on the Dashboard — with retries and a fallback service (v0.5.3), plus a full scan inside the Fix Problems page. |
 | ⚠️ **Smart Warnings** | Detects CGNAT ISPs (checks both your public IP **and your router's WAN IP** via UPnP — v0.5.3) and tells you exactly what to do. |
 | 🖧 **VPN Manager page** | Sees if **Radmin VPN / Hamachi / ZeroTier / Tailscale** are installed and running, starts any of them with one click, or opens the official download page when missing. If you have two VPNs running at once it tells you — friends must be on the same one as the IP you send. |
@@ -89,7 +90,7 @@ That's everything. The tool handles the server key, settings, ports and problems
 
 ### 2️⃣.5️⃣ Locking your IP while hosting (v0.5.3)
 
-If your ISP/router assigns your PC a **new local IP** from time to time, your port-forward rule silently breaks and players can no longer join. The **Settings page — "Lock my IP while hosting"** fixes this:
+If your ISP/router assigns your PC a **new local IP** from time to time, your port-forward rule silently breaks and players can no longer join. The **Customisation section — "Lock my IP while hosting"** fixes this:
 
 - When **ON**, the tool sets your network adapter to a static IP at server start and **restores DHCP automatically** when your session ends.
 - The tool never touches adapters it didn't lock itself (a manually configured static IP is left exactly as it is).
