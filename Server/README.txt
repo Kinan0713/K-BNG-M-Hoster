@@ -30,20 +30,20 @@ That's everything. The tool handles the server key, settings, ports and problems
 
 ### âœ¨ Key Features
 
-* **Home page (v0.6.5):** The hub - live server status, Quick actions tiles (Start / Fix / VPN / Mods / Settings / Guide) and every join address for friends. Private servers are marked `(private - hidden from the server list)`.
-* **Public/Private server (v0.6.5):** Settings -> "Server visibility". Public lists your server for everyone; Private hides it - only people you send the address (IP:port) to can join via Direct Connect. Applies on the next server start.
-* **Fix all possible (v0.6.5):** One click repairs everything it safely can: busy port, firewall rule, broken map, UPnP forward. The scan streams live progress, adds version/mods/disk-space checks and ends with an OK/attention summary.
-* **Full GUI (v0.6.0):** The whole tool is now a **window** - no console, no menus to memorize. Works with **mouse and keyboard**: every button explains itself in a tooltip, `Alt`+underlined letter, `Tab`/`Shift+Tab`, `Enter`, `Esc`, plus `Ctrl+H` Home, `Ctrl+S` Start, `Ctrl+X` Stop, `Ctrl+F` Fix, `Ctrl+V` VPN, `Ctrl+M` Mods, `Ctrl+T` Settings, `Ctrl+D` Diagnose, `Ctrl+C` Copy IP, `Ctrl+G` Guide. The shortcuts are always listed at the bottom of the window.
+* **Home page (v0.6.6):** The hub - live server status, Quick actions tiles (Start / Fix / VPN / Mods / Guide), the **Customisation** section (all settings, right on the page) and every join address for friends. Private servers are marked `(private - hidden from the server list)`.
+* **Public/Private server (v0.6.6):** Customisation (Home page, or `Ctrl+T`) -> "Server visibility". Public lists your server for everyone; Private hides it - only people you send the address (IP:port) to can join via Direct Connect. Applies on the next server start.
+* **Fix all possible (v0.6.6):** One click repairs everything it safely can: busy port, firewall rule, broken map, UPnP forward. The scan streams live progress, adds version/mods/disk-space checks and ends with an OK/attention summary. The Fix page never scans on its own - it only runs when you press "Re-scan everything" or "Fix all possible".
+* **Full GUI (v0.6.0):** The whole tool is now a **window** - no console, no menus to memorize. Works with **mouse and keyboard**: every button explains itself in a tooltip, `Tab`/`Shift+Tab`, `Enter`, `Esc`, plus `Ctrl+H` Home, `Ctrl+S` Start, `Ctrl+X` Stop, `Ctrl+F` Fix, `Ctrl+V` VPN, `Ctrl+M` Mods, `Ctrl+T` Customisation, `Ctrl+D` Diagnose, `Ctrl+C` Copy IP, `Ctrl+G` Guide, and `F11` (or `Alt+Enter`) for fullscreen. The shortcuts are always listed at the bottom of the window.
 * **Built-in Guide (v0.6.3):** The whole README is inside the app - press **Guide** (or `Ctrl+G`) for plain-language steps: start, key, how friends connect, firewall, mods, and sharing safely.
 * **Zero-Stress Automation:** Handles server startup and process management automatically.
 * **One-Click Launch:** Start the host via `Start_Here.bat`.
-* **Fix Problems page (v0.6.5):** Every check is one row with [OK] / [X] / [?] and its own Fix button: key, launcher, BeamNG, port, Visual C++ runtime, firewall, mods, disk space, server version, VPNs, CGNAT and external reachability. Plus one-click UPnP forwarding and a "Fix all possible" button.
+* **Fix Problems page (v0.6.6):** Every check is one row with [OK] / [X] / [?] and its own Fix button: key, launcher, BeamNG, port, Visual C++ runtime, firewall, mods, disk space, server version, VPNs, CGNAT and external reachability. Plus one-click UPnP forwarding and a "Fix all possible" button.
 * **Auto Diagnostics (v0.4):** If the server fails to start, the tool reads the server log and tells you exactly why - bad AuthKey, port already in use, missing Visual C++ runtime, or a bad map.
 * **Live Player Activity (v0.4):** Shows how many players are online (and who) while you host, with optional Discord join/leave notifications.
 * **Mods page (v0.4):** Manage your `Server\Resources\Client\` mods - list, disable, enable, scan.
 * **Update Checker (v0.4):** Tells you when a newer official BeamMP-Server is available (checked once per day, never blocks startup).
 * **Simplest Setup Ever (v0.5):** First run walks you through everything - you only paste your key once. The tool writes all files, auto-picks a free port, and has a one-click **Fix Problems** page.
-* **Lock my IP while hosting (v0.5.3):** Keeps your LAN IP fixed during a session so your router's port-forward never breaks when the DHCP lease renews - it auto-returns to DHCP when the session ends (Settings page).
+* **Lock my IP while hosting (v0.5.3):** Keeps your LAN IP fixed during a session so your router's port-forward never breaks when the DHCP lease renews - it auto-returns to DHCP when the session ends (Customisation, Home page).
 * **Deduplicated Firewall (v0.5.3):** The launcher detects existing Windows Firewall rules and never creates duplicates, even on repeated runs without admin rights.
 * **External Reachability Scan (v0.5.3):** The Fix Problems page tests your `publicIP:port` from the internet while your server is live, and gives you step-by-step fixes when it's not reachable.
 * **Real CGNAT Detection (v0.5.3):** The tool reads your router's own WAN IP via UPnP - if your ISP hides you behind a `100.x.x.x` carrier NAT, it tells you clearly (and why forwarding can never work) instead of a confusing error.
@@ -76,7 +76,7 @@ Keep it simple - the top level only shows the things you actually use:
 - `README.md` / `README.txt` - This documentation
 
 **Server/ (the engine - you never need to open it):**
-- `ServerConfig.toml` - Your server settings (name, port, players, map...) - edit from the GUI Settings page
+- `ServerConfig.toml` - Your server settings (name, port, players, map...) - edit from the GUI Customisation section on the Home page
 - `Resources/Client/` - Your mods (drop mod .zip files here)
 - `BeamMP-Server.exe` - The official BeamMP server program
 - `Play_BeamMP.ps1` / `.bat` - The window (GUI)
@@ -92,7 +92,7 @@ Keep it simple - the top level only shows the things you actually use:
 ## 1ï¸âƒ£ Input Your Auth Key *(Automatic - Recommended)*
 
 1. Go to https://keymaster.beammp.com and generate a new key.
-2. Run `Start_Here.bat` - on first launch the **key setup window** asks you to paste the key once, then saves it into `Server\.env` automatically. (You can also open it anytime from the Settings page or the Fix Problems page.)
+2. Run `Start_Here.bat` - on first launch the **key setup window** asks you to paste the key once, then saves it into `Server\.env` automatically. (You can also open it anytime from the Customisation section on the Home page or the Fix Problems page.)
 3. Before every launch, the tool reads `Server\.env`, writes your key into `AuthKey` inside `ServerConfig.toml`, starts the server, and **removes the key from the config again when the session ends** so nothing personal is ever left behind.
 4. `Server\.env` is your private file - you can remove all personal information with the **Clean personal info** button.
 
@@ -108,7 +108,7 @@ The server port is read from `Port` in `ServerConfig.toml` (default **30814**, t
 
 ## 2ï¸âƒ£.5ï¸âƒ£ Locking your IP while hosting (v0.5.3)
 
-If your ISP/router assigns your PC a **new local IP** from time to time, your port-forward rule silently breaks and players can no longer join. The **Settings page - "Lock my IP while hosting"** fixes this:
+If your ISP/router assigns your PC a **new local IP** from time to time, your port-forward rule silently breaks and players can no longer join. The **Customisation section - "Lock my IP while hosting"** fixes this:
 
 - When **ON**, the tool sets your network adapter to a static IP at server start and **restores DHCP automatically** when your session ends.
 - A small `Server/staticip.cfg` marker remembers your choice between sessions; the previous DHCP state is backed up in `Server/Logs/staticip.undo.json` so it can always be restored.
@@ -173,7 +173,7 @@ Choose **one** of the hosting methods below depending on how you want players to
 - **Option 1 (Server Browser):** players can search for your Server Name in the official BeamMP Server Browser.
 - **Option 2 (Direct Connect):** players go to `More...` -> `BeamMP` -> `Direct Connect` and enter your **Public IP** and Port from `ServerConfig.toml`.
 
-> âš ï¸ **Why won't players connect?** The usual culprits, in order: (1) **you're behind CGNAT** - if the tool shows a CGNAT warning, public hosting can never work; use a VPN instead (see Method C); (2) **UDP is not forwarded** - BeamMP needs both TCP *and* UDP; (3) **Windows Firewall** doesn't allow `BeamMP-Server.exe`. The **Fix Problems page** checks all of these for you. If the problem appeared after a router reboot, your PC may have a new local IP - enable **"Lock my IP while hosting"** (Settings page) to prevent that.
+> âš ï¸ **Why won't players connect?** The usual culprits, in order: (1) **you're behind CGNAT** - if the tool shows a CGNAT warning, public hosting can never work; use a VPN instead (see Method C); (2) **UDP is not forwarded** - BeamMP needs both TCP *and* UDP; (3) **Windows Firewall** doesn't allow `BeamMP-Server.exe`. The **Fix Problems page** checks all of these for you. If the problem appeared after a router reboot, your PC may have a new local IP - enable **"Lock my IP while hosting"** (Customisation, Home page) to prevent that.
 
 ---
 
