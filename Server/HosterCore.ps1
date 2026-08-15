@@ -226,10 +226,11 @@ function Set-ServerVisibility {
     Copy-Item -LiteralPath $cfgPath -Destination (Join-Path $backupDir ("ServerConfig-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + "-vis.toml")) -Force
     $lines = @(Get-Content -LiteralPath $cfgPath)
     $changed = $false
+    $tomlPrivate = if ($Private) { 'true' } else { 'false' }
     $lines = $lines | ForEach-Object {
-        if ($_ -match '^\s*Private\s*=') { $changed = $true; "Private = $Private" } else { $_ }
+        if ($_ -match '^\s*Private\s*=') { $changed = $true; "Private = $tomlPrivate" } else { $_ }
     }
-    if (-not $changed) { $lines += "Private = $Private" }
+    if (-not $changed) { $lines += "Private = $tomlPrivate" }
     Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
     Write-Log "Visibility set to $(if ($Private) { 'private' } else { 'public' })"
     return "Server is now $(if ($Private) { 'private - hidden from the server list' } else { 'public - listed for everyone' }). It applies on the next server start."
