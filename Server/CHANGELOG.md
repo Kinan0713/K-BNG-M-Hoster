@@ -1,3 +1,27 @@
+﻿## v0.6.5 - Update 6, Fix 5: Public/Private server, a new Home page, one-click Fix all, faster tabs and a fixed fullscreen
+
+- **Public/Private server (Settings):** choose who can find your server in the BeamMP
+  list. Private hides it - only people you send the address (IP:port) to can join via
+  Direct Connect. The Home page marks the internet line with "(private...)" and the
+  server restarts automatically to apply the change.
+- **Home page:** the old Dashboard is now a proper hub - live status card, a Quick
+  actions panel (Start / Fix / VPN / Mods / Settings / Guide tiles) and every join
+  address for friends. Press Ctrl+H or the Home button on the toolbar.
+- **Fix Problems upgrades:** the scan streams live progress to the log, adds new
+  checks (server version, mods health, disk space, firewall/port match) and finishes
+  with a summary banner ("X of N checks OK, M need attention"). A new **"Fix all
+  possible"** button repairs everything it safely can in one click (busy port,
+  firewall rule, broken map, UPnP forward) and tells you exactly what still needs you.
+- **Faster tabs:** the Fix scan no longer re-reads every map zip every time (12h disk
+  cache) and reuses the cached public IP instead of a fresh web call. The Mods page
+  loads instantly from a cached list and refreshes in the background.
+- **Fullscreen fixed:** maximizing (or going fullscreen) no longer leaves the page
+  layout stale - every tab now relayouts correctly on the very first maximize.
+- **New header:** taller, with the version shown in a chip on the right - the subtitle
+  no longer clips into the title.
+- **Guide:** new step explaining Public vs Private, updated for the Home page and the
+  Fix-all button.
+
 # Changelog
 
 All notable changes to **K BNG M Hoster** are documented here.

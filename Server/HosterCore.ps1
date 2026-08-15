@@ -1,5 +1,5 @@
 # ========================================================================================
-# K BNG M Hoster v0.6.3 - HosterCore.ps1
+# K BNG M Hoster v0.6.5 - HosterCore.ps1
 # All logic lives here (single source of truth). The GUI (Play_BeamMP.ps1) and every
 # background task load this file and call these functions. No console UI in this file.
 #
@@ -186,6 +186,278 @@ function Update-Config {
 }
 
 # ---------------------------------------------------------------------------------------
+# MAPS
+# ---------------------------------------------------------------------------------------
+# Current Map value from ServerConfig.toml (e.g. /levels/gridmap_v2/info.json).
+function Get-ServerMap {
+    $cfgPath = $script:RootDir + 'ServerConfig.toml'
+    $m = Select-String -LiteralPath $cfgPath -Pattern '^\s*Map\s*=\s*"([^"]+)"' | Select-Object -First 1
+    if ($m) { return $m.Matches[0].Groups[1].Value }
+    return '/levels/gridmap_v2/info.json'
+}
+
+# Map folder name from a Map path (e.g. /levels/gridmap_v2/info.json -> gridmap_v2).
+function Get-MapNameFromPath([string]$Map) {
+    if ($Map -match '(?:^|/)levels/([^/]+)/info\.json$') { return $Matches[1] }
+    return ''
+}
+
+# ---------------------------------------------------------------------------------------
+# SERVER VISIBILITY (public/private)
+# ---------------------------------------------------------------------------------------
+# $true when the server is hidden from the BeamMP server list. Private servers are
+# still joinable by anyone who has the address (IP:port via Direct Connect).
+function Get-ServerPrivate {
+    $cfgPath = $script:RootDir + 'ServerConfig.toml'
+    if (-not (Test-Path -LiteralPath $cfgPath)) { return $false }
+    $m = Select-String -LiteralPath $cfgPath -Pattern '^\s*Private\s*=\s*(true|false)' | Select-Object -First 1
+    if ($m) { return ($m.Matches[0].Groups[1].Value -ieq 'true') }
+    return $false
+}
+
+# Sets Private = true/false in ServerConfig.toml (backup first, idempotent).
+function Set-ServerVisibility {
+    param([bool]$Private)
+    $cfgPath = $script:RootDir + 'ServerConfig.toml'
+    if (-not (Test-Path -LiteralPath $cfgPath)) { return "ServerConfig.toml not found - nothing to change." }
+    if ((Get-ServerPrivate) -eq $Private) { return "Already $(if ($Private) { 'private' } else { 'public' }) - no change needed." }
+    $backupDir = $script:ServerDir + 'Backups'
+    if (-not (Test-Path -LiteralPath $backupDir)) { New-Item -ItemType Directory -Path $backupDir -Force | Out-Null }
+    Copy-Item -LiteralPath $cfgPath -Destination (Join-Path $backupDir ("ServerConfig-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + "-vis.toml")) -Force
+    $lines = @(Get-Content -LiteralPath $cfgPath)
+    $changed = $false
+    $lines = $lines | ForEach-Object {
+        if ($_ -match '^\s*Private\s*=') { $changed = $true; "Private = $Private" } else { $_ }
+    }
+    if (-not $changed) { $lines += "Private = $Private" }
+    Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
+    Write-Log "Visibility set to $(if ($Private) { 'private' } else { 'public' })"
+    return "Server is now $(if ($Private) { 'private - hidden from the server list' } else { 'public - listed for everyone' }). It applies on the next server start."
+}
+
+# Level names found inside a mod/map zip (entries look like levels/<name>/info.json).
+function Get-MapLevelNames([string]$ZipPath) {
+    $names = @()
+    try {
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $z = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
+        try {
+            foreach ($e in $z.Entries) {
+                if ($e.FullName -match '^levels[\\/]([^\\/]+)[\\/]info\.json$') {
+                    if ($Matches[1] -notin $names) { $names += $Matches[1] }
+                }
+            }
+        } finally { $z.Dispose() }
+    } catch { }
+    return $names
+}
+
+# Every map the host can run: vanilla (from the game install) + map mods
+# (from the game's mods/workshop folders and from this server's Resources\Client).
+# Returns @{ Name; Map; Kind; Zip } - Zip is set for map mods that must be hosted.
+# Signature of everything that can add/remove maps: zip/dir names + sizes + write times.
+# Cheap (no zip opening) and catches installs/updates/deletions of maps.
+function Get-MapScanSignature {
+    $parts = New-Object System.Collections.Generic.List[string]
+    $add = {
+        param($f)
+        try { $parts.Add((Join-Path (Split-Path -Parent $f.FullName) $f.Name) + '|' + $f.Length + '|' + $f.LastWriteTimeUtc.Ticks) } catch { }
+    }
+    $game = Get-BeamNGPath
+    if ($game) {
+        $levelsZip = Join-Path (Split-Path -Parent $game) 'content\levels'
+        if (Test-Path -LiteralPath $levelsZip) {
+            foreach ($f in @(Get-ChildItem -LiteralPath $levelsZip -Filter '*.zip' -File -ErrorAction SilentlyContinue)) { & $add $f }
+        }
+        $levelsDir = Join-Path (Split-Path -Parent $game) 'levels'
+        if (Test-Path -LiteralPath $levelsDir) {
+            foreach ($d in @(Get-ChildItem -LiteralPath $levelsDir -Directory -ErrorAction SilentlyContinue)) {
+                $info = Join-Path $d.FullName 'info.json'
+                if (Test-Path -LiteralPath $info) {
+                    $i = Get-Item -LiteralPath $info -ErrorAction SilentlyContinue
+                    if ($i) { $parts.Add($d.FullName + '|info|' + $i.Length + '|' + $i.LastWriteTimeUtc.Ticks) }
+                }
+            }
+        }
+    }
+    $modFolders = @()
+    foreach ($root in @((Join-Path $env:LOCALAPPDATA 'BeamNG.drive'), (Join-Path $env:USERPROFILE 'Documents\BeamNG.drive'))) {
+        if (Test-Path -LiteralPath $root) {
+            $modFolders += @(Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue | ForEach-Object { Join-Path $_.FullName 'mods' })
+        }
+    }
+    $steamRoot = $null
+    if ($game) {
+        $p = Split-Path -Parent $game
+        for ($i = 0; $i -lt 5 -and $p -and $p -ne (Split-Path -Parent $p); $i++) {
+            if ((Split-Path -Leaf $p) -eq 'common') { $steamRoot = Split-Path -Parent $p; break }
+            $p = Split-Path -Parent $p
+        }
+    }
+    if ($steamRoot) {
+        $ws = Join-Path $steamRoot 'workshop\content\284160'
+        if (Test-Path -LiteralPath $ws) { $modFolders += (Join-Path $ws '*') }
+    }
+    foreach ($mf in $modFolders) {
+        if ($mf.EndsWith('*')) {
+            foreach ($d in @(Get-ChildItem -LiteralPath ($mf.Substring(0, $mf.Length - 1)) -Directory -ErrorAction SilentlyContinue)) {
+                foreach ($f in @(Get-ChildItem -LiteralPath $d.FullName -Filter '*.zip' -File -ErrorAction SilentlyContinue)) { & $add $f }
+            }
+        } elseif (Test-Path -LiteralPath $mf) {
+            foreach ($f in @(Get-ChildItem -LiteralPath $mf -Filter '*.zip' -File -ErrorAction SilentlyContinue)) { & $add $f }
+            $lvl = Join-Path $mf 'levels'
+            if (Test-Path -LiteralPath $lvl) {
+                foreach ($m in @(Get-ChildItem -LiteralPath $lvl -Directory -ErrorAction SilentlyContinue)) {
+                    $info = Join-Path $m.FullName 'info.json'
+                    if (Test-Path -LiteralPath $info) {
+                        $i = Get-Item -LiteralPath $info -ErrorAction SilentlyContinue
+                        if ($i) { $parts.Add($m.FullName + '|info|' + $i.Length + '|' + $i.LastWriteTimeUtc.Ticks) }
+                    }
+                }
+            }
+        }
+    }
+    $client = $script:RootDir + 'Resources\Client'
+    if (Test-Path -LiteralPath $client) {
+        foreach ($f in @(Get-ChildItem -LiteralPath $client -Filter '*.zip' -File -ErrorAction SilentlyContinue)) { & $add $f }
+    }
+    return [string]::Join(';', $parts)
+}
+
+# Disk-cached for 12h (Logs\maps_cache.json). The signature changes on install/update/
+# delete of a map file, which invalidates the cache. Safe to call from any runspace.
+function Get-AvailableMaps {
+    $cacheFile = $script:ServerDir + 'Logs\maps_cache.json'
+    $sig = Get-MapScanSignature
+    $fresh = $false
+    if (Test-Path -LiteralPath $cacheFile) {
+        try {
+            $j = Get-Content -LiteralPath $cacheFile -Raw | ConvertFrom-Json
+            if ($j.sig -eq $sig -and ((Get-Date) - [datetime]$j.checked).TotalHours -lt 12) {
+                $fresh = $true
+                return @($j.maps)
+            }
+        } catch { }
+    }
+    if (-not $fresh) {
+        $result = Get-AvailableMapsRaw
+        try {
+            @{ sig = $sig; checked = (Get-Date).ToString('o'); maps = @($result) } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $cacheFile
+        } catch { }
+        return $result
+    }
+}
+
+function Get-AvailableMapsRaw {
+    $result = New-Object System.Collections.Generic.List[object]
+    $seen = @{}
+    $push = {
+        param($Name, $Kind, $Zip)
+        if ($Name -and -not $seen.ContainsKey($Name.ToLowerInvariant())) {
+            $seen[$Name.ToLowerInvariant()] = $true
+            $result.Add([pscustomobject]@{ Name = $Name; Map = "/levels/$Name/info.json"; Kind = $Kind; Zip = $Zip })
+        }
+    }
+
+    $game = Get-BeamNGPath
+    if ($game) {
+        $gameDir = Split-Path -Parent $game
+        $levelsZip = Join-Path $gameDir 'content\levels'
+        if (Test-Path -LiteralPath $levelsZip) {
+            foreach ($f in @(Get-ChildItem -LiteralPath $levelsZip -Filter '*.zip' -File -ErrorAction SilentlyContinue)) {
+                foreach ($n in Get-MapLevelNames $f.FullName) { & $push $n 'Vanilla' '' }
+            }
+        }
+        $levelsDir = Join-Path $gameDir 'levels'
+        if (Test-Path -LiteralPath $levelsDir) {
+            foreach ($d in @(Get-ChildItem -LiteralPath $levelsDir -Directory -ErrorAction SilentlyContinue)) {
+                if (Test-Path -LiteralPath (Join-Path $d.FullName 'info.json')) { & $push $d.Name 'Vanilla' '' }
+            }
+        }
+    }
+
+    $modFolders = @()
+    foreach ($root in @((Join-Path $env:LOCALAPPDATA 'BeamNG.drive'), (Join-Path $env:USERPROFILE 'Documents\BeamNG.drive'))) {
+        if (Test-Path -LiteralPath $root) {
+            $modFolders += @(Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue | ForEach-Object { Join-Path $_.FullName 'mods' })
+        }
+    }
+    $steamRoot = $null
+    if ($game) {
+        $p = Split-Path -Parent $game
+        for ($i = 0; $i -lt 5 -and $p -and $p -ne (Split-Path -Parent $p); $i++) {
+            if ((Split-Path -Leaf $p) -eq 'common') { $steamRoot = Split-Path -Parent $p; break }
+            $p = Split-Path -Parent $p
+        }
+    }
+    if ($steamRoot) {
+        $ws = Join-Path $steamRoot 'workshop\content\284160'
+        if (Test-Path -LiteralPath $ws) {
+            $modFolders += (Join-Path $ws '*')
+        }
+    }
+    foreach ($mf in $modFolders) {
+        foreach ($f in @(Get-ChildItem -LiteralPath $mf -Filter '*.zip' -File -ErrorAction SilentlyContinue)) {
+            foreach ($n in Get-MapLevelNames $f.FullName) { & $push $n 'Map mod' $f.FullName }
+        }
+        foreach ($d in @(Get-ChildItem -LiteralPath $mf -Directory -ErrorAction SilentlyContinue)) {
+            $lvl = Join-Path $d.FullName 'levels'
+            if (Test-Path -LiteralPath $lvl) {
+                foreach ($m in @(Get-ChildItem -LiteralPath $lvl -Directory -ErrorAction SilentlyContinue)) {
+                    if (Test-Path -LiteralPath (Join-Path $m.FullName 'info.json')) { & $push $m.Name 'Map mod' '' }
+                }
+            }
+        }
+    }
+
+    $client = $script:RootDir + 'Resources\Client'
+    if (Test-Path -LiteralPath $client) {
+        foreach ($f in @(Get-ChildItem -LiteralPath $client -Filter '*.zip' -File -ErrorAction SilentlyContinue)) {
+            foreach ($n in Get-MapLevelNames $f.FullName) { & $push $n 'Map mod' $f.FullName }
+        }
+    }
+
+    return @($result | Sort-Object Kind, Name)
+}
+
+# Applies a map (backup first, optional zip hosting for map mods). Returns a message.
+function Set-ServerMap {
+    param([string]$LevelName, [string]$ZipToHost = '')
+    if ($LevelName -notmatch '^[A-Za-z0-9_\- ]+$' -or $LevelName.Trim() -ne $LevelName) {
+        return "That map name looks wrong: $LevelName"
+    }
+    if ($ZipToHost) {
+        $client = $script:RootDir + 'Resources\Client'
+        if (-not (Test-Path -LiteralPath $client)) { New-Item -ItemType Directory -Path $client -Force | Out-Null }
+        $dest = Join-Path $client (Split-Path -Leaf $ZipToHost)
+        $srcFull = [System.IO.Path]::GetFullPath($ZipToHost)
+        $destFull = [System.IO.Path]::GetFullPath($dest)
+        if ($srcFull -ne $destFull) {
+            if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Force -ErrorAction SilentlyContinue }
+            Copy-Item -LiteralPath $ZipToHost -Destination $dest -Force
+            Write-Log "Map mod hosted for players: $(Split-Path -Leaf $ZipToHost)"
+        }
+    }
+    $cfgPath = $script:RootDir + 'ServerConfig.toml'
+    $newMap = "/levels/$LevelName/info.json"
+    if ((Get-ServerMap) -ne $newMap) {
+        $backupDir = $script:ServerDir + 'Backups'
+        if (-not (Test-Path -LiteralPath $backupDir)) { New-Item -ItemType Directory -Path $backupDir -Force | Out-Null }
+        Copy-Item -LiteralPath $cfgPath -Destination (Join-Path $backupDir ("ServerConfig-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + "-map.toml")) -Force
+        $lines = @(Get-Content -LiteralPath $cfgPath)
+        $changed = $false
+        $lines = $lines | ForEach-Object {
+            if ($_ -match '^\s*Map\s*=') { $changed = $true; "Map = ""$newMap""" } else { $_ }
+        }
+        if (-not $changed) { $lines += "Map = ""$newMap""" }
+        Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
+        Write-Log "Map changed to $newMap"
+        return "Map set to $newMap. It applies on the next server start."
+    }
+    return "Already on map $newMap."
+}
+
+# ---------------------------------------------------------------------------------------
 # GAME / TOOLS
 # ---------------------------------------------------------------------------------------
 function Get-BeamNGPath {
@@ -212,6 +484,19 @@ function Test-FirewallRule {
         return [bool]$found
     } catch { }
     return $false
+}
+
+# The port the K BNG M Hoster firewall rules were opened for.
+# Returns '' when no rules exist, 'program' when only program-wide rules exist.
+function Get-FirewallRulePort {
+    try {
+        $out = @(netsh advfirewall firewall show rule name=all 2>$null)
+        $ports = @($out | Select-String -Pattern 'K BNG M Hoster.*(TCP|UDP)\s*(\d+)' | ForEach-Object { $_.Matches[0].Groups[2].Value })
+        if ($ports.Count) { return [string]$ports[0] }
+        $any = @($out | Select-String -Pattern 'K BNG M Hoster')
+        if ($any.Count) { return 'program' }
+    } catch { }
+    return ''
 }
 
 # Adds firewall rules via an elevated helper window (one UAC prompt).
@@ -632,6 +917,23 @@ function Test-ExternalReachability {
     return $null
 }
 
+# Public IP with a 24h disk cache (Logs\publicip.json) - never blocks startup.
+function Get-PublicIpCached {
+    $cache = $script:ServerDir + 'Logs\publicip.json'
+    if (Test-Path -LiteralPath $cache) {
+        try {
+            $j = Get-Content -LiteralPath $cache -Raw | ConvertFrom-Json
+            if ($j.ip -and ((Get-Date) - [datetime]$j.checked).TotalHours -lt 24) { return [string]$j.ip }
+        } catch { }
+    }
+    $public = ''
+    try {
+        $public = (Invoke-RestMethod -Uri 'https://api.ipify.org' -TimeoutSec 8).ToString().Trim()
+        if ($public) { @{ ip = $public; checked = (Get-Date).ToString('o') } | ConvertTo-Json | Set-Content -LiteralPath $cache }
+    } catch { }
+    return $public
+}
+
 function Get-ConnectionInfo {
     $port = Get-ServerPort
     $lan = Get-LanIp
@@ -641,20 +943,7 @@ function Get-ConnectionInfo {
         if (Test-Path -LiteralPath $tailExe) { $tail = (& $tailExe ip -4 2>$null | Select-Object -First 1).Trim() }
         elseif (Get-Command tailscale -ErrorAction SilentlyContinue) { $tail = (& tailscale ip -4 2>$null | Select-Object -First 1).Trim() }
     } catch { }
-    $public = ''
-    $cache = $script:ServerDir + 'Logs\publicip.json'
-    if (Test-Path -LiteralPath $cache) {
-        try {
-            $j = Get-Content -LiteralPath $cache -Raw | ConvertFrom-Json
-            if ($j.ip -and ((Get-Date) - [datetime]$j.checked).TotalHours -lt 24) { $public = $j.ip }
-        } catch { }
-    }
-    if (-not $public) {
-        try {
-            $public = (Invoke-RestMethod -Uri 'https://api.ipify.org' -TimeoutSec 8).ToString().Trim()
-            @{ ip = $public; checked = (Get-Date).ToString('o') } | ConvertTo-Json | Set-Content -LiteralPath $cache
-        } catch { }
-    }
+    $public = Get-PublicIpCached
     return [pscustomobject]@{ Port = $port; LAN = $lan; Tailscale = $tail; Public = $public; Vpn = @(Get-VpnIps | Where-Object { $_.Key -ne 'tailscale' }); Cgnat = (Test-Cgnat $public) }
 }
 
@@ -759,23 +1048,41 @@ function Invoke-ToolDownload {
 }
 
 # Full fix-menu report: one object per check with Key / Label / Ok / Detail / Action / NeedsAction.
+# Streams progress through Say() so the GUI log shows the scan live.
 function Get-FixReport {
     $rows = @()
+    Say "Fix scan: checking the server key..."
     $keyOk = Test-AuthKeyConfigured
     $rows += [pscustomobject]@{ Key = 'AUTHKEY'; Label = 'Server key'; Ok = $keyOk; Detail = $(if ($keyOk) { 'present' } else { 'missing' }); Action = 'Set up my server key'; NeedsAction = -not $keyOk }
+    Say "Fix scan: checking the launcher..."
     $launcherOk = Test-Path -LiteralPath $script:LauncherPath
     $rows += [pscustomobject]@{ Key = 'LAUNCHER'; Label = 'BeamMP Launcher'; Ok = $launcherOk; Detail = $(if ($launcherOk) { 'installed' } else { 'not installed' }); Action = 'Open the BeamMP Launcher download'; NeedsAction = -not $launcherOk }
+    Say "Fix scan: checking BeamNG.drive..."
     $game = Get-BeamNGPath
     $rows += [pscustomobject]@{ Key = 'BEAMNG'; Label = 'BeamNG.drive'; Ok = [bool]$game; Detail = $(if ($game) { 'found' } else { 'not found' }); Action = 'Open BeamNG.drive download'; NeedsAction = -not $game }
+    Say "Fix scan: checking the port..."
     $port = Get-ServerPort
     $busy = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
     $rows += [pscustomobject]@{ Key = 'PORT'; Label = "Port $port"; Ok = -not $busy; Detail = $(if ($busy) { "in use by another program" } else { 'free' }); Action = 'Use a free port automatically'; NeedsAction = [bool]$busy }
+    Say "Fix scan: checking the Visual C++ runtime..."
     $vcOk = Test-Path -LiteralPath "$env:WINDIR\System32\vcruntime140.dll"
     $rows += [pscustomobject]@{ Key = 'VC'; Label = 'Visual C++ runtime'; Ok = $vcOk; Detail = $(if ($vcOk) { 'present' } else { 'missing' }); Action = 'Open the Visual C++ installer'; NeedsAction = -not $vcOk }
-    $fwOk = Test-FirewallRule
-    $rows += [pscustomobject]@{ Key = 'FW'; Label = 'Firewall'; Ok = $fwOk; Detail = $(if ($fwOk) { 'BeamMP-Server is allowed' } else { 'BeamMP-Server may be blocked' }); Action = 'Add a firewall rule (asks for admin)'; NeedsAction = -not $fwOk }
+    Say "Fix scan: checking the map..."
+    $curMap = Get-ServerMap
+    $curMapName = Get-MapNameFromPath $curMap
+    $mapOk = [bool]$curMapName
+    $mapFound = $false
+    if ($mapOk) { $mapFound = [bool](@(Get-AvailableMaps | Where-Object { $_.Name -ieq $curMapName } | Select-Object -First 1).Count) }
+    $rows += [pscustomobject]@{ Key = 'MAP'; Label = 'Map'; Ok = ($mapOk -and $mapFound); Detail = $(if (-not $mapOk) { "$curMap is not a valid map path (must end in /info.json)" } elseif ($mapFound) { "$curMap" } else { "$curMap is not among the maps found on this PC - the server will not start with it" }); Action = 'Choose a map in Settings'; NeedsAction = (-not $mapOk -or -not $mapFound) }
+    Say "Fix scan: checking the firewall..."
+    $fwRulePort = Get-FirewallRulePort
+    $fwPortMismatch = ($fwRulePort -and $fwRulePort -ne 'program' -and $fwRulePort -ne "$port")
+    $fwOk = [bool]$fwRulePort -and -not $fwPortMismatch
+    $rows += [pscustomobject]@{ Key = 'FW'; Label = 'Firewall'; Ok = $fwOk; Detail = $(if (-not $fwRulePort) { 'BeamMP-Server may be blocked' } elseif ($fwPortMismatch) { "rules exist for port $fwRulePort but the server now uses $port" } else { 'BeamMP-Server is allowed' }); Action = 'Add a firewall rule (asks for admin)'; NeedsAction = -not $fwOk }
+    Say "Fix scan: checking Tailscale..."
     $tailOk = Test-Path -LiteralPath 'C:\Program Files\Tailscale\tailscale.exe'
     $rows += [pscustomobject]@{ Key = 'TAIL'; Label = 'Tailscale'; Ok = $tailOk; Detail = $(if ($tailOk) { 'installed' } else { 'not installed (friends can still join via public IP)' }); Action = ''; NeedsAction = $false }
+    Say "Fix scan: checking VPNs..."
     $vpnRunning = @(Get-VpnIps)
     if ($vpnRunning.Count) {
         foreach ($v in $vpnRunning) {
@@ -785,8 +1092,22 @@ function Get-FixReport {
     } else {
         $rows += [pscustomobject]@{ Key = 'VPN'; Label = 'VPN'; Ok = $true; Detail = 'none running (VPNs are only needed when port forwarding is impossible - see VPN Manager)'; Action = ''; NeedsAction = $false }
     }
-    $pubIp = ''
-    try { $pubIp = (Invoke-RestMethod -Uri 'https://api.ipify.org' -TimeoutSec 8).ToString().Trim() } catch { }
+    Say "Fix scan: checking mods..."
+    $mi = Get-ModsInfo
+    $rows += [pscustomobject]@{ Key = 'MODS'; Label = 'Mods'; Ok = $true; Detail = "$(@($mi.Enabled).Count) enabled, $(@($mi.Disabled).Count) disabled - manage them from the Mods page"; Action = 'Open the Mods page'; NeedsAction = $false }
+    Say "Fix scan: checking disk space..."
+    try {
+        $drive = (Get-Item -LiteralPath $script:RootDir).PSDrive
+        $freeGb = [double]$drive.Free / 1GB
+        $rows += [pscustomobject]@{ Key = 'DISK'; Label = 'Disk space'; Ok = $freeGb -ge 0.5; Detail = ("{0:N1} GB free on drive {1}" -f $freeGb, $drive.Name); Action = ''; NeedsAction = $freeGb -lt 0.5 }
+    } catch {
+        $rows += [pscustomobject]@{ Key = 'DISK'; Label = 'Disk space'; Ok = $true; Detail = 'could not check'; Action = ''; NeedsAction = $false }
+    }
+    Say "Fix scan: checking the server version..."
+    $verMsg = Check-ForUpdates
+    $rows += [pscustomobject]@{ Key = 'VER'; Label = 'Server version'; Ok = -not $verMsg; Detail = $(if ($verMsg) { $verMsg } else { 'up to date' }); Action = 'Open the BeamMP-Server download page'; NeedsAction = -not $verMsg }
+    Say "Fix scan: checking the public IP..."
+    $pubIp = Get-PublicIpCached
     $cgnat = Test-Cgnat $pubIp
     if ($cgnat) {
         $routerWan = Get-RouterWanIp
@@ -796,6 +1117,7 @@ function Get-FixReport {
     }
     $serverListening = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.OwningProcess -ne $PID -and $_.LocalAddress -notmatch '^(127\.|::1$)' } | Select-Object -First 1
     if ($serverListening) {
+        Say "Fix scan: testing the external reachability (server is live)..."
         $reachable = Test-ExternalReachability -PublicIp $pubIp -Port $port
         if ($reachable -eq $true) {
             $rows += [pscustomobject]@{ Key = 'EXT'; Label = 'External reachability'; Ok = $true; Detail = "$($pubIp):$port IS reachable from the internet"; Action = ''; NeedsAction = $false }
@@ -807,7 +1129,61 @@ function Get-FixReport {
     } else {
         $rows += [pscustomobject]@{ Key = 'EXT'; Label = 'External reachability'; Ok = $true; Detail = 'not tested - the server is not running right now (start the server first, then re-scan while it is live)'; Action = ''; NeedsAction = $false }
     }
+    Say "Fix scan: done."
     return $rows
+}
+
+# One-click auto-fix: safe fixes that need no human decision. Manual-only steps
+# (server key, CGNAT/VPN) are reported. Returns a summary message.
+function Fix-AllPossible {
+    $fixed = @()
+    $manual = @()
+
+    $keyOk = Test-AuthKeyConfigured
+    if (-not $keyOk) { $manual += 'server key (Settings tab)' }
+
+    $port = Get-ServerPort
+    $busy = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($busy) {
+        Say "Fix all: port $port is busy - picking a free port..."
+        $newPort = Set-FreePort -Port (Get-FreePort)
+        $fixed += "port $port was busy - now using $newPort"
+    }
+
+    $fwOk = [bool](Get-FirewallRulePort)
+    if (-not $fwOk) {
+        Say "Fix all: adding the firewall rule (a Windows security window may appear - click Yes)..."
+        $null = Add-FirewallRule
+        if (Test-FirewallRule) { $fixed += 'firewall rule added' }
+        else { $manual += 'firewall rule (the admin window was cancelled?)' }
+    }
+
+    $curMap = Get-ServerMap
+    $curMapName = Get-MapNameFromPath $curMap
+    $mapOk = [bool]$curMapName
+    if ($mapOk) {
+        $mapFound = [bool](@(Get-AvailableMaps | Where-Object { $_.Name -ieq $curMapName } | Select-Object -First 1).Count)
+        if (-not $mapFound) {
+            Say "Fix all: the current map is missing - switching to the default map..."
+            $msg = Set-ServerMap -LevelName 'gridmap_v2'
+            Say $msg
+            $fixed += 'map was invalid - switched to gridmap_v2'
+        }
+    }
+
+    Say "Fix all: opening the port on the router via UPnP..."
+    if (Add-UpnpPortForward $port) { $fixed += "port $port forwarded on the router (UPnP)" }
+    else { $manual += 'port forwarding on the router (UPnP failed - forward port manually or use a VPN)' }
+
+    if ($manual.Count) {
+        Say "Fix all: still needs you: $($manual -join ', ')."
+    }
+    if ($fixed.Count) {
+        Say "Fix all: done - $($fixed -join '; ')."
+        return "Fixed: $($fixed -join '; ')."
+    }
+    Say "Fix all: nothing to fix - everything looks fine."
+    return "Nothing to fix - everything looks fine."
 }
 
 # ---------------------------------------------------------------------------------------
@@ -1150,7 +1526,7 @@ function Start-HosterSession {
     if ($vpnWithIp.Count) {
         foreach ($v in $vpnWithIp) { $vpnDoc += "   Direct Connect, IP: $($v.Ip)   Port: $($conn.Port)  (friends must be on the SAME $($v.Name) network)" + [Environment]::NewLine }
     } else {
-        $vpnDoc = '   Install the same VPN as you (Radmin VPN / Hamachi / ZeroTier / Tailscale), join your network, then Direct Connect with the host VPN IP shown on the dashboard.'
+        $vpnDoc = '   Install the same VPN as you (Radmin VPN / Hamachi / ZeroTier / Tailscale), join your network, then Direct Connect with the host VPN IP shown on the Home page.'
     }
     $connectDoc = @"
 HOW TO CONNECT TO YOUR SERVER
