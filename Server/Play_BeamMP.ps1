@@ -251,12 +251,12 @@ $header = New-Object System.Windows.Forms.Panel
 $header.Dock = 'Top'
 $header.Height = 66
 $header.BackColor = $C.panel
-$title = New-Lbl 'K BNG M Hoster' ([System.Drawing.Color]::White) 19 30 $true
+$title = New-Lbl 'K BNG M Hoster' ([System.Drawing.Color]::White) 19 34 $true
 $title.AutoSize = $false
-$title.Size = New-Object System.Drawing.Size(240, 30)
-$title.Location = New-Object System.Drawing.Point(16, 8)
+$title.Size = New-Object System.Drawing.Size(240, 34)
+$title.Location = New-Object System.Drawing.Point(16, 6)
 $script:LblSubtitle = New-Lbl 'v0.6.5  ·  Update 6 - Fix 5  ·  by Kinan  ·  Discord: @raed713' $C.dim 9 18
-$script:LblSubtitle.Location = New-Object System.Drawing.Point(17, 42)
+$script:LblSubtitle.Location = New-Object System.Drawing.Point(17, 46)
 $script:LblVersionChip = New-Object System.Windows.Forms.Panel
 $script:LblVersionChip.BackColor = [System.Drawing.Color]::FromArgb(52, 52, 58)
 $script:LblVersionChip.Size = New-Object System.Drawing.Size(112, 34)
@@ -310,15 +310,15 @@ $script:BtnGuide = New-Btn '&Guide' 'How everything works, step by step - the wh
 # Design-time geometry for every chrome control (scaled on every resize).
 $script:ChromeSpecs = @(
     @{ Btn = $script:BtnHome;     X = 10;  Y = 6; W = 66;  H = 38 },
-    @{ Btn = $script:BtnStart;    X = 80;  Y = 6; W = 104; H = 38 },
-    @{ Btn = $script:BtnStop;     X = 190; Y = 6; W = 60;  H = 38 },
-    @{ Btn = $script:BtnFix;      X = 256; Y = 6; W = 94;  H = 38 },
-    @{ Btn = $script:BtnVpn;      X = 356; Y = 6; W = 96;  H = 38 },
-    @{ Btn = $script:BtnMods;     X = 458; Y = 6; W = 60;  H = 38 },
-    @{ Btn = $script:BtnSettings; X = 524; Y = 6; W = 80;  H = 38 },
-    @{ Btn = $script:BtnClean;    X = 610; Y = 6; W = 88;  H = 38 },
-    @{ Btn = $btnOpen;            X = 704; Y = 6; W = 94;  H = 38 },
-    @{ Btn = $script:BtnGuide;    X = 804; Y = 6; W = 78;  H = 38 }
+    @{ Btn = $script:BtnStart;    X = 80;  Y = 6; W = 112; H = 38 },
+    @{ Btn = $script:BtnStop;     X = 196; Y = 6; W = 60;  H = 38 },
+    @{ Btn = $script:BtnFix;      X = 260; Y = 6; W = 102; H = 38 },
+    @{ Btn = $script:BtnVpn;      X = 366; Y = 6; W = 108; H = 38 },
+    @{ Btn = $script:BtnMods;     X = 478; Y = 6; W = 60;  H = 38 },
+    @{ Btn = $script:BtnSettings; X = 542; Y = 6; W = 80;  H = 38 },
+    @{ Btn = $script:BtnClean;    X = 626; Y = 6; W = 88;  H = 38 },
+    @{ Btn = $btnOpen;            X = 718; Y = 6; W = 102; H = 38 },
+    @{ Btn = $script:BtnGuide;    X = 824; Y = 6; W = 78;  H = 38 }
 )
 $script:ChromeReady = $false
 
@@ -346,9 +346,9 @@ function Layout-Chrome {
         if ($script:LblVersionChip) {
             $script:LblVersionChip.Location = New-Object System.Drawing.Point(($w - (SX 128)), (SY 16))
         }
-        $c.LblShortcuts.Width = $w - (SX 430)
-        $c.LblPlayers.Width = SX 390
-        $px = $w - (SX 400)
+        $c.LblShortcuts.Width = $w - (SX 150)
+        $c.LblPlayers.Width = SX 120
+        $px = $w - (SX 130)
         $c.LblPlayers.Location = New-Object System.Drawing.Point($px, 3)
         $cx = $w - (SX 66)
         $c.BtnClearLog.Location = New-Object System.Drawing.Point($cx, 0)
@@ -535,6 +535,7 @@ function Show-HomePage {
 
 function Layout-Home {
     if (-not $script:ConnCard) { return }
+    if ($script:ConnCard.ClientSize.Width -le 0 -or $script:ConnCard.ClientSize.Height -le 0) { return }
     try {
         $cw = $script:ConnCard.ClientSize.Width - 32
         $labels = @($script:LblConnThis, $script:LblConnLan, $script:LblConnVpn, $script:LblConnTail, $script:LblConnPub, $script:LblConnRouter)
@@ -696,16 +697,19 @@ function Show-FixPage {
     $btnScan = New-Btn 'Re-&scan everything' 'Run every check again (key, launcher, port, firewall, CGNAT, internet reachability...).' { Run-FixScan }
     $btnScan.Size = New-Object System.Drawing.Size(160, 34)
     $btnScan.Location = New-Object System.Drawing.Point(4, 54)
+    $btnScan.Tag = @{ X = 4; Y = 54; W = 160; H = 34 }
     $script:FixTop.Controls.Add($btnScan)
 
     $btnUpnp = New-Btn 'Open port on router via UPnP' 'Ask the router to forward the server port (TCP+UDP) automatically - no admin needed.' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$port = Get-ServerPort`nif (Add-UpnpPortForward `$port) { Say ""UPnP: port `$port (TCP+UDP) forwarded on the router. Friends can now connect!"" } else { Say ""UPnP failed. Enable UPnP in your router settings, or forward port `$port (TCP+UDP) manually."" }" 'upnp' }
     $btnUpnp.Size = New-Object System.Drawing.Size(210, 34)
     $btnUpnp.Location = New-Object System.Drawing.Point(172, 54)
+    $btnUpnp.Tag = @{ X = 172; Y = 54; W = 210; H = 34 }
     $script:FixTop.Controls.Add($btnUpnp)
 
     $script:BtnFixAll = New-Btn '&Fix all possible' 'One click: frees a busy port, adds the firewall rule, applies a valid map and forwards the port via UPnP. Anything that still needs you (like the server key) is listed in the log.' { Run-FixAll }
     $script:BtnFixAll.Size = New-Object System.Drawing.Size(150, 34)
     $script:BtnFixAll.Location = New-Object System.Drawing.Point(390, 54)
+    $script:BtnFixAll.Tag = @{ X = 390; Y = 54; W = 150; H = 34 }
     $script:FixTop.Controls.Add($script:BtnFixAll)
 
     $p.Controls.Add($script:FixRowsPanel)
@@ -794,7 +798,10 @@ function Layout-FixRows {
         if ($script:FixTop) {
             $maxBottom = SY(96)
             foreach ($c in $script:FixTop.Controls) {
-                if ($c -is [System.Windows.Forms.Label] -and $c.Width -gt 400) {
+                if ($c -is [System.Windows.Forms.Button] -and $c.Tag -is [hashtable] -and $c.Tag.ContainsKey('X')) {
+                    $c.Location = New-Object System.Drawing.Point((SX $c.Tag.X), (SY $c.Tag.Y))
+                    $c.Size = New-Object System.Drawing.Size((SX $c.Tag.W), (SY $c.Tag.H))
+                } elseif ($c -is [System.Windows.Forms.Label] -and $c.Width -gt 400) {
                     $c.Width = $script:FixTop.ClientSize.Width - 8
                     $m = Measure-Text $c.Text $c.Font $c.Width
                     $c.Height = [int][math]::Max(20, $m.Lines * 20)
@@ -927,11 +934,13 @@ function Show-VpnPage {
     $btnRefresh = New-Btn '&Refresh' 'Re-check which VPNs are installed / running and their IPs.' { Show-VpnPage }
     $btnRefresh.Size = New-Object System.Drawing.Size(90, 32)
     $btnRefresh.Location = New-Object System.Drawing.Point(4, 76)
+    $btnRefresh.Tag = @{ X = 4; Y = 76; W = 90; H = 32 }
     $script:VpnTop.Controls.Add($btnRefresh)
 
     $btnAll = New-Btn '&Start all installed VPNs' 'Start every VPN that is installed on this PC.' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$started = 0`nforeach (`$app in Get-InstalledVpns | Where-Object { `$_.Installed -and `$_.Exe }) { `$r = Start-OrDownload-Vpn `$app 6; Say `$r; if (`$r -match 'connected') { `$started++ } }`nif (`$started -eq 0) { Say ""No VPN could be started. Install one first (see the rows below) and try again."" }`n`$State.VpnRefresh = (Get-Date).ToString('o')" 'vpns' }
     $btnAll.Size = New-Object System.Drawing.Size(150, 32)
     $btnAll.Location = New-Object System.Drawing.Point(100, 76)
+    $btnAll.Tag = @{ X = 100; Y = 76; W = 150; H = 32 }
     $script:VpnTop.Controls.Add($btnAll)
 
     $p.Controls.Add($script:VpnRowsPanel)
@@ -1006,7 +1015,10 @@ function Layout-VpnRows {
         if ($script:VpnTop) {
             $maxBottom = SY(110)
             foreach ($c in $script:VpnTop.Controls) {
-                if ($c -is [System.Windows.Forms.Label] -and $c.Width -gt 400) {
+                if ($c -is [System.Windows.Forms.Button] -and $c.Tag -is [hashtable] -and $c.Tag.ContainsKey('X')) {
+                    $c.Location = New-Object System.Drawing.Point((SX $c.Tag.X), (SY $c.Tag.Y))
+                    $c.Size = New-Object System.Drawing.Size((SX $c.Tag.W), (SY $c.Tag.H))
+                } elseif ($c -is [System.Windows.Forms.Label] -and $c.Width -gt 400) {
                     $c.Width = $script:VpnTop.ClientSize.Width - 8
                     $m = Measure-Text $c.Text $c.Font $c.Width
                     $c.Height = [int][math]::Max(20, $m.Lines * 20)
