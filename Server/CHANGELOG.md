@@ -1,4 +1,20 @@
-﻿## v0.6.5 - Update 6, Fix 5: Public/Private server, a new Home page, one-click Fix all, faster tabs and a fixed fullscreen
+﻿## v0.6.7 - Update 6, Fix 7: Stats page, the Settings tab is back, and fullscreen/layout fixes
+
+- **Stats page:** the Home page is renamed to **Stats** - it shows your live server
+  status and every address friends can use to join (LAN / VPN / internet).
+- **Settings tab is back (Ctrl+T):** server name, max players, free port, IP lock,
+  server key, map and public/private now live in their own tab again instead of the
+  collapsed "Customisation" section on the Home page.
+- **Fullscreen fixed:** exiting fullscreen (F11 / Alt+Enter) now restores the window
+  exactly as it was - border, size and position - instead of losing the maximized
+  state or leaving a stale layout.
+- **Layout fixes:** the Fix / VPN / Mods page headers now re-position their buttons
+  below wrapped text instead of overlapping it when the window is wide or small.
+- **Cleaner labels:** fix-row buttons no longer draw stray underline artifacts.
+- **Docs updated:** the README was rewritten - the app is fully explained, only the
+  launcher file is ever mentioned, and the license do's and don'ts are spelled out.
+
+## v0.6.5 - Update 6, Fix 5: Public/Private server, a new Home page, one-click Fix all, faster tabs and a fixed fullscreen
 
 - **Public/Private server (Settings):** choose who can find your server in the BeamMP
   list. Private hides it - only people you send the address (IP:port) to can join via

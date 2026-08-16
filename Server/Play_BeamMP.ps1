@@ -1,5 +1,5 @@
 # ========================================================================================
-# K BNG M Hoster v0.6.6 - Simplest Edition (GUI)
+# K BNG M Hoster v0.6.7 - Simplest Edition (GUI)
 # All logic lives in HosterCore.ps1 (single source of truth). This file is the window.
 # Start_Here.bat / Play_BeamMP.bat only launch this file.
 #
@@ -75,7 +75,7 @@ $script:State = @{
     ToolUpdateReady = $null
     ToolUpdateErr = ''
 }
-$script:AppVersion = '0.6.6'
+$script:AppVersion = '0.6.7'
 $script:CorePath = Join-Path $PSScriptRoot 'HosterCore.ps1'
 $script:CoreText = "`$script:CorePath = '" + ($script:CorePath -replace "'", "''") + "'`r`n" + (Get-Content -LiteralPath $script:CorePath -Raw)
 $script:PendingAction = $null
@@ -226,7 +226,7 @@ function QStr([string]$Value) {
 
 function Update-BusyUi {
     $busy = $script:Busy -or $script:Starting
-    foreach ($b in @($script:BtnFix, $script:BtnVpn, $script:BtnMods, $script:BtnClean, $script:TileFix, $script:TileVpn, $script:TileMods, $script:BtnCustom)) {
+    foreach ($b in @($script:BtnFix, $script:BtnVpn, $script:BtnMods, $script:BtnSettings, $script:BtnClean)) {
         if ($b) { $b.Enabled = -not $busy }
     }
 }
@@ -235,7 +235,7 @@ function Update-BusyUi {
 # MAIN FORM
 # ---------------------------------------------------------------------------------------
 $script:Form = New-Object System.Windows.Forms.Form
-$script:Form.Text = 'K BNG M Hoster v0.6.6 - by Kinan (@raed713)'
+$script:Form.Text = 'K BNG M Hoster v0.6.7 - by Kinan (@raed713)'
 $script:Form.Size = New-Object System.Drawing.Size(1000, 720)
 $script:Form.MinimumSize = New-Object System.Drawing.Size(960, 660)
 $script:Form.StartPosition = 'CenterScreen'
@@ -257,13 +257,13 @@ $title = New-Lbl 'K BNG M Hoster' ([System.Drawing.Color]::White) 19 34 $true
 $title.AutoSize = $false
 $title.Size = New-Object System.Drawing.Size(240, 34)
 $title.Location = New-Object System.Drawing.Point(16, 6)
-$script:LblSubtitle = New-Lbl 'v0.6.6  ·  Update 6 - Fix 6  ·  by Kinan  ·  Discord: @raed713' $Theme.dim 9 18
+$script:LblSubtitle = New-Lbl 'v0.6.7  |  Update 6 - Fix 7  |  by Kinan  |  Discord: @raed713' $Theme.dim 9 18
 $script:LblSubtitle.Location = New-Object System.Drawing.Point(17, 44)
 $script:LblVersionChip = New-Object System.Windows.Forms.Panel
 $script:LblVersionChip.BackColor = [System.Drawing.Color]::FromArgb(52, 52, 58)
 $script:LblVersionChip.Size = New-Object System.Drawing.Size(112, 34)
 $script:LblVersionChip.Location = New-Object System.Drawing.Point(($script:Form.ClientSize.Width - 128), 16)
-$chipText = New-Lbl 'v0.6.6' $Theme.blue 10 20 $true
+$chipText = New-Lbl 'v0.6.7' $Theme.blue 10 20 $true
 $chipText.AutoSize = $false
 $chipText.Width = 112
 $chipText.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
@@ -281,9 +281,9 @@ $toolbar.Height = 52
 $toolbar.BackColor = $Theme.bg
 $toolbar.Padding = New-Object System.Windows.Forms.Padding(10, 8, 10, 4)
 
-$script:BtnHome = New-Btn 'Home' 'The main page: server status, quick actions and the addresses your friends use to join. (Ctrl+H)' { Show-HomePage }
+$script:BtnHome = New-Btn 'Stats' 'Server status and the addresses your friends use to join. (Ctrl+H)' { Show-HomePage }
 
-$script:BtnStart = New-Btn 'Start Server' 'Start the BeamMP server and open the launcher. Friends join via the addresses shown on the home page. (Ctrl+S)' { Start-ServerFlow }
+$script:BtnStart = New-Btn 'Start Server' 'Start the BeamMP server and open the launcher. Friends join via the addresses shown on the Stats page. (Ctrl+S)' { Start-ServerFlow }
 $script:BtnStart.BackColor = [System.Drawing.Color]::FromArgb(35, 100, 60)
 $script:BtnStart.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(63, 185, 80)
 $script:BtnStart.Font = New-Object System.Drawing.Font('Segoe UI', 10.5, [System.Drawing.FontStyle]::Bold)
@@ -295,7 +295,9 @@ $script:BtnFix = New-Btn 'Fix Problems' 'Scan your setup and repair common issue
 
 $script:BtnVpn = New-Btn 'VPN Manager' 'Radmin VPN / Hamachi / ZeroTier / Tailscale: start or download them, see their IPs. Needed when port forwarding can''t work (CGNAT). (Ctrl+V)' { Show-VpnPage }
 
-$script:BtnMods = New-Btn 'Mods' 'Manage your mods (Resources\Client): enable, disable, scan for suspicious files. (Ctrl+M)' { Show-ModsPage }
+$script:BtnMods = New-Btn 'Mods' 'Manage your mods: enable, disable, scan for suspicious files. (Ctrl+M)' { Show-ModsPage }
+
+$script:BtnSettings = New-Btn 'Settings' 'Server name, max players, port, IP lock, server key, map, public/private. (Ctrl+T)' { Show-SettingsPage }
 
 $script:BtnClean = New-Btn 'Clean Info' 'Remove personal/runtime files (key, logs, webhook, IP files) so the folder is safe to zip and share.' { Run-CleanFlow }
 $script:BtnClean.BackColor = [System.Drawing.Color]::FromArgb(122, 26, 26)
@@ -312,16 +314,17 @@ $script:ChromeSpecs = @(
     @{ Btn = $script:BtnHome;     X = 10;  Y = 6; W = 66;  H = 38 },
     @{ Btn = $script:BtnStart;    X = 80;  Y = 6; W = 112; H = 38 },
     @{ Btn = $script:BtnStop;     X = 196; Y = 6; W = 60;  H = 38 },
-    @{ Btn = $script:BtnFix;      X = 260; Y = 6; W = 102; H = 38 },
-    @{ Btn = $script:BtnVpn;      X = 366; Y = 6; W = 108; H = 38 },
-    @{ Btn = $script:BtnMods;     X = 478; Y = 6; W = 60;  H = 38 },
-    @{ Btn = $script:BtnClean;    X = 542; Y = 6; W = 88;  H = 38 },
-    @{ Btn = $btnOpen;            X = 634; Y = 6; W = 102; H = 38 },
-    @{ Btn = $script:BtnGuide;    X = 740; Y = 6; W = 78;  H = 38 }
+    @{ Btn = $script:BtnSettings; X = 260; Y = 6; W = 80;  H = 38 },
+    @{ Btn = $script:BtnMods;     X = 344; Y = 6; W = 60;  H = 38 },
+    @{ Btn = $script:BtnFix;      X = 408; Y = 6; W = 102; H = 38 },
+    @{ Btn = $script:BtnVpn;      X = 514; Y = 6; W = 108; H = 38 },
+    @{ Btn = $script:BtnGuide;    X = 626; Y = 6; W = 78;  H = 38 },
+    @{ Btn = $btnOpen;            X = 708; Y = 6; W = 102; H = 38 },
+    @{ Btn = $script:BtnClean;    X = 814; Y = 6; W = 88;  H = 38 }
 )
 $script:ChromeReady = $false
 
-foreach ($b in @($script:BtnHome, $script:BtnStart, $script:BtnStop, $script:BtnFix, $script:BtnVpn, $script:BtnMods, $script:BtnClean, $btnOpen, $script:BtnGuide)) { $toolbar.Controls.Add($b) }
+foreach ($b in @($script:BtnHome, $script:BtnStart, $script:BtnStop, $script:BtnSettings, $script:BtnMods, $script:BtnFix, $script:BtnVpn, $script:BtnGuide, $btnOpen, $script:BtnClean)) { $toolbar.Controls.Add($b) }
 
 # Re-layout the fixed chrome (header / toolbar / status bar / log panel) to the window size.
 function Layout-Chrome {
@@ -359,7 +362,7 @@ $statusBar = New-Object System.Windows.Forms.Panel
 $statusBar.Dock = 'Bottom'
 $statusBar.Height = 26
 $statusBar.BackColor = $Theme.panel
-$script:LblShortcuts = New-Lbl 'Ctrl+H Home | Ctrl+S Start | Ctrl+X Stop | Ctrl+F Fix | Ctrl+V VPN | Ctrl+M Mods | Ctrl+T Customisation | Ctrl+G Guide | F11 Fullscreen' $Theme.dim 8 20
+$script:LblShortcuts = New-Lbl 'Ctrl+H Stats | Ctrl+S Start | Ctrl+X Stop | Ctrl+T Settings | Ctrl+M Mods | Ctrl+F Fix | Ctrl+V VPN | Ctrl+G Guide | F11 Fullscreen' $Theme.dim 8 20
 $script:LblShortcuts.AutoSize = $false
 $script:LblShortcuts.Width = 940
 $script:LblShortcuts.Location = New-Object System.Drawing.Point(10, 3)
@@ -426,7 +429,7 @@ $script:DoRelayout = {
 }
 $script:Form.Add_Resize({
     try {
-        if ($script:Form.WindowState -ne 'Maximized') { Set-Round $script:Form 12 }
+        if ($script:Form.WindowState -ne 'Maximized' -and -not $script:Fullscreen) { Set-Round $script:Form 12 }
         if (-not $script:LayoutPending) {
             $script:LayoutPending = $true
             [void]$script:Form.BeginInvoke([System.Windows.Forms.MethodInvoker]$script:DoRelayout)
@@ -506,47 +509,7 @@ function Show-HomePage {
     $script:StatusCard.Controls.Add($script:LblServerMeta)
     $script:StatusCard.Controls.Add($script:LblStatusBig)
 
-    # Quick-action tiles (the homescreen hub).
-    $script:HomeTiles = New-Object System.Windows.Forms.Panel
-    $script:HomeTiles.Dock = 'Top'
-    $script:HomeTiles.Height = 140
-    $script:HomeTiles.BackColor = $Theme.bg
-    $tileHead = New-Lbl 'Quick actions' $Theme.blue 11 22 $true
-    $tileHead.Location = New-Object System.Drawing.Point(16, 4)
-    $script:HomeTiles.Controls.Add($tileHead)
-    $script:TileStart = New-Btn 'Start Server' 'Start the BeamMP server and open the launcher. (Ctrl+S)' { Start-ServerFlow }
-    $script:TileStart.BackColor = [System.Drawing.Color]::FromArgb(35, 100, 60)
-    $script:TileStart.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(63, 185, 80)
-    $script:TileStart.Font = New-Object System.Drawing.Font('Segoe UI', 11, [System.Drawing.FontStyle]::Bold)
-    $script:TileFix = New-Btn 'Fix Problems' 'Scan your setup and repair common issues. (Ctrl+F)' { Show-FixPage }
-    $script:TileVpn = New-Btn 'VPN Manager' 'Start or download a VPN when port forwarding cannot work. (Ctrl+V)' { Show-VpnPage }
-    $script:TileMods = New-Btn 'Mods' 'Manage mods, enable/disable, security scan. (Ctrl+M)' { Show-ModsPage }
-    $script:TileGuide = New-Btn 'Guide' 'Everything explained step by step. (Ctrl+G)' { Show-GuidePage }
-    foreach ($t in @($script:TileStart, $script:TileFix, $script:TileVpn, $script:TileMods, $script:TileGuide)) { $script:HomeTiles.Controls.Add($t) }
-
-    # Customisation section (Settings, embedded on the Home page - no separate tab).
-    $script:CustomCard = New-Object System.Windows.Forms.Panel
-    $script:CustomCard.BackColor = $Theme.panel
-    $script:CustomCard.Location = New-Object System.Drawing.Point(16, 240)
-    $script:CustomCard.Size = New-Object System.Drawing.Size(968, 40)
-    Set-Round $script:CustomCard 10
-    $script:BtnCustom = New-Btn 'Customisation - name, players, port, key, map, public/private (click to open)' 'Open the settings: server name, max players, port, IP lock, server key, map, public/private.' { Toggle-Customisation }
-    $script:BtnCustom.Size = New-Object System.Drawing.Size(944, 32)
-    $script:BtnCustom.Location = New-Object System.Drawing.Point(8, 4)
-    $script:CustomCard.Controls.Add($script:BtnCustom)
-    $script:CustomBody = New-Object System.Windows.Forms.Panel
-    $script:CustomBody.BackColor = $Theme.panel
-    $script:CustomBody.AutoScroll = $true
-    $script:CustomBody.Location = New-Object System.Drawing.Point(0, 40)
-    $script:CustomBody.Size = New-Object System.Drawing.Size(968, 740)
-    $script:CustomBody.Visible = $false
-    $script:CustomCard.Controls.Add($script:CustomBody)
-    $script:CustomExpanded = $false
-    $script:CustomControlsBuilt = $false
-    $script:ConnCard.Controls.Add($script:CustomCard)
-
     $p.Controls.Add($script:ConnCard)
-    $p.Controls.Add($script:HomeTiles)
     $p.Controls.Add($script:StatusCard)
     $script:Content.Controls.Add($p)
     $script:PageLayout = { Layout-Home }
@@ -607,38 +570,6 @@ function Layout-Home {
         $hh = $script:StatusCard.ClientSize.Height - 28
         $script:LblStatusHint.Location = New-Object System.Drawing.Point($hx, $hy)
         $script:LblStatusHint.Height = $hh
-
-        # Quick-action tiles: 3 per row, grow with the window.
-        if ($script:HomeTiles) {
-            $tw = $script:HomeTiles.ClientSize.Width
-            $tileW = if ($tw -gt 56) { [int][math]::Max(120, ((($tw - 32) - 24) / 3)) } else { (SX 300) }
-            $tiles = @($script:TileStart, $script:TileFix, $script:TileVpn, $script:TileMods, $script:TileGuide)
-            for ($i = 0; $i -lt $tiles.Count; $i++) {
-                $col = $i % 3
-                $row = [int][math]::Floor($i / 3)
-                $tiles[$i].Size = New-Object System.Drawing.Size($tileW, 44)
-                $tiles[$i].Location = New-Object System.Drawing.Point((16 + $col * ($tileW + 12)), (28 + $row * 52))
-                Set-Round $tiles[$i] 9
-            }
-            $script:HomeTiles.Height = 140
-        }
-
-        # Customisation section: sits below the Diagnose/Copy buttons, width of the card.
-        if ($script:CustomCard -and $script:BtnDiag) {
-            $custY = $script:BtnDiag.Bottom + (SY 16)
-            $cardW = [int][math]::Max(200, ($script:ConnCard.ClientSize.Width - 32))
-            $script:CustomCard.Location = New-Object System.Drawing.Point(16, $custY)
-            $script:CustomCard.Width = $cardW
-            $script:BtnCustom.Width = $cardW - 16
-            $script:CustomBody.Width = $cardW
-            if ($script:CustomExpanded) {
-                Layout-Settings
-                $script:CustomBody.Height = (SY 740)
-                $script:CustomCard.Height = 40 + (SY 740)
-            } else {
-                $script:CustomCard.Height = 40
-            }
-        }
     } catch { Write-Log "[LAYOUT-ERROR] HOME $($_.Exception.Message)" }
 }
 
@@ -821,7 +752,7 @@ function Add-FixRow($row) {
     $btn = $null
     if ($row.Action) {
         $prefix = if ($row.NeedsAction) { 'Fix: ' } else { 'Info: ' }
-        $btn = New-Btn ("&$prefix$($row.Action)") $row.Action { FixRowAction $row.Key }
+        $btn = New-Btn ("$prefix$($row.Action)") $row.Action { FixRowAction $row.Key }
         $btn.Font = New-Object System.Drawing.Font('Segoe UI', 9)
         $g = $script:Form.CreateGraphics()
         try { $tw = [int][math]::Ceiling($g.MeasureString($btn.Text, $btn.Font).Width) } finally { $g.Dispose() }
@@ -846,15 +777,21 @@ function Layout-FixRows {
         }
         if ($script:FixTop) {
             $maxBottom = SY(96)
+            $btnY = SY(54)
             foreach ($c in $script:FixTop.Controls) {
-                if ($c -is [System.Windows.Forms.Button] -and $c.Tag -is [hashtable] -and $c.Tag.ContainsKey('X')) {
-                    $c.Location = New-Object System.Drawing.Point((SX $c.Tag.X), (SY $c.Tag.Y))
-                    $c.Size = New-Object System.Drawing.Size((SX $c.Tag.W), (SY $c.Tag.H))
-                } elseif ($c -is [System.Windows.Forms.Label] -and $c.Width -gt 400) {
+                if ($c -is [System.Windows.Forms.Label] -and $c.Width -gt 400) {
                     $c.Width = $script:FixTop.ClientSize.Width - 8
                     $m = Measure-Text $c.Text $c.Font $c.Width
                     $c.Height = [int][math]::Max(20, $m.Lines * 20)
+                    $btnY = $c.Top + $c.Height + 8
                     $maxBottom = [int][math]::Max($maxBottom, ($c.Top + $c.Height + 4))
+                }
+            }
+            foreach ($c in $script:FixTop.Controls) {
+                if ($c -is [System.Windows.Forms.Button] -and $c.Tag -is [hashtable] -and $c.Tag.ContainsKey('X')) {
+                    $c.Size = New-Object System.Drawing.Size((SX $c.Tag.W), (SY $c.Tag.H))
+                    $c.Location = New-Object System.Drawing.Point((SX $c.Tag.X), $btnY)
+                    $maxBottom = [int][math]::Max($maxBottom, ($btnY + (SY $c.Tag.H) + 6))
                 }
             }
             $script:FixTop.Height = $maxBottom
@@ -891,7 +828,7 @@ function FixRowAction([string]$Key) {
         'BEAMNG' { Start-Process 'https://www.beamng.com/game/' }
         'CGNAT' { Show-CgnatExplain }
         'EXT' { Show-ExtSteps }
-        'MAP' { Show-HomePage; Expand-Customisation }
+        'MAP' { Show-SettingsPage }
         'MODS' { Show-ModsPage }
         'VER' { Start-Process 'https://github.com/BeamMP/BeamMP-Server/releases/latest' }
         default { Add-Log "[INFO] Nothing to do for $Key." }
@@ -941,10 +878,10 @@ Work through these in order:
    the BeamMP ALLOW rules.
 
 4. VPN running?  Radmin VPN / Hamachi / ZeroTier / Tailscale are
-   supported - friends join via the VPN IP shown on the Home page.
+   supported - friends join via the VPN IP shown on the Stats page.
 
 5. IP changed?  If your PC's LAN IP changed, the forward breaks.
-   Enable 'Lock my IP while hosting' in Customisation (Ctrl+T) to prevent this.
+   Enable 'Lock my IP while hosting' in Settings to prevent this.
 
 Still stuck? Check your port manually on your phone:
 https://checkbeammp.beammp.com
@@ -1063,15 +1000,21 @@ function Layout-VpnRows {
         $w = $script:VpnRowsPanel.ClientSize.Width - 22
         if ($script:VpnTop) {
             $maxBottom = SY(110)
+            $btnY = SY(76)
             foreach ($c in $script:VpnTop.Controls) {
-                if ($c -is [System.Windows.Forms.Button] -and $c.Tag -is [hashtable] -and $c.Tag.ContainsKey('X')) {
-                    $c.Location = New-Object System.Drawing.Point((SX $c.Tag.X), (SY $c.Tag.Y))
-                    $c.Size = New-Object System.Drawing.Size((SX $c.Tag.W), (SY $c.Tag.H))
-                } elseif ($c -is [System.Windows.Forms.Label] -and $c.Width -gt 400) {
+                if ($c -is [System.Windows.Forms.Label] -and $c.Width -gt 400) {
                     $c.Width = $script:VpnTop.ClientSize.Width - 8
                     $m = Measure-Text $c.Text $c.Font $c.Width
                     $c.Height = [int][math]::Max(20, $m.Lines * 20)
+                    $btnY = [int][math]::Max($btnY, ($c.Top + $c.Height + 8))
                     $maxBottom = [int][math]::Max($maxBottom, ($c.Top + $c.Height + 4))
+                }
+            }
+            foreach ($c in $script:VpnTop.Controls) {
+                if ($c -is [System.Windows.Forms.Button] -and $c.Tag -is [hashtable] -and $c.Tag.ContainsKey('X')) {
+                    $c.Size = New-Object System.Drawing.Size((SX $c.Tag.W), (SY $c.Tag.H))
+                    $c.Location = New-Object System.Drawing.Point((SX $c.Tag.X), $btnY)
+                    $maxBottom = [int][math]::Max($maxBottom, ($btnY + (SY $c.Tag.H) + 6))
                 }
             }
             $script:VpnTop.Height = $maxBottom
@@ -1224,10 +1167,10 @@ function Show-ModsPage {
     $script:ModsTop.Height = 96
     $script:ModsTop.BackColor = $Theme.bg
 
-    $head = New-Lbl 'Mod Manager  -  Resources\Client' $Theme.blue 14 26 $true
+    $head = New-Lbl 'Mod Manager' $Theme.blue 14 26 $true
     $head.Location = New-Object System.Drawing.Point(4, 2)
     $script:ModsTop.Controls.Add($head)
-    $sub = New-Lbl 'Drop .zip mod files anywhere here to add them (they are scanned for executables first). Disabled mods are moved to Server\Backups\mods and are NOT loaded. .zip mods are synced to everyone who joins automatically.' $Theme.dim 9 20  $false 940
+    $sub = New-Lbl 'Drop .zip mod files anywhere here to add them (they are scanned for executables first). Disabled mods are moved aside and are NOT loaded. .zip mods are synced to everyone who joins automatically.' $Theme.dim 9 20  $false 940
     $sub.Location = New-Object System.Drawing.Point(4, 30)
     $script:ModsTop.Controls.Add($sub)
 
@@ -1237,7 +1180,7 @@ function Show-ModsPage {
     $btnDisable.Tag = @{ X = 4; Y = 54; W = 130; H = 32 }
     $script:ModsTop.Controls.Add($btnDisable)
 
-    $btnEnable = New-Btn 'Enable selected' 'Move the selected disabled mod back to Resources\Client (loaded).' { ModAction 'enable' }
+    $btnEnable = New-Btn 'Enable selected' 'Move the selected disabled mod back to the loaded folder.' { ModAction 'enable' }
     $btnEnable.Size = New-Object System.Drawing.Size(130, 32)
     $btnEnable.Location = New-Object System.Drawing.Point(140, 54)
     $btnEnable.Tag = @{ X = 140; Y = 54; W = 130; H = 32 }
@@ -1249,7 +1192,7 @@ function Show-ModsPage {
     $btnScan.Tag = @{ X = 276; Y = 54; W = 190; H = 32 }
     $script:ModsTop.Controls.Add($btnScan)
 
-    $btnOpen = New-Btn 'Open Folder' 'Open Resources\Client in Explorer.' { Start-Process explorer.exe -ArgumentList ('"' + ($script:RootDir + 'Resources\Client') + '"') }
+    $btnOpen = New-Btn 'Open Folder' 'Open the mods folder in Explorer.' { Start-Process explorer.exe -ArgumentList ('"' + ($script:RootDir + 'Resources\Client') + '"') }
     $btnOpen.Size = New-Object System.Drawing.Size(110, 32)
     $btnOpen.Location = New-Object System.Drawing.Point(472, 54)
     $btnOpen.Tag = @{ X = 472; Y = 54; W = 110; H = 32 }
@@ -1292,17 +1235,24 @@ function Layout-Mods {
     if (-not $script:ModsListPanel) { return }
     try {
         $script:ModsTop.Height = SY(96)
+        $btnY = SY(54)
         foreach ($c in $script:ModsTop.Controls) {
-            if ($c -is [System.Windows.Forms.Button] -and $c.Tag -is [hashtable] -and $c.Tag.ContainsKey('X')) {
-                $c.Location = New-Object System.Drawing.Point((SX $c.Tag.X), (SY $c.Tag.Y))
-                $c.Size = New-Object System.Drawing.Size((SX $c.Tag.W), (SY $c.Tag.H))
-            } elseif ($c -is [System.Windows.Forms.Label] -and $c.Width -gt 400) {
+            if ($c -is [System.Windows.Forms.Label] -and $c.Width -gt 400) {
                 $c.Width = $script:ModsTop.ClientSize.Width - 8
                 $m = Measure-Text $c.Text $c.Font $c.Width
                 $c.Height = [int][math]::Max(20, $m.Lines * 20)
+                $btnY = $c.Location.Y + $c.Height + 8
             }
         }
-        $script:ModsTop.Height = [int][math]::Max($script:ModsTop.Height, (SY 86) + 6)
+        $btnBottom = $btnY
+        foreach ($c in $script:ModsTop.Controls) {
+            if ($c -is [System.Windows.Forms.Button] -and $c.Tag -is [hashtable] -and $c.Tag.ContainsKey('X')) {
+                $c.Size = New-Object System.Drawing.Size((SX $c.Tag.W), (SY $c.Tag.H))
+                $c.Location = New-Object System.Drawing.Point((SX $c.Tag.X), $btnY)
+                $btnBottom = [math]::Max($btnBottom, $btnY + (SY $c.Tag.H))
+            }
+        }
+        $script:ModsTop.Height = [int][math]::Max($script:ModsTop.Height, $btnBottom + 6)
         $w = $script:ModsListPanel.ClientSize.Width
         $h = $script:ModsListPanel.ClientSize.Height
         $tipH = 24
@@ -1343,41 +1293,26 @@ function ModAction([string]$Which) {
 }
 
 function Show-SettingsPage {
-    Show-HomePage
-    Expand-Customisation
-}
+    $script:Content.Controls.Clear()
+    $p = New-Object System.Windows.Forms.Panel
+    $p.Dock = 'Fill'
+    $p.BackColor = $Theme.bg
+    $p.AutoScroll = $true
 
-function Toggle-Customisation {
-    if (-not $script:CustomCard) { return }
-    if ($script:CustomExpanded) {
-        $script:CustomExpanded = $false
-        $script:CustomBody.Visible = $false
-        $script:CustomCard.Height = 40
-        $script:BtnCustom.Text = 'Customisation - name, players, port, key, map, public/private (click to open)'
-        Add-Log "[INFO] Customisation closed."
-    } else {
-        Expand-Customisation
-        return
-    }
+    $head = New-Lbl 'Settings' $Theme.blue 14 26 $true
+    $head.Location = New-Object System.Drawing.Point(4, 2)
+    $p.Controls.Add($head)
+
+    $script:SettingsBody = $p
+    Build-SettingsControls $p
+
+    $script:Content.Controls.Add($p)
+    $script:PageLayout = { Layout-Settings }
     & $script:PageLayout
+    Refresh-Dashboard
 }
 
-function Expand-Customisation {
-    if (-not $script:CustomCard) { return }
-    if (-not $script:CustomExpanded) {
-        if (-not $script:CustomControlsBuilt) {
-            Build-CustomisationControls $script:CustomBody
-            $script:CustomControlsBuilt = $true
-        }
-        $script:CustomExpanded = $true
-        $script:CustomBody.Visible = $true
-        $script:BtnCustom.Text = 'Customisation - click to close'
-        Add-Log "[INFO] Customisation open."
-    }
-    & $script:PageLayout
-}
-
-function Build-CustomisationControls($Body) {
+function Build-SettingsControls($Body) {
     $script:ChkLock = New-Object System.Windows.Forms.CheckBox
     $script:ChkLock.Text = 'Lock my IP while hosting (keeps the LAN IP fixed so router forwards never break when the DHCP lease renews)'
     $script:ChkLock.ForeColor = [System.Drawing.Color]::White
@@ -1422,12 +1357,12 @@ function Build-CustomisationControls($Body) {
     $script:LblSettings3 = New-Lbl ("Port: $((Get-ServerPort))  (change it automatically if it is ever busy)") $Theme.dim 9.5 20  $false 600
     $script:LblSettings3.Location = New-Object System.Drawing.Point(8, 240)
     $Body.Controls.Add($script:LblSettings3)
-    $script:BtnPort = New-Btn 'Use a free port' 'Pick a free port and write it to ServerConfig.toml. Remember: the router must forward the NEW port (TCP+UDP).' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Set-FreePort -Port (Get-FreePort))" 'setport' }
+    $script:BtnPort = New-Btn 'Use a free port' 'Pick a free port and save it. Remember: the router must forward the NEW port (TCP+UDP).' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Set-FreePort -Port (Get-FreePort))" 'setport' }
     $script:BtnPort.Size = New-Object System.Drawing.Size(130, 34)
     $script:BtnPort.Location = New-Object System.Drawing.Point(8, 264)
     $Body.Controls.Add($script:BtnPort)
 
-    $script:LblSettings4 = New-Lbl 'Server key (BEAMMP_AUTHKEY) - stored in Server\.env, never shown again:' $Theme.dim 9.5 20  $false 600
+    $script:LblSettings4 = New-Lbl 'Server key - stored privately on your PC, never shown again:' $Theme.dim 9.5 20  $false 600
     $script:LblSettings4.Location = New-Object System.Drawing.Point(8, 316)
     $Body.Controls.Add($script:LblSettings4)
     $script:BtnKey = New-Btn 'Set up / change my server key' 'Open the key setup dialog. Get your free key at https://keymaster.beammp.com' { Show-KeySetupDialog $script:Form }
@@ -1485,7 +1420,7 @@ function Build-CustomisationControls($Body) {
     $script:RadioPrivate.Size = New-Object System.Drawing.Size(470, 26)
     $script:RadioPrivate.Checked = $isPriv
     $Body.Controls.Add($script:RadioPrivate)
-    $script:LblSettingsVisHint = New-Lbl 'Private: friends join via Direct Connect using the address shown on the Home page (IP:port). A private server cannot be found through Search.' $Theme.yellow 9 36  $false 720
+    $script:LblSettingsVisHint = New-Lbl 'Private: friends join via Direct Connect using the address shown on the Stats page (IP:port). A private server cannot be found through Search.' $Theme.yellow 9 36  $false 720
     $script:LblSettingsVisHint.Location = New-Object System.Drawing.Point(12, 626)
     $script:LblSettingsVisHint.Width = 720
     $Body.Controls.Add($script:LblSettingsVisHint)
@@ -1557,9 +1492,9 @@ function Apply-Visibility {
 }
 
 function Layout-Settings {
-    if (-not $script:TxtName -or -not $script:CustomBody) { return }
+    if (-not $script:TxtName -or -not $script:SettingsBody) { return }
     try {
-        $w = $script:CustomBody.ClientSize.Width - 16
+        $w = $script:SettingsBody.ClientSize.Width - 16
         $y36 = SY 36; $y74 = SY 74; $y96 = SY 96; $y130 = SY 130; $y152 = SY 152
         $y188 = SY 188; $y240 = SY 240; $y264 = SY 264; $y316 = SY 316; $y340 = SY 340
         $y390 = SY 390; $y440 = SY 440; $y464 = SY 464; $y496 = SY 496; $y540 = SY 540
@@ -1593,9 +1528,12 @@ function Layout-Settings {
         $script:RadioPublic.Location = New-Object System.Drawing.Point(12, $y568)
         $script:RadioPrivate.Location = New-Object System.Drawing.Point(12, $y596)
         $script:LblSettingsVisHint.Width = [int][math]::Min($w, (SX 720))
+        $mVis = Measure-Text $script:LblSettingsVisHint.Text $script:LblSettingsVisHint.Font $script:LblSettingsVisHint.Width
+        $script:LblSettingsVisHint.Height = [int][math]::Max(36, $mVis.Lines * 20 + 4)
         $script:LblSettingsVisHint.Location = New-Object System.Drawing.Point(12, $y626)
-        $script:BtnApplyVis.Location = New-Object System.Drawing.Point(8, $y660)
-        $script:LblSettingsResult.Location = New-Object System.Drawing.Point(8, $y700)
+        $btnVisY = $script:LblSettingsVisHint.Location.Y + $script:LblSettingsVisHint.Height + 8
+        $script:BtnApplyVis.Location = New-Object System.Drawing.Point(8, $btnVisY)
+        $script:LblSettingsResult.Location = New-Object System.Drawing.Point(8, ($btnVisY + 40))
         $script:LblSettingsResult.Width = $w
         $m = Measure-Text $script:LblSettingsResult.Text $script:LblSettingsResult.Font $w
         $script:LblSettingsResult.Height = [int][math]::Max(40, $m.Lines * 20 + 6)
@@ -1750,7 +1688,7 @@ function Show-KeySetupDialog($owner) {
     $dlg.BackColor = $Theme.bg
     $dlg.ForeColor = $Theme.text
 
-    $intro = New-Lbl 'This key is how BeamMP knows you own your server. It is free and takes 1 minute. It will be saved to Server\.env and never shown again.' $Theme.dim 9.5 40  $false 570
+    $intro = New-Lbl 'This key is how BeamMP knows you own your server. It is free and takes 1 minute. It is stored privately on your PC and never shown again.' $Theme.dim 9.5 40  $false 570
     $intro.Location = New-Object System.Drawing.Point(14, 12)
     $dlg.Controls.Add($intro)
 
@@ -2279,18 +2217,18 @@ function Show-GuidePage {
     $script:GuideCard.Controls.Add($script:GuideBox)
 
     Add-GuideLine 'STEP 1  -  START THE SERVER' 'yellow' $true 12
-    Add-GuideLine '  Double-click Start_Here.bat - this window opens, on the HOME'
-    Add-GuideLine '  page (Ctrl+H): server status, Quick actions tiles and every'
-    Add-GuideLine '  address your friends can use.'
+    Add-GuideLine '  Double-click Start_Here.bat - this window opens, on the STATS'
+    Add-GuideLine '  page (Ctrl+H): server status and every address your friends'
+    Add-GuideLine '  can use.'
     Add-GuideLine '  First time only: a small window asks for your server key.'
     Add-GuideLine '      1. Get your free key at https://keymaster.beammp.com'
-    Add-GuideLine '      2. Paste it and click Save - it is stored privately in Server\.env'
+    Add-GuideLine '      2. Paste it and click Save - it is stored privately on your PC'
     Add-GuideLine '  Click Start Server (or Ctrl+S). The BeamMP Launcher opens automatically.'
     Add-GuideLine '  In BeamNG: More... -> BeamMP -> Direct Connect, use the address'
     Add-GuideLine '  shown under "THIS PC (test it now)" to test on your own PC.'
     Add-GuideLine ''
     Add-GuideLine 'STEP 2  -  HOW YOUR FRIENDS CONNECT' 'yellow' $true 12
-    Add-GuideLine '  Send them ONE line from the Home page. In BeamNG they open'
+    Add-GuideLine '  Send them ONE line from the Stats page. In BeamNG they open'
     Add-GuideLine '  More... -> BeamMP -> Direct Connect and type the address you send.'
     Add-GuideLine '      - "THIS PC (test it now)"       just testing on your own machine'
     Add-GuideLine '      - "Friends (same WiFi)"         LAN - same network only'
@@ -2302,9 +2240,9 @@ function Show-GuidePage {
     Add-GuideLine '  Direct Connect with the address from this window.'
     Add-GuideLine ''
     Add-GuideLine 'STEP 3  -  PUBLIC OR PRIVATE SERVER' 'yellow' $true 12
-    Add-GuideLine '  Customisation (Ctrl+T on Home) -> "Server visibility": PUBLIC lists your server'
+    Add-GuideLine '  Settings (Ctrl+T) -> "Server visibility": PUBLIC lists your server'
     Add-GuideLine '  for everyone in BeamMP Search. PRIVATE hides it from the list -'
-    Add-GuideLine '  only people you send the address to can join, and the Home page'
+    Add-GuideLine '  only people you send the address to can join, and the Stats page'
     Add-GuideLine '  marks the internet line with "(private...)".'
     Add-GuideLine '  Private does NOT add a password - anyone with the address'
     Add-GuideLine '  (IP:port) can still join. It applies on the next server start.'
@@ -2329,12 +2267,12 @@ function Show-GuidePage {
     Add-GuideLine '  range, Ctrl+A selects everything - then Disable/Enable acts'
     Add-GuideLine '  on all of them at once.'
     Add-GuideLine ''
-    Add-GuideLine 'STEP 6  -  CUSTOMISATION (THE SETTINGS)' 'yellow' $true 12
-    Add-GuideLine '  Open the Customisation section on Home (or press Ctrl+T): server'
-    Add-GuideLine '  name, max players, free port, IP lock, your server key,'
-    Add-GuideLine '  public/private and the MAP everyone plays on. No config files'
-    Add-GuideLine '  needed - the GUI saves everything.'
-    Add-GuideLine '  Pick a map in Customisation and press Apply map - vanilla maps work'
+    Add-GuideLine 'STEP 6  -  SETTINGS' 'yellow' $true 12
+    Add-GuideLine '  Click Settings (or press Ctrl+T): server name, max players,'
+    Add-GuideLine '  free port, IP lock, your server key, public/private and the'
+    Add-GuideLine '  MAP everyone plays on. No config files needed - the GUI saves'
+    Add-GuideLine '  everything.'
+    Add-GuideLine '  Pick a map in Settings and press Apply map - vanilla maps work'
     Add-GuideLine '  instantly, and map MODS you have are sent to players'
     Add-GuideLine '  automatically when they join. The map applies on the next'
     Add-GuideLine '  server start (the tool offers to restart for you).'
@@ -2345,7 +2283,7 @@ function Show-GuidePage {
     Add-GuideLine 'STEP 7  -  BEFORE SHARING THE FOLDER' 'yellow' $true 12
     Add-GuideLine '  Click Clean Info (the red button) - it wipes your key, webhook,'
     Add-GuideLine '  logs, backups and IP files so the folder is safe to zip and share.'
-    Add-GuideLine '  NEVER share Server\.env or Server\webhook.txt.'
+    Add-GuideLine '  NEVER share your key or your webhook URL.'
     Add-GuideLine ''
     Add-GuideLine 'STEP 8  -  STUCK? CHECK THE ACTIVITY LOG' 'yellow' $true 12
     Add-GuideLine '  The log at the bottom of the window says exactly what the tool is'
@@ -2384,19 +2322,30 @@ function Layout-Guide {
 $script:Fullscreen = $false
 function Toggle-Fullscreen {
     if ($script:Fullscreen) {
-        $script:Form.FormBorderStyle = $script:SavedBorder
-        $script:Form.WindowState = $script:SavedWindowState
         $script:Fullscreen = $false
+        $script:Form.FormBorderStyle = $script:SavedBorder
+        $script:Form.WindowState = 'Normal'
+        if ($script:SavedWindowState -eq 'Maximized') {
+            $script:Form.WindowState = 'Maximized'
+        } else {
+            $script:Form.Bounds = $script:SavedBounds
+            $script:Form.StartPosition = 'CenterScreen'
+        }
+        $script:Form.Region = $null
         Add-Log "[INFO] Fullscreen off."
     } else {
+        $script:Fullscreen = $true
         $script:SavedBorder = $script:Form.FormBorderStyle
         $script:SavedWindowState = $script:Form.WindowState
+        $script:SavedBounds = $script:Form.Bounds
+        $script:Form.Region = $null
+        $script:Form.WindowState = 'Normal'
         $script:Form.FormBorderStyle = 'None'
-        $script:Form.WindowState = 'Maximized'
-        $script:Fullscreen = $true
+        $script:Form.Bounds = [System.Windows.Forms.Screen]::FromControl($script:Form).Bounds
         Add-Log "[INFO] Fullscreen on (F11 to exit)."
     }
-    [void]$script:Form.BeginInvoke([System.Windows.Forms.MethodInvoker]$script:DoRelayout)
+    Layout-Chrome
+    if ($script:PageLayout) { & $script:PageLayout }
 }
 
 $script:Form.Add_KeyDown({
@@ -2413,7 +2362,7 @@ $script:Form.Add_KeyDown({
             'F' { Show-FixPage; $e.SuppressKeyPress = $true }
             'V' { Show-VpnPage; $e.SuppressKeyPress = $true }
             'M' { Show-ModsPage; $e.SuppressKeyPress = $true }
-            'T' { Show-HomePage; Expand-Customisation; $e.SuppressKeyPress = $true }
+            'T' { Show-SettingsPage; $e.SuppressKeyPress = $true }
             'G' { Show-GuidePage; $e.SuppressKeyPress = $true }
             'D' { Run-Diagnose; $e.SuppressKeyPress = $true }
             'C' { Copy-ConnectionLine; $e.SuppressKeyPress = $true }

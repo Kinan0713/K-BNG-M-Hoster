@@ -1527,7 +1527,7 @@ function Start-HosterSession {
     if ($vpnWithIp.Count) {
         foreach ($v in $vpnWithIp) { $vpnDoc += "   Direct Connect, IP: $($v.Ip)   Port: $($conn.Port)  (friends must be on the SAME $($v.Name) network)" + [Environment]::NewLine }
     } else {
-        $vpnDoc = '   Install the same VPN as you (Radmin VPN / Hamachi / ZeroTier / Tailscale), join your network, then Direct Connect with the host VPN IP shown on the Home page.'
+        $vpnDoc = '   Install the same VPN as you (Radmin VPN / Hamachi / ZeroTier / Tailscale), join your network, then Direct Connect with the host VPN IP shown on the Stats page.'
     }
     $connectDoc = @"
 HOW TO CONNECT TO YOUR SERVER
