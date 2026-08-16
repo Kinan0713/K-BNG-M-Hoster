@@ -142,8 +142,10 @@ function New-Lbl([string]$Text, [System.Drawing.Color]$Color, [float]$Size = 9.5
 # A small "copy this exact text" button. Values are baked into the handler so
 # every copy button keeps its OWN text (safe in loops).
 function New-CopyButton([string]$Text, [string]$Tip, [string]$CopyValue, [string]$LogText) {
-    $tmpl = "try { [System.Windows.Forms.Clipboard]::SetText('{0}'); Add-Log '[OK] Copied: {1}' } catch { Add-Log ('[ERROR] Clipboard busy: ' + `$_.Exception.Message) }"
-    $sb = [scriptblock]::Create(($tmpl -f $CopyValue, $LogText))
+    $safeValue = $CopyValue.Replace("'", "''")
+    $safeLog = $LogText.Replace("'", "''")
+    $body = "try { [System.Windows.Forms.Clipboard]::SetText('$safeValue'); Add-Log '[OK] Copied: $safeLog' } catch { Add-Log ('[ERROR] Clipboard busy: ' + `$_.Exception.Message) }"
+    $sb = [scriptblock]::Create($body)
     $b = New-Btn $Text $Tip $sb
     $b.Font = New-Object System.Drawing.Font('Segoe UI', 9)
     $b.Height = 28
