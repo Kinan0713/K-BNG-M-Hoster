@@ -36,6 +36,10 @@
   (General, Behavior, Port & key & updates, Map, Visibility, Presets) with blue
   section titles and dark inset inputs - every setting is easier to find and the
   page resizes cleanly.
+- **Crash fix (copy buttons):** the Copy IP / Copy invite / per-VPN copy buttons
+  crashed the whole app ("Error formatting a string") because the click-handler
+  template mixed literal `{}` braces with placeholders. Handlers are now built
+  without format strings, so every copy button works again.
 - **Guide:** new step 10 (lost windows + reporting problems) and the Settings step
   rewritten for the new options.
 - **Docs updated:** README and README.txt refreshed for v0.6.8.
