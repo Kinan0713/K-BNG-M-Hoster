@@ -2,11 +2,11 @@
 
 # K BNG M Hoster
 
-### *(Kinan BeamNG Multiplayer Hoster)* — **v0.6.7** *(Update 6 - Fix 7)*
+### *(Kinan BeamNG Multiplayer Hoster)* — **v0.6.8** *(Update 6 - Fix 8)*
 
 **The All-In-One Automated BeamMP Hosting & Joining Tool**
 
-> 🔽 **Download the latest release:** [K BNG M Hoster v0.6.7-FIX ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
+> 🔽 **Download the latest release:** [K BNG M Hoster v0.6.8 ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
 
 > ⚠️ **Official download only:** Get K BNG M Hoster exclusively from the GitHub Releases page above. Please do **not** share, reupload, or forward this tool — everyone should download it from here so they always get the latest version.
 
@@ -105,4 +105,4 @@ This software is distributed under a proprietary EULA. By using this software yo
 - **Credits:** early co-development by **Ali Alldoboni** (`@alialldoboni`) for v0.2–v0.5.2
 - **Discord:** [Innocent BeamMP Server Community](https://discord.gg/2FxsJvKr4a)
 
-*All original code, tools, scripts, and rights belong strictly and exclusively to Kinan.*
+*All original code, tools, scripts, and rights belong strictly and exclusively to the original author.*

@@ -17,5 +17,14 @@ Server.log
 CONNECTING.txt
 staticip.cfg
 
+# Launcher artifacts (created when the launcher runs with the tool's working folder)
+Launcher.cfg
+Launcher.log
+Resources/
+Server.old.log
+
+# User's own client mods (personal files - never commit)
+Server/Resources/Client/*.zip
+
 # Release zip (upload to GitHub Releases instead)
 K.BNG.M.Hoster.v*.zip

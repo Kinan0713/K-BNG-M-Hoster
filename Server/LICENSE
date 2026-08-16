@@ -1,0 +1,97 @@
+PROPRIETARY LICENSE AGREEMENT (EULA)
+Product: K BNG M Hoster
+Licensor / Copyright Holder: Kinan (@raed713)
+Copyright (c) 2026 Kinan. All Rights Reserved.
+
+IMPORTANT — READ CAREFULLY: BY DOWNLOADING, INSTALLING, ACCESSING, OR USING THE
+SOFTWARE, YOU ACCEPT AND AGREE TO THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
+DOWNLOAD, INSTALL, OR USE THE SOFTWARE.
+
+1. DEFINITIONS
+1.1 "Software" means the K BNG M Hoster product, including executables, packaged
+    scripts, compiled files, configuration files, assets, documentation, and any
+    materials distributed by the Licensor.
+1.2 "Configuration Files" means files the Licensor expressly authorizes the
+    Licensee to edit (for example, ServerConfig.toml).
+1.3 "Mods Directory" means the folder provided for user-supplied mod archives
+    (for example, Resources/Client/).
+1.4 "Licensor" means the copyright holder named above. "Licensee" means the
+    person or entity that uses the Software.
+
+2. LICENSE GRANT — LIMITED USE
+2.1 Subject to strict compliance with this Agreement, the Licensor grants the
+    Licensee a limited, revocable, non-exclusive, non-transferable,
+    non-sublicensable license to:
+    (a) run the unmodified Software on the Licensee's devices for personal,
+        non-commercial use; and
+    (b) edit Configuration Files where the Licensor's documentation permits
+        (for example, setting AuthKey in ServerConfig.toml), and to add user
+        mod archive files into the Mods Directory (for example,
+        Resources/Client/) for server-side mod syncing.
+2.2 All other rights are reserved. Any use not expressly permitted by
+    Section 2.1 is prohibited.
+
+3. PROHIBITED CONDUCT
+The Licensee shall not, directly or indirectly:
+3.1 Modify, patch, adapt, translate, or create derivative works of the Software
+    outside the narrow permissions in Section 2.1.
+3.2 Decompile, disassemble, reverse-engineer, or attempt to derive the source
+    code, algorithms, or internal logic of the Software.
+3.3 Redistribute, reupload, repost, mirror, fork, publish, share, sell,
+    sublicense, lease, rent, transfer, or otherwise make the Software or any
+    portion of it available to any third party by any means, except by
+    directing others to the official GitHub Releases page.
+3.4 Use the Software as part of paid hosting, subscription, or commercial
+    services without the Licensor's prior written permission.
+3.5 Remove, alter, obscure, or bypass any attribution or copyright notice that
+    identifies the Licensor (including the name "Kinan" and the handle @raed713).
+
+4. PERMITTED USER ACTIONS (CLARIFICATION)
+4.1 The Licensee may:
+    (a) edit Configuration Files only as specified in the Licensor's
+        documentation (for example, entering AuthKey = "..." in
+        ServerConfig.toml);
+    (b) place mod archive files (for example, .zip) into the Mods Directory
+        (Resources/Client/) to enable client mod syncing; and
+    (c) run the provided binaries and scripts in their distributed, unmodified
+        form.
+4.2 All other modifications remain strictly prohibited.
+
+5. TERMINATION
+5.1 The Licensor may terminate this license immediately upon notice for any
+    breach. Upon termination, the Licensee must cease use and delete all
+    copies of the Software.
+
+6. DISCLAIMER OF WARRANTY
+6.1 THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY
+    KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+    THE ENTIRE RISK ARISING OUT OF THE USE OF THE SOFTWARE REMAINS WITH THE
+    LICENSEE.
+
+7. LIMITATION OF LIABILITY
+7.1 TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE LICENSOR SHALL NOT BE LIABLE
+    FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES,
+    OR FOR ANY LOSS OF PROFITS, DATA, OR GOODWILL, ARISING OUT OF OR RELATED TO
+    THE USE OF OR INABILITY TO USE THE SOFTWARE, EVEN IF ADVISED OF THE
+    POSSIBILITY OF SUCH DAMAGES.
+
+8. GOVERNING LAW
+8.1 This Agreement is governed by the laws of Sweden, without regard to its
+    conflict-of-law provisions. The Licensor may also seek to enforce this
+    Agreement (including injunctive relief) in any jurisdiction where the
+    Software is used, where the Licensee resides, or where a breach has
+    occurred.
+
+9. CONTACT
+9.1 Legal inquiries, permissions requests, and DMCA notices should be submitted
+    through the GitHub Issues page of the official repository:
+    https://github.com/Kinan0713/K-BNG-M-Hoster/issues
+
+10. GENERAL
+10.1 Sections 3, 4, 5, 6, 7, 8, 9, and 10 survive termination of this
+     Agreement. This Agreement is the entire agreement between the parties
+     regarding the Software and supersedes any prior agreements or
+     understandings.
+
+END OF AGREEMENT

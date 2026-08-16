@@ -1,4 +1,46 @@
-﻿## v0.6.7 - Update 6, Fix 7: Stats page, the Settings tab is back, and fullscreen/layout fixes
+﻿## v0.6.8 - Update 6, Fix 8: Extra tab, upgraded Settings, VPN one-press Stop, presets and invites
+
+- **New "Extra" tab (toolbar button or Ctrl+E):** lists every window the tool opened
+  (server console, launcher, game) with a "Show window" button that restores it - the
+  minimized server console is never lost again. The same page has **Submit issue**:
+  one press copies a ready-made report (app version, system, recent log lines) to your
+  clipboard and opens the GitHub issues page - you paste it there yourself.
+- **Settings upgraded:** a map **search box** (type to filter long map lists), **max
+  cars per player**, server **description** and **tags** (shown in the BeamMP list),
+  behavior switches (allow guests, chat log, debug, info packets), and one **Save
+  settings** button that writes everything at once. All fields explain themselves.
+- **Presets (Settings):** save a whole setup - all settings + your enabled mods -
+  under a name ("Drift night", "Crash event"...), then load it back in one press.
+  Stored privately in Server\Presets.
+- **VPN Manager:** every running VPN row now has **Stop** (fully closes the VPN in
+  one press - processes, disconnect and background service) and **Copy IP** (the
+  IP:port address to send friends). Fixed in the test round: row buttons are laid out
+  correctly for running VPNs (they used to pile up at the left), rows re-layout after
+  every Start/Stop/Copy press, and each Copy IP button always copies its own VPN's
+  address.
+- **Invites:** the Stats page gained **Copy invite** - one press copies a ready-made
+  message (address + connect steps) for friends. Private servers get a clearer
+  "(PRIVATE server...)" marker and the button changes to "Copy invite (private)".
+- **Fix Problems:** new check "Firewall (BeamNG.drive)" with a one-click fix that
+  adds the game's own firewall rule (included in "Fix all possible"). New check
+  "Teredo (advanced)" - shows the state and can re-enable it in one click (only if
+  you ever need it). Fix rows now re-scan automatically after each fix.
+- **BeamNG firewall rule:** no more game firewall warnings / blocked joins for friends.
+- **Reliability fixes:** the tool now kills leftover BeamMP-Launcher processes before
+  starting (a stale launcher used to block port 4444 and spam "bind failed 10048"),
+  the launcher opens in its own folder so it stops dropping config/cache files into
+  the tool folder, and Resources\Client\mods.json is now a valid object (the server
+  no longer fails to hash client mods). Copy IP / Copy invite always fetch fresh
+  addresses, and the Stats page has a copy button for every running VPN.
+- **Settings tab redesigned:** the page is now a stack of rounded section cards
+  (General, Behavior, Port & key & updates, Map, Visibility, Presets) with blue
+  section titles and dark inset inputs - every setting is easier to find and the
+  page resizes cleanly.
+- **Guide:** new step 10 (lost windows + reporting problems) and the Settings step
+  rewritten for the new options.
+- **Docs updated:** README and README.txt refreshed for v0.6.8.
+
+## v0.6.7 - Update 6, Fix 7: Stats page, the Settings tab is back, and fullscreen/layout fixes
 
 - **Stats page:** the Home page is renamed to **Stats** - it shows your live server
   status and every address friends can use to join (LAN / VPN / internet).

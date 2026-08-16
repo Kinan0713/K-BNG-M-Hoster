@@ -1,5 +1,5 @@
 # ========================================================================================
-# K BNG M Hoster v0.6.7 - Simplest Edition (GUI)
+# K BNG M Hoster v0.6.8 - Simplest Edition (GUI)
 # All logic lives in HosterCore.ps1 (single source of truth). This file is the window.
 # Start_Here.bat / Play_BeamMP.bat only launch this file.
 #
@@ -75,7 +75,7 @@ $script:State = @{
     ToolUpdateReady = $null
     ToolUpdateErr = ''
 }
-$script:AppVersion = '0.6.7'
+$script:AppVersion = '0.6.8'
 $script:CorePath = Join-Path $PSScriptRoot 'HosterCore.ps1'
 $script:CoreText = "`$script:CorePath = '" + ($script:CorePath -replace "'", "''") + "'`r`n" + (Get-Content -LiteralPath $script:CorePath -Raw)
 $script:PendingAction = $null
@@ -137,6 +137,17 @@ function New-Lbl([string]$Text, [System.Drawing.Color]$Color, [float]$Size = 9.5
     if ($Width) { $l.AutoSize = $false; $l.Width = $Width } else { $l.AutoSize = $true }
     $l.Height = $Height
     return $l
+}
+
+# A small "copy this exact text" button. Values are baked into the handler so
+# every copy button keeps its OWN text (safe in loops).
+function New-CopyButton([string]$Text, [string]$Tip, [string]$CopyValue, [string]$LogText) {
+    $tmpl = "try { [System.Windows.Forms.Clipboard]::SetText('{0}'); Add-Log '[OK] Copied: {1}' } catch { Add-Log ('[ERROR] Clipboard busy: ' + `$_.Exception.Message) }"
+    $sb = [scriptblock]::Create(($tmpl -f $CopyValue, $LogText))
+    $b = New-Btn $Text $Tip $sb
+    $b.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+    $b.Height = 28
+    return $b
 }
 
 # ---------------------------------------------------------------------------------------
@@ -235,7 +246,7 @@ function Update-BusyUi {
 # MAIN FORM
 # ---------------------------------------------------------------------------------------
 $script:Form = New-Object System.Windows.Forms.Form
-$script:Form.Text = 'K BNG M Hoster v0.6.7 - by Kinan (@raed713)'
+$script:Form.Text = 'K BNG M Hoster v0.6.8 - by Kinan (@raed713)'
 $script:Form.Size = New-Object System.Drawing.Size(1000, 720)
 $script:Form.MinimumSize = New-Object System.Drawing.Size(960, 660)
 $script:Form.StartPosition = 'CenterScreen'
@@ -257,13 +268,13 @@ $title = New-Lbl 'K BNG M Hoster' ([System.Drawing.Color]::White) 19 34 $true
 $title.AutoSize = $false
 $title.Size = New-Object System.Drawing.Size(240, 34)
 $title.Location = New-Object System.Drawing.Point(16, 6)
-$script:LblSubtitle = New-Lbl 'v0.6.7  |  Update 6 - Fix 7  |  by Kinan  |  Discord: @raed713' $Theme.dim 9 18
+$script:LblSubtitle = New-Lbl 'v0.6.8  |  Update 6 - Fix 8  |  by Kinan  |  Discord: @raed713' $Theme.dim 9 18
 $script:LblSubtitle.Location = New-Object System.Drawing.Point(17, 44)
 $script:LblVersionChip = New-Object System.Windows.Forms.Panel
 $script:LblVersionChip.BackColor = [System.Drawing.Color]::FromArgb(52, 52, 58)
 $script:LblVersionChip.Size = New-Object System.Drawing.Size(112, 34)
 $script:LblVersionChip.Location = New-Object System.Drawing.Point(($script:Form.ClientSize.Width - 128), 16)
-$chipText = New-Lbl 'v0.6.7' $Theme.blue 10 20 $true
+$chipText = New-Lbl 'v0.6.8' $Theme.blue 10 20 $true
 $chipText.AutoSize = $false
 $chipText.Width = 112
 $chipText.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
@@ -305,6 +316,8 @@ $script:BtnClean.FlatAppearance.MouseOverBackColor = [System.Drawing.Color]::Fro
 $script:BtnClean.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(220, 60, 60)
 $script:BtnClean.ForeColor = [System.Drawing.Color]::White
 
+$script:BtnExtra = New-Btn 'Extra' 'Open windows (restore them from here), and the one-click "Submit issue" button that copies your problem info and opens the GitHub issue page. (Ctrl+E)' { Show-ExtraPage }
+
 $btnOpen = New-Btn 'Open Folder' 'Open the K BNG M Hoster folder in Explorer.' { Start-Process explorer.exe -ArgumentList ('"' + $script:AppDir + '"') }
 
 $script:BtnGuide = New-Btn 'Guide' 'How everything works, step by step - the whole README inside the app. (Ctrl+G)' { Show-GuidePage }
@@ -320,11 +333,12 @@ $script:ChromeSpecs = @(
     @{ Btn = $script:BtnVpn;      X = 514; Y = 6; W = 108; H = 38 },
     @{ Btn = $script:BtnGuide;    X = 626; Y = 6; W = 78;  H = 38 },
     @{ Btn = $btnOpen;            X = 708; Y = 6; W = 102; H = 38 },
-    @{ Btn = $script:BtnClean;    X = 814; Y = 6; W = 88;  H = 38 }
+    @{ Btn = $script:BtnClean;    X = 814; Y = 6; W = 88;  H = 38 },
+    @{ Btn = $script:BtnExtra;    X = 906; Y = 6; W = 72;  H = 38 }
 )
 $script:ChromeReady = $false
 
-foreach ($b in @($script:BtnHome, $script:BtnStart, $script:BtnStop, $script:BtnSettings, $script:BtnMods, $script:BtnFix, $script:BtnVpn, $script:BtnGuide, $btnOpen, $script:BtnClean)) { $toolbar.Controls.Add($b) }
+foreach ($b in @($script:BtnHome, $script:BtnStart, $script:BtnStop, $script:BtnSettings, $script:BtnMods, $script:BtnFix, $script:BtnVpn, $script:BtnGuide, $btnOpen, $script:BtnClean, $script:BtnExtra)) { $toolbar.Controls.Add($b) }
 
 # Re-layout the fixed chrome (header / toolbar / status bar / log panel) to the window size.
 function Layout-Chrome {
@@ -362,7 +376,7 @@ $statusBar = New-Object System.Windows.Forms.Panel
 $statusBar.Dock = 'Bottom'
 $statusBar.Height = 26
 $statusBar.BackColor = $Theme.panel
-$script:LblShortcuts = New-Lbl 'Ctrl+H Stats | Ctrl+S Start | Ctrl+X Stop | Ctrl+T Settings | Ctrl+M Mods | Ctrl+F Fix | Ctrl+V VPN | Ctrl+G Guide | F11 Fullscreen' $Theme.dim 8 20
+$script:LblShortcuts = New-Lbl 'Ctrl+H Stats | Ctrl+S Start | Ctrl+X Stop | Ctrl+T Settings | Ctrl+M Mods | Ctrl+F Fix | Ctrl+V VPN | Ctrl+E Extra | Ctrl+G Guide | F11 Fullscreen' $Theme.dim 8 20
 $script:LblShortcuts.AutoSize = $false
 $script:LblShortcuts.Width = 940
 $script:LblShortcuts.Location = New-Object System.Drawing.Point(10, 3)
@@ -482,7 +496,20 @@ function Show-HomePage {
     $script:BtnCopy = New-Btn 'Copy IP' 'Copy the best address for your friends to the clipboard (LAN > VPN > Tailscale > internet). (Ctrl+C)' { Copy-ConnectionLine }
     $script:BtnCopy.Size = New-Object System.Drawing.Size(110, 36)
 
-    foreach ($l in @($script:LblConnThis, $script:LblConnLan, $script:LblConnVpn, $script:LblConnTail, $script:LblConnPub, $script:LblConnRouter, $script:LblConnNote, $script:BtnDiag, $script:BtnCopy)) { $script:ConnCard.Controls.Add($l) }
+    $script:BtnInvite = New-Btn 'Copy invite' 'Copy a ready-made invite message (address + how to connect) to paste to your friends. Perfect for a private server.' { Copy-Invite }
+    $script:BtnInvite.Size = New-Object System.Drawing.Size(130, 36)
+
+    $script:BtnRefreshHome = New-Btn 'Refresh' 'Re-check every address and the server status right now. (The page also refreshes by itself every few seconds while the server runs.)' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$State.Conn = Get-ConnectionInfo`nSay ""Addresses refreshed."" " 'live' }
+    $script:BtnRefreshHome.Size = New-Object System.Drawing.Size(90, 36)
+
+    $script:ConnVpnFlow = New-Object System.Windows.Forms.FlowLayoutPanel
+    $script:ConnVpnFlow.AutoSize = $false
+    $script:ConnVpnFlow.Height = 0
+    $script:ConnVpnFlow.WrapContents = $false
+    $script:ConnVpnFlow.FlowDirection = [System.Windows.Forms.FlowDirection]::LeftToRight
+    $script:ConnVpnFlow.BackColor = $Theme.bg
+
+    foreach ($l in @($script:LblConnThis, $script:LblConnLan, $script:LblConnVpn, $script:ConnVpnFlow, $script:LblConnTail, $script:LblConnPub, $script:LblConnRouter, $script:LblConnNote, $script:BtnDiag, $script:BtnCopy, $script:BtnInvite, $script:BtnRefreshHome)) { $script:ConnCard.Controls.Add($l) }
 
     $script:StatusCard = New-Object System.Windows.Forms.Panel
     $script:StatusCard.Dock = 'Top'
@@ -533,6 +560,11 @@ function Layout-Home {
             $labels[$i].Height = $lh
             $labels[$i].Location = New-Object System.Drawing.Point(16, $y)
             $y += $lh
+            if ($labels[$i] -eq $script:LblConnVpn -and $script:ConnVpnFlow) {
+                $script:ConnVpnFlow.Width = $cw
+                $script:ConnVpnFlow.Location = New-Object System.Drawing.Point(16, $y)
+                $y += $script:ConnVpnFlow.Height + 4
+            }
         }
         $script:LblConnNote.AutoSize = $false
         $script:LblConnNote.Width = $cw
@@ -544,6 +576,10 @@ function Layout-Home {
         $bx2 = SX 136
         $script:BtnDiag.Location = New-Object System.Drawing.Point(16, $btnY)
         $script:BtnCopy.Location = New-Object System.Drawing.Point($bx2, $btnY)
+        $bx3 = $bx2 + (SX 110) + 10
+        $script:BtnInvite.Location = New-Object System.Drawing.Point($bx3, $btnY)
+        $bx4 = $bx3 + (SX 130) + 10
+        $script:BtnRefreshHome.Location = New-Object System.Drawing.Point($bx4, $btnY)
         $scw = $script:StatusCard.ClientSize.Width - 32
         $script:LblServerMeta.AutoSize = $false
         $script:LblServerMeta.Width = $scw
@@ -610,9 +646,24 @@ function Refresh-Dashboard {
     } else {
         $script:LblConnVpn.Text = 'Friends (VPN):             (none running - see VPN Manager)'
     }
+    if ($script:ConnVpnFlow) {
+        $script:ConnVpnFlow.Controls.Clear()
+        if ($vpnLines.Count -ge 1) {
+            foreach ($v in $vpnLines) {
+                $b = New-CopyButton "Copy $($v.Name) IP" "Copy the $($v.Name) IP:port address ($($v.Ip):$port) - only for friends on the SAME $($v.Name) network." "$($v.Ip):$port" "$($v.Name) address $($v.Ip):$port"
+                $b.Size = New-Object System.Drawing.Size(150, 28)
+                $script:ConnVpnFlow.Controls.Add($b)
+            }
+            $script:ConnVpnFlow.Height = 30
+        } else {
+            $script:ConnVpnFlow.Height = 0
+        }
+    }
     $script:LblConnTail.Text = if ($conn -and $conn.Tailscale) { "Friends (Tailscale):      $($conn.Tailscale)  :  $port" } else { 'Friends (Tailscale):      (not running)' }
     $isPrivate = Get-ServerPrivate
-    $privNote = if ($isPrivate) { '    (private - hidden from the server list - send the address to your friends)' } else { '' }
+    $script:BtnInvite.Text = if ($isPrivate) { 'Copy invite (private)' } else { 'Copy invite' }
+    $script:Tip.SetToolTip($script:BtnInvite, $(if ($isPrivate) { 'Your server is PRIVATE - friends cannot find it in the list. This copies the full invite message with the address and connect steps.' } else { 'Copy a ready-made invite message. For a public server friends can also just find it in the BeamMP list.' }))
+    $privNote = if ($isPrivate) { '    (PRIVATE server - hidden from the list - only people you send this address to can join)' } else { '' }
     $script:LblConnPub.Text = if ($conn -and $conn.Public) { "Anyone (internet):        $($conn.Public)  :  $port$privNote" } else { 'Anyone (internet):        (public IP not detected)' }
     if ($running) {
         if ($script:State.UpnpOk) {
@@ -822,8 +873,10 @@ function FixRowAction([string]$Key) {
     switch ($Key) {
         'AUTHKEY' { Show-KeySetupDialog $script:Form }
         'LAUNCHER' { Start-Process 'https://beammp.com' }
-        'PORT' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Set-FreePort -Port (Get-FreePort))" 'fixport' }
-        'FW' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$null = Add-FirewallRule`nif (Test-FirewallRule) { Say ""Firewall rules verified."" } else { Say ""Firewall rules still missing - try again or check your antivirus."" }" 'fixfw' }
+        'PORT' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Set-FreePort -Port (Get-FreePort))`n`$State.FixReport = @(Get-FixReport)" 'fixport' }
+        'FW' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$null = Add-FirewallRule`nif (Test-FirewallRule) { Say ""Firewall rules verified."" } else { Say ""Firewall rules still missing - try again or check your antivirus."" }`n`$State.FixReport = @(Get-FixReport)" 'fixfw' }
+        'FWBEAMNG' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$r = Add-BeamNGFirewallRule`nSay `$r`nif (Test-BeamNGFirewallRule) { Say ""BeamNG.drive firewall rule verified."" } else { Say ""Still missing - if you cancelled the admin window, run it again."" }`n`$State.FixReport = @(Get-FixReport)" 'fixfwbng' }
+        'TEREDO' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nEnable-Teredo`n`$State.FixReport = @(Get-FixReport)" 'fixter' }
         'VC' { Start-Process 'https://aka.ms/vs/17/release/vc_redist.x64.exe' }
         'BEAMNG' { Start-Process 'https://www.beamng.com/game/' }
         'CGNAT' { Show-CgnatExplain }
@@ -909,12 +962,15 @@ function Show-VpnPage {
 
     $head = New-Lbl 'VPN Manager  -  Radmin VPN / Hamachi / ZeroTier / Tailscale' $Theme.blue 14 26 $true
     $head.Location = New-Object System.Drawing.Point(4, 2)
+    $script:VpnTopHead = $head
     $script:VpnTop.Controls.Add($head)
     $safety = New-Lbl 'SAFETY: a VPN puts friends on a virtual LAN with your PC - they can reach file sharing / Remote Desktop etc. Only invite people you TRUST. Never invite random players into your VPN network.' $Theme.yellow 9 20  $false 940
     $safety.Location = New-Object System.Drawing.Point(4, 30)
+    $script:VpnTopSafety = $safety
     $script:VpnTop.Controls.Add($safety)
     $sub = New-Lbl 'Port forwarding (Fix Problems) is the #1 way to host for STRANGERS. These VPNs are the fallback for when forwarding can''t work (e.g. CGNAT ISPs).' $Theme.dim 9 20  $false 940
     $sub.Location = New-Object System.Drawing.Point(4, 52)
+    $script:VpnTopSub = $sub
     $script:VpnTop.Controls.Add($sub)
 
     $btnRefresh = New-Btn 'Refresh' 'Re-check which VPNs are installed / running and their IPs.' { Show-VpnPage }
@@ -967,7 +1023,7 @@ function Refresh-VpnRows {
             $color = $Theme.dim
         }
 
-        $lbl = New-Lbl "$($app.Name)   -   $state" $color 10.5 32 $true
+        $lbl = New-Lbl "$($app.Name)   -   $state" $color 10.5 32 $false
         $lbl.Location = New-Object System.Drawing.Point(10, 7)
         $lbl.Width = 380
         $rowPanel.Controls.Add($lbl)
@@ -986,12 +1042,30 @@ function Refresh-VpnRows {
             $btn.Font = New-Object System.Drawing.Font('Segoe UI', 9)
             $rowPanel.Controls.Add($btn)
         }
-        $script:VpnRowRefs += @{ Row = $rowPanel; Lbl = $lbl; Btn = $btn }
+        $btnStop = $null
+        $btnCopy = $null
+        if ($app.Installed -and $run.Count) {
+            $btnStop = New-Btn 'Stop' "Fully stop $($app.Name) with one press: closes it, disconnects, and stops its background service (one admin prompt). Friends will see it as offline." { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Stop-VpnApp '$($app.Key)')`n`$State.VpnRefresh = (Get-Date).ToString('o')" 'vpn' }
+            $btnStop.Size = New-Object System.Drawing.Size(84, 30)
+            $btnStop.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+            $btnStop.BackColor = [System.Drawing.Color]::FromArgb(122, 26, 26)
+            $btnStop.FlatAppearance.MouseOverBackColor = [System.Drawing.Color]::FromArgb(158, 34, 34)
+            $btnStop.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(220, 60, 60)
+            $btnStop.ForeColor = [System.Drawing.Color]::White
+            $rowPanel.Controls.Add($btnStop)
+        }
+        if ($run.Count -and $run[0].Ip) {
+            $btnCopy = New-CopyButton 'Copy IP' "Copy the VPN address (IP:port) of $($app.Name) to your clipboard - paste it to your friends so they can direct-connect." "$($run[0].Ip):$(Get-ServerPort)" "VPN address of $($app.Name): $($run[0].Ip):$(Get-ServerPort)"
+            $btnCopy.Size = New-Object System.Drawing.Size(84, 30)
+            $rowPanel.Controls.Add($btnCopy)
+        }
+        $script:VpnRowRefs += @{ Row = $rowPanel; Lbl = $lbl; Btn = $btn; Btn2 = $btnStop; Btn3 = $btnCopy }
         $script:VpnRowsPanel.Controls.Add($rowPanel)
     }
-    $script:VpnNote = New-Lbl 'Tip: only ONE VPN should be used at a time - friends must be on the SAME one as the IP line you send them. Close the unused VPNs.' $Theme.dim 9 30  $false 940
+    $script:VpnNote = New-Lbl 'Tip: only ONE VPN should be used at a time - friends must be on the SAME one as the IP line you send them. Each row has: Start / Stop (fully closes the VPN in one press) / Copy IP (the IP:port address to send).' $Theme.dim 9 30  $false 940
     $script:VpnNote.Location = New-Object System.Drawing.Point(0, 4)
     $script:VpnRowsPanel.Controls.Add($script:VpnNote)
+    Layout-VpnRows
 }
 
 function Layout-VpnRows {
@@ -1000,32 +1074,35 @@ function Layout-VpnRows {
         $w = $script:VpnRowsPanel.ClientSize.Width - 22
         if ($script:VpnTop) {
             $maxBottom = SY(110)
-            $btnY = SY(76)
-            foreach ($c in $script:VpnTop.Controls) {
-                if ($c -is [System.Windows.Forms.Label] -and $c.Width -gt 400) {
-                    $c.Width = $script:VpnTop.ClientSize.Width - 8
-                    $m = Measure-Text $c.Text $c.Font $c.Width
-                    $c.Height = [int][math]::Max(20, $m.Lines * 20)
-                    $btnY = [int][math]::Max($btnY, ($c.Top + $c.Height + 8))
-                    $maxBottom = [int][math]::Max($maxBottom, ($c.Top + $c.Height + 4))
-                }
+            $y = SY(30)
+            foreach ($c in @($script:VpnTopSafety, $script:VpnTopSub)) {
+                if (-not $c) { continue }
+                $c.Width = [int][math]::Max($script:VpnTop.ClientSize.Width - 8, 300)
+                $m = Measure-Text $c.Text $c.Font $c.Width
+                $c.Height = [int][math]::Max(20, $m.Lines * 20)
+                $c.Location = New-Object System.Drawing.Point($c.Location.X, $y)
+                $y += $c.Height + 4
             }
+            $btnY = $y + 6
+            $btnH = SY(32)
             foreach ($c in $script:VpnTop.Controls) {
                 if ($c -is [System.Windows.Forms.Button] -and $c.Tag -is [hashtable] -and $c.Tag.ContainsKey('X')) {
                     $c.Size = New-Object System.Drawing.Size((SX $c.Tag.W), (SY $c.Tag.H))
                     $c.Location = New-Object System.Drawing.Point((SX $c.Tag.X), $btnY)
-                    $maxBottom = [int][math]::Max($maxBottom, ($btnY + (SY $c.Tag.H) + 6))
+                    $maxBottom = [int][math]::Max($maxBottom, ($btnY + $btnH + 6))
                 }
             }
             $script:VpnTop.Height = $maxBottom
         }
         foreach ($r in $script:VpnRowRefs) {
             $r.Row.Width = $w
-            $r.Lbl.Width = $w - 210
-            if ($r.Btn) {
-                $bxv = $w - 190
-                $r.Btn.Location = New-Object System.Drawing.Point($bxv, 8)
-            }
+            $lblW = $w - 210
+            if ($r.Btn2 -or $r.Btn3) { $lblW = $w - 390 }
+            $r.Lbl.Width = [int][math]::Max($lblW, 220)
+            $bx = $w - 190
+            if ($r.Btn3) { $r.Btn3.Location = New-Object System.Drawing.Point($bx, 8); $bx -= 92 }
+            if ($r.Btn2) { $r.Btn2.Location = New-Object System.Drawing.Point($bx, 8); $bx -= 92 }
+            if ($r.Btn) { $r.Btn.Location = New-Object System.Drawing.Point($bx, 8) }
             Set-Round $r.Row 10
         }
         if ($script:VpnNote) {
@@ -1034,6 +1111,192 @@ function Layout-VpnRows {
             $script:VpnNote.Height = [int][math]::Max(30, $m.Lines * 18 + 6)
         }
     } catch { Write-Log "[LAYOUT-ERROR] VPNROWS $($_.Exception.Message)" }
+}
+
+# ---------------------------------------------------------------------------------------
+# EXTRA PAGE (open windows + submit issue)
+# ---------------------------------------------------------------------------------------
+if (-not ('KBWin' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class KBWin {
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+}
+'@
+}
+
+# Every tool-related window still open, so none ever gets "lost".
+function Get-ToolWindows {
+    $out = @()
+    $srv = Get-Process -Name 'BeamMP-Server' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($srv) { $out += [pscustomobject]@{ Name = 'Server console (BeamMP-Server)'; Proc = $srv; Hwnd = $srv.MainWindowHandle } }
+    $ln = Get-Process -Name 'BeamMP-Launcher' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($ln) { $out += [pscustomobject]@{ Name = 'BeamMP Launcher (friends list / join screen)'; Proc = $ln; Hwnd = $ln.MainWindowHandle } }
+    $be = Get-Process -Name 'BeamNG.drive' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($be) { $out += [pscustomobject]@{ Name = 'BeamNG.drive (the game)'; Proc = $be; Hwnd = $be.MainWindowHandle } }
+    return $out
+}
+
+# Rebuilds the window list rows inside the Extra page.
+function Refresh-WinRows {
+    try {
+        $script:WinRows.Controls.Clear()
+        $wins = Get-ToolWindows
+        if (-not $wins.Count) {
+            $lbl = New-Lbl 'No tool windows are open right now. (Start the server and the list appears here.)' $Theme.dim 9 20 $false 500
+            $script:WinRows.Controls.Add($lbl)
+            return
+        }
+        foreach ($w in $wins) {
+            $row = New-Object System.Windows.Forms.Panel
+            $row.Height = 42
+            $row.Width = [int]($script:WinRows.ClientSize.Width - 6)
+            $lbl = New-Lbl $w.Name $Theme.text 9 20
+            $lbl.Location = New-Object System.Drawing.Point(6, 11)
+            $row.Controls.Add($lbl)
+            $show = New-Btn 'Show window' 'Restore this window so you can see it. The server console was opened minimized on purpose.' { }
+            $show.Tag = $w.Hwnd
+            $show.Location = New-Object System.Drawing.Point(($row.Width - 108), 5)
+            $show.Width = 100
+            $show.Add_Click({
+                try {
+                    $hwnd = [IntPtr]$this.Tag
+                    if ($hwnd -eq [IntPtr]::Zero) { Add-Log '[INFO] This window has no visible window - nothing to show.'; return }
+                    [KBWin]::ShowWindow($hwnd, 9) | Out-Null
+                    [KBWin]::SetForegroundWindow($hwnd) | Out-Null
+                    Add-Log '[OK] Window brought to the front.'
+                } catch { Add-Log "[ERROR] Could not show window: $_" }
+            })
+            $row.Controls.Add($show)
+            $script:WinRows.Controls.Add($row)
+        }
+    } catch { Write-Log "[LAYOUT-ERROR] WINROWS $($_.Exception.Message)" }
+}
+
+function Show-ExtraPage {
+    $script:Content.Controls.Clear()
+    $p = New-Object System.Windows.Forms.Panel
+    $p.Dock = 'Fill'
+    $p.BackColor = $Theme.bg
+    $p.AutoScroll = $true
+    $script:ExtraPage = $p
+
+    $head = New-Lbl 'Extra' $Theme.blue 14 26 $true
+    $head.Location = New-Object System.Drawing.Point(4, 2)
+    $p.Controls.Add($head)
+
+    $winCard = New-Object System.Windows.Forms.Panel
+    $winCard.BackColor = $Theme.panel
+    $winCard.Location = New-Object System.Drawing.Point(8, 34)
+    $winCard.Size = New-Object System.Drawing.Size(960, 260)
+    $p.Controls.Add($winCard)
+
+    $winTitle = New-Lbl 'Windows opened by the tool' $Theme.blue 11 22 $true
+    $winTitle.Location = New-Object System.Drawing.Point(12, 8)
+    $winCard.Controls.Add($winTitle)
+
+    $winHint = New-Lbl 'The server console window opens minimized on purpose so it never blocks your screen - find and restore it from this list anytime. If a window is missing here, it was closed for real (which stops that part of the setup).' $Theme.dim 9 20 $false 930
+    $winHint.Location = New-Object System.Drawing.Point(12, 32)
+    $winCard.Controls.Add($winHint)
+
+    $script:WinRows = New-Object System.Windows.Forms.FlowLayoutPanel
+    $script:WinRows.BackColor = $Theme.panel
+    $script:WinRows.Location = New-Object System.Drawing.Point(12, 84)
+    $script:WinRows.Size = New-Object System.Drawing.Size(936, 160)
+    $script:WinRows.FlowDirection = [System.Windows.Forms.FlowDirection]::TopDown
+    $script:WinRows.WrapContents = $false
+    $script:WinRows.AutoScroll = $true
+    $winCard.Controls.Add($script:WinRows)
+    Refresh-WinRows
+
+    $issueCard = New-Object System.Windows.Forms.Panel
+    $issueCard.BackColor = $Theme.panel
+    $issueCard.Location = New-Object System.Drawing.Point(8, 304)
+    $issueCard.Size = New-Object System.Drawing.Size(960, 240)
+    $p.Controls.Add($issueCard)
+
+    $issueTitle = New-Lbl 'Report a problem (issues, bugs, ideas)' $Theme.yellow 11 22 $true
+    $issueTitle.Location = New-Object System.Drawing.Point(12, 8)
+    $issueCard.Controls.Add($issueTitle)
+
+    $issueHint = New-Lbl 'Something broken or confusing? Press the button below. It copies a ready-made report (app version, your system, recent log lines) to your clipboard and opens the GitHub issues page of this project. Then paste it (Ctrl+V) into the new issue and press submit. Nothing is sent automatically - you always review it yourself.' $Theme.text 9 20 $false 930
+    $issueHint.Location = New-Object System.Drawing.Point(12, 32)
+    $issueCard.Controls.Add($issueHint)
+
+    $btnIssue = New-Btn 'Submit issue (copies report, opens GitHub)' 'One press: copies the diagnostic report to your clipboard and opens the GitHub issues page - you just paste it there.' { Submit-Issue }
+    $btnIssue.Location = New-Object System.Drawing.Point(12, 110)
+    $btnIssue.Size = New-Object System.Drawing.Size(330, 40)
+    $btnIssue.BackColor = [System.Drawing.Color]::FromArgb(122, 26, 26)
+    $btnIssue.FlatAppearance.MouseOverBackColor = [System.Drawing.Color]::FromArgb(158, 34, 34)
+    $btnIssue.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(220, 60, 60)
+    $btnIssue.ForeColor = [System.Drawing.Color]::White
+    $issueCard.Controls.Add($btnIssue)
+
+    $issueLog = New-Lbl '(activity appears here)' $Theme.dim 8 20
+    $issueLog.Location = New-Object System.Drawing.Point(12, 158)
+    $issueLog.Size = New-Object System.Drawing.Size(930, 70)
+    $script:IssueLog = $issueLog
+    $issueCard.Controls.Add($issueLog)
+
+    $script:Content.Controls.Add($p)
+    Layout-Extra
+}
+
+# Builds the report text the user pastes into GitHub issues.
+function Get-IssueText {
+    $l = @()
+    $l += 'K BNG M Hoster - problem report (v' + $script:AppVersion + ')'
+    $l += 'Generated: ' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+    $l += ''
+    $l += '=== System ==='
+    $l += 'OS: ' + [System.Environment]::OSVersion.VersionString
+    $l += 'PowerShell: ' + $PSVersionTable.PSVersion.ToString()
+    $l += 'App folder: ' + $script:AppDir
+    $l += 'Server port: ' + (Get-ServerPort)
+    $l += 'Server running: ' + $(if ($script:State.Running) { 'yes' } else { 'no' })
+    $l += ''
+    $l += '=== What were you doing when it happened? (write here) ==='
+    $l += ''
+    $l += '=== Recent tool activity (last 25 log lines) ==='
+    $logF = Join-Path ($script:ServerDir + 'Logs') 'launcher.log'
+    if (Test-Path -LiteralPath $logF) { $l += @(Get-Content -LiteralPath $logF -Tail 25) }
+    else { $l += '(no tool log yet)' }
+    $l += ''
+    $l += '=== Server log (last 20 lines) ==='
+    $srvLog = Join-Path $script:ServerDir 'Server.log'
+    if (Test-Path -LiteralPath $srvLog) { $l += @(Get-Content -LiteralPath $srvLog -Tail 20) }
+    else { $l += '(no server log yet - the server has not run yet)' }
+    return ($l -join [Environment]::NewLine)
+}
+
+function Submit-Issue {
+    try {
+        $text = Get-IssueText
+        [System.Windows.Forms.Clipboard]::SetText($text)
+        if ($script:IssueLog) { $script:IssueLog.Text = '[OK] Report copied to your clipboard.' }
+        Add-Log '[OK] Problem report copied to the clipboard.'
+        Start-Process 'https://github.com/Kinan0713/K-BNG-M-Hoster/issues/new'
+        if ($script:IssueLog) { $script:IssueLog.Text += "  GitHub opened - paste it there (Ctrl+V)." }
+        Add-Log '[INFO] GitHub issues page opened - paste the report there.'
+    } catch {
+        Add-Log "[ERROR] Could not prepare the report: $_"
+        if ($script:IssueLog) { $script:IssueLog.Text = '[ERROR] Could not copy - see the log.' }
+    }
+}
+
+function Layout-Extra {
+    try {
+        if (-not $script:ExtraPage) { return }
+        $w = $script:ExtraPage.ClientSize.Width - 16
+        foreach ($c in $script:ExtraPage.Controls) {
+            if ($c -is [System.Windows.Forms.Panel] -and $c -ne $script:WinRows) {
+                $c.Width = [int][math]::Max($w, 320)
+            }
+        }
+        if ($script:WinRows) { $script:WinRows.Width = [int][math]::Max($w - 24, 300) }
+    } catch { Write-Log "[LAYOUT-ERROR] EXTRA $($_.Exception.Message)" }
 }
 
 # Makes a control accept dropped .zip mod files (green highlight while dragging).
@@ -1302,8 +1565,13 @@ function Show-SettingsPage {
     $head = New-Lbl 'Settings' $Theme.blue 14 26 $true
     $head.Location = New-Object System.Drawing.Point(4, 2)
     $p.Controls.Add($head)
+    $sub = New-Lbl 'Everything the server needs - each card explains itself. Most settings apply on the next server start.' $Theme.dim 9 20  $false 760
+    $sub.Location = New-Object System.Drawing.Point(4, 28)
+    $p.Controls.Add($sub)
 
     $script:SettingsBody = $p
+    $script:SettingsCards = @()
+    $script:SettingsCardLines = @{}
     Build-SettingsControls $p
 
     $script:Content.Controls.Add($p)
@@ -1312,128 +1580,266 @@ function Show-SettingsPage {
     Refresh-Dashboard
 }
 
+# A dark inset text box that fits the card look.
+function New-SettingsInput {
+    $t = New-Object System.Windows.Forms.TextBox
+    $t.BackColor = $Theme.bg
+    $t.ForeColor = [System.Drawing.Color]::White
+    $t.BorderStyle = 'FixedSingle'
+    $t.Font = New-Object System.Drawing.Font('Segoe UI', 9.5)
+    return $t
+}
+
+# A rounded section card with a blue title and a divider line.
+function New-SettingsCard($Body, [string]$Title) {
+    $card = New-Object System.Windows.Forms.Panel
+    $card.BackColor = [System.Drawing.Color]::FromArgb(42, 42, 46)
+    $t = New-Lbl $Title $Theme.blue 11 24 $true
+    $t.Location = New-Object System.Drawing.Point(14, 7)
+    $card.Controls.Add($t)
+    $line = New-Object System.Windows.Forms.Label
+    $line.BackColor = $Theme.border
+    $line.Height = 1
+    $line.Location = New-Object System.Drawing.Point(14, 33)
+    $card.Controls.Add($line)
+    $script:SettingsCardLines[$card] = $line
+    $script:SettingsCards += $card
+    $Body.Controls.Add($card)
+    return $card
+}
+
+# Adds a control to a card at design coordinates (scaled by Layout-Settings).
+function Add-Ctrl($Parent, $Ctrl, [int]$X, [int]$Y) {
+    $Ctrl.Tag = @{ X = $X; Y = $Y }
+    $Parent.Controls.Add($Ctrl)
+}
+
 function Build-SettingsControls($Body) {
+    $card = New-SettingsCard $Body 'General - identity & limits'
+
     $script:ChkLock = New-Object System.Windows.Forms.CheckBox
     $script:ChkLock.Text = 'Lock my IP while hosting (keeps the LAN IP fixed so router forwards never break when the DHCP lease renews)'
     $script:ChkLock.ForeColor = [System.Drawing.Color]::White
-    $script:ChkLock.BackColor = [System.Drawing.Color]::Transparent
+    $script:ChkLock.BackColor = $card.BackColor
     $script:ChkLock.Font = New-Object System.Drawing.Font('Segoe UI', 9.5)
-    $script:ChkLock.Location = New-Object System.Drawing.Point(8, 36)
-    $script:ChkLock.Size = New-Object System.Drawing.Size(720, 26)
+    $script:ChkLock.Size = New-Object System.Drawing.Size(700, 26)
     $script:ChkLock.Checked = (Test-StaticIpLocked)
-    $Body.Controls.Add($script:ChkLock)
+    Add-Ctrl $card $script:ChkLock 14 40
 
     $script:LblSettings1 = New-Lbl 'Server name (shown in the BeamMP list):' $Theme.dim 9.5 20
-    $script:LblSettings1.Location = New-Object System.Drawing.Point(8, 74)
-    $Body.Controls.Add($script:LblSettings1)
-    $script:TxtName = New-Object System.Windows.Forms.TextBox
-    $script:TxtName.Location = New-Object System.Drawing.Point(8, 96)
-    $script:TxtName.Size = New-Object System.Drawing.Size(300, 26)
-    $script:TxtName.BackColor = $Theme.panel
-    $script:TxtName.ForeColor = [System.Drawing.Color]::White
-    $script:TxtName.BorderStyle = 'FixedSingle'
-    $m = Select-String -LiteralPath ($script:RootDir + 'ServerConfig.toml') -Pattern '^\s*Name\s*=\s*"(.*)"' | Select-Object -First 1
-    if ($m) { $script:TxtName.Text = $m.Matches[0].Groups[1].Value }
-    $Body.Controls.Add($script:TxtName)
+    Add-Ctrl $card $script:LblSettings1 14 76
+    $script:TxtName = New-SettingsInput
+    $script:TxtName.Size = New-Object System.Drawing.Size(360, 26)
+    Add-Ctrl $card $script:TxtName 14 98
 
     $script:LblSettings2 = New-Lbl 'Max players:' $Theme.dim 9.5 20
-    $script:LblSettings2.Location = New-Object System.Drawing.Point(8, 130)
-    $Body.Controls.Add($script:LblSettings2)
-    $script:TxtPlayers = New-Object System.Windows.Forms.TextBox
-    $script:TxtPlayers.Location = New-Object System.Drawing.Point(8, 152)
-    $script:TxtPlayers.Size = New-Object System.Drawing.Size(120, 26)
-    $script:TxtPlayers.BackColor = $Theme.panel
-    $script:TxtPlayers.ForeColor = [System.Drawing.Color]::White
-    $script:TxtPlayers.BorderStyle = 'FixedSingle'
-    $m2 = Select-String -LiteralPath ($script:RootDir + 'ServerConfig.toml') -Pattern '^\s*MaxPlayers\s*=\s*(\d+)' | Select-Object -First 1
-    if ($m2) { $script:TxtPlayers.Text = $m2.Matches[0].Groups[1].Value }
-    $Body.Controls.Add($script:TxtPlayers)
+    Add-Ctrl $card $script:LblSettings2 14 134
+    $script:TxtPlayers = New-SettingsInput
+    $script:TxtPlayers.Size = New-Object System.Drawing.Size(90, 26)
+    Add-Ctrl $card $script:TxtPlayers 14 156
 
-    $script:BtnSave = New-Btn 'Save settings' 'Save the server name and max players.' { Save-Settings }
-    $script:BtnSave.Size = New-Object System.Drawing.Size(120, 34)
-    $script:BtnSave.Location = New-Object System.Drawing.Point(8, 188)
-    $Body.Controls.Add($script:BtnSave)
+    $script:LblCars = New-Lbl 'Max cars per player (default 2):' $Theme.dim 9.5 20
+    Add-Ctrl $card $script:LblCars 250 134
+    $script:TxtCars = New-SettingsInput
+    $script:TxtCars.Size = New-Object System.Drawing.Size(90, 26)
+    Add-Ctrl $card $script:TxtCars 250 156
+    $script:LblCarsHint = New-Lbl '(how many vehicles each player may have on the map at once - applies on the next server start)' $Theme.dim 8.5 20  $false 420
+    Add-Ctrl $card $script:LblCarsHint 250 186
+
+    $script:LblDescription = New-Lbl 'Server description (shown in the BeamMP list - optional):' $Theme.dim 9.5 20
+    Add-Ctrl $card $script:LblDescription 14 226
+    $script:TxtDescription = New-SettingsInput
+    $script:TxtDescription.Size = New-Object System.Drawing.Size(600, 60)
+    $script:TxtDescription.Multiline = $true
+    $script:TxtDescription.ScrollBars = 'Vertical'
+    Add-Ctrl $card $script:TxtDescription 14 248
+
+    $script:LblTags = New-Lbl 'Tags, comma separated (shown in the list - optional). Example: Freeroam,KBnG,BeamMP' $Theme.dim 9.5 20  $false 700
+    Add-Ctrl $card $script:LblTags 14 324
+    $script:TxtTags = New-SettingsInput
+    $script:TxtTags.Size = New-Object System.Drawing.Size(380, 26)
+    Add-Ctrl $card $script:TxtTags 14 346
+
+    $script:BtnSave = New-Btn 'Save settings' 'Save everything in this card (name, players, cars, description, tags). It applies on the next server start.' { Save-Settings }
+    $script:BtnSave.Size = New-Object System.Drawing.Size(160, 36)
+    Add-Ctrl $card $script:BtnSave 14 394
+
+    $card = New-SettingsCard $Body 'Behavior switches (tick = enabled)'
+    $script:ChkAllowGuests = New-Object System.Windows.Forms.CheckBox
+    $script:ChkAllowGuests.Text = 'Allow guests (players without a BeamMP auth key)'
+    $script:ChkAllowGuests.ForeColor = [System.Drawing.Color]::White
+    $script:ChkAllowGuests.BackColor = $card.BackColor
+    $script:ChkAllowGuests.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+    $script:ChkAllowGuests.Size = New-Object System.Drawing.Size(700, 24)
+    Add-Ctrl $card $script:ChkAllowGuests 14 40
+    $script:ChkLogChat = New-Object System.Windows.Forms.CheckBox
+    $script:ChkLogChat.Text = 'Log chat messages to the server log'
+    $script:ChkLogChat.ForeColor = [System.Drawing.Color]::White
+    $script:ChkLogChat.BackColor = $card.BackColor
+    $script:ChkLogChat.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+    $script:ChkLogChat.Size = New-Object System.Drawing.Size(700, 24)
+    Add-Ctrl $card $script:ChkLogChat 14 68
+    $script:ChkDebug = New-Object System.Windows.Forms.CheckBox
+    $script:ChkDebug.Text = 'Debug mode (more detail written to the server log)'
+    $script:ChkDebug.ForeColor = [System.Drawing.Color]::White
+    $script:ChkDebug.BackColor = $card.BackColor
+    $script:ChkDebug.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+    $script:ChkDebug.Size = New-Object System.Drawing.Size(700, 24)
+    Add-Ctrl $card $script:ChkDebug 14 96
+    $script:ChkInfoPacket = New-Object System.Windows.Forms.CheckBox
+    $script:ChkInfoPacket.Text = 'Send periodic info packets (server list refresh)'
+    $script:ChkInfoPacket.ForeColor = [System.Drawing.Color]::White
+    $script:ChkInfoPacket.BackColor = $card.BackColor
+    $script:ChkInfoPacket.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+    $script:ChkInfoPacket.Size = New-Object System.Drawing.Size(700, 24)
+    Add-Ctrl $card $script:ChkInfoPacket 14 124
+
+    $card = New-SettingsCard $Body 'Port, server key & updates'
 
     $script:LblSettings3 = New-Lbl ("Port: $((Get-ServerPort))  (change it automatically if it is ever busy)") $Theme.dim 9.5 20  $false 600
-    $script:LblSettings3.Location = New-Object System.Drawing.Point(8, 240)
-    $Body.Controls.Add($script:LblSettings3)
+    Add-Ctrl $card $script:LblSettings3 14 40
     $script:BtnPort = New-Btn 'Use a free port' 'Pick a free port and save it. Remember: the router must forward the NEW port (TCP+UDP).' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Set-FreePort -Port (Get-FreePort))" 'setport' }
     $script:BtnPort.Size = New-Object System.Drawing.Size(130, 34)
-    $script:BtnPort.Location = New-Object System.Drawing.Point(8, 264)
-    $Body.Controls.Add($script:BtnPort)
+    Add-Ctrl $card $script:BtnPort 14 66
 
     $script:LblSettings4 = New-Lbl 'Server key - stored privately on your PC, never shown again:' $Theme.dim 9.5 20  $false 600
-    $script:LblSettings4.Location = New-Object System.Drawing.Point(8, 316)
-    $Body.Controls.Add($script:LblSettings4)
+    Add-Ctrl $card $script:LblSettings4 14 112
     $script:BtnKey = New-Btn 'Set up / change my server key' 'Open the key setup dialog. Get your free key at https://keymaster.beammp.com' { Show-KeySetupDialog $script:Form }
     $script:BtnKey.Size = New-Object System.Drawing.Size(200, 34)
-    $script:BtnKey.Location = New-Object System.Drawing.Point(8, 340)
-    $Body.Controls.Add($script:BtnKey)
+    Add-Ctrl $card $script:BtnKey 14 138
 
     $script:BtnUpdate = New-Btn 'Check for BeamMP-Server updates' 'Ask GitHub if a newer BeamMP-Server build exists (cached 24h).' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$msg = Check-ForUpdates`n`$State.UpdateMsg = `$msg`nif (`$msg) { Say `$msg } else { Say ""BeamMP-Server is up to date."" }" 'update' }
     $script:BtnUpdate.Size = New-Object System.Drawing.Size(230, 34)
-    $script:BtnUpdate.Location = New-Object System.Drawing.Point(8, 390)
-    $Body.Controls.Add($script:BtnUpdate)
+    Add-Ctrl $card $script:BtnUpdate 14 186
 
-    $script:LblSettings5 = New-Lbl 'Map (what everyone plays on) - it applies on the next server start:' $Theme.dim 9.5 20  $false 600
-    $script:LblSettings5.Location = New-Object System.Drawing.Point(8, 440)
-    $Body.Controls.Add($script:LblSettings5)
+    $card = New-SettingsCard $Body 'Map (what everyone plays on - applies on the next server start)'
+
+    $script:TxtMapSearch = New-SettingsInput
+    $script:TxtMapSearch.Size = New-Object System.Drawing.Size(190, 26)
+    $script:TxtMapSearch.Add_TextChanged({ Refresh-MapListBox })
+    Add-Ctrl $card $script:TxtMapSearch 14 40
     $script:CmbMaps = New-Object System.Windows.Forms.ComboBox
     $script:CmbMaps.DropDownStyle = 'DropDownList'
-    $script:CmbMaps.Location = New-Object System.Drawing.Point(8, 464)
     $script:CmbMaps.Size = New-Object System.Drawing.Size(380, 26)
-    $script:CmbMaps.BackColor = $Theme.panel
+    $script:CmbMaps.BackColor = $Theme.bg
     $script:CmbMaps.ForeColor = [System.Drawing.Color]::White
     $script:CmbMaps.FlatStyle = 'Flat'
     $script:CmbMaps.Font = New-Object System.Drawing.Font('Segoe UI', 9)
-    $Body.Controls.Add($script:CmbMaps)
+    Add-Ctrl $card $script:CmbMaps 214 40
+    $script:LblMapSearch = New-Lbl 'Search maps... (type to filter the list)' $Theme.dim 8.5 20
+    Add-Ctrl $card $script:LblMapSearch 14 70
     $script:BtnApplyMap = New-Btn 'Apply map' 'Set the chosen map on the server. Map mods are sent to players automatically when they join. If the server is running it restarts to apply the map.' { Apply-MapSelection }
     $script:BtnApplyMap.Size = New-Object System.Drawing.Size(110, 32)
-    $script:BtnApplyMap.Location = New-Object System.Drawing.Point(8, 496)
-    $Body.Controls.Add($script:BtnApplyMap)
+    Add-Ctrl $card $script:BtnApplyMap 14 102
     $script:BtnScanMaps = New-Btn 'Scan maps' 'Re-scan the game and mod folders for maps (do this after installing a new map).' { Refresh-MapCombo $true }
     $script:BtnScanMaps.Size = New-Object System.Drawing.Size(110, 32)
-    $script:BtnScanMaps.Location = New-Object System.Drawing.Point(124, 496)
-    $Body.Controls.Add($script:BtnScanMaps)
+    Add-Ctrl $card $script:BtnScanMaps 130 102
 
-    $script:LblSettings6 = New-Lbl 'Server visibility (who can find it in the BeamMP list):' $Theme.dim 9.5 20  $false 600
-    $script:LblSettings6.Location = New-Object System.Drawing.Point(8, 544)
-    $Body.Controls.Add($script:LblSettings6)
+    $card = New-SettingsCard $Body 'Server visibility (who can find it in the BeamMP list)'
     $isPriv = Get-ServerPrivate
     $script:RadioPublic = New-Object System.Windows.Forms.RadioButton
     $script:RadioPublic.Text = 'Public - listed for everyone (strangers can find and join)'
     $script:RadioPublic.ForeColor = [System.Drawing.Color]::White
-    $script:RadioPublic.BackColor = $Theme.bg
+    $script:RadioPublic.BackColor = $card.BackColor
     $script:RadioPublic.FlatStyle = 'Flat'
     $script:RadioPublic.Font = New-Object System.Drawing.Font('Segoe UI', 9.5)
-    $script:RadioPublic.Location = New-Object System.Drawing.Point(12, 568)
-    $script:RadioPublic.Size = New-Object System.Drawing.Size(430, 26)
+    $script:RadioPublic.Size = New-Object System.Drawing.Size(700, 26)
     $script:RadioPublic.Checked = -not $isPriv
-    $Body.Controls.Add($script:RadioPublic)
+    Add-Ctrl $card $script:RadioPublic 14 40
     $script:RadioPrivate = New-Object System.Windows.Forms.RadioButton
     $script:RadioPrivate.Text = 'Private - hidden from the list (only people you send the address to can join)'
     $script:RadioPrivate.ForeColor = [System.Drawing.Color]::White
-    $script:RadioPrivate.BackColor = $Theme.bg
+    $script:RadioPrivate.BackColor = $card.BackColor
     $script:RadioPrivate.FlatStyle = 'Flat'
     $script:RadioPrivate.Font = New-Object System.Drawing.Font('Segoe UI', 9.5)
-    $script:RadioPrivate.Location = New-Object System.Drawing.Point(12, 596)
-    $script:RadioPrivate.Size = New-Object System.Drawing.Size(470, 26)
+    $script:RadioPrivate.Size = New-Object System.Drawing.Size(760, 26)
     $script:RadioPrivate.Checked = $isPriv
-    $Body.Controls.Add($script:RadioPrivate)
-    $script:LblSettingsVisHint = New-Lbl 'Private: friends join via Direct Connect using the address shown on the Stats page (IP:port). A private server cannot be found through Search.' $Theme.yellow 9 36  $false 720
-    $script:LblSettingsVisHint.Location = New-Object System.Drawing.Point(12, 626)
-    $script:LblSettingsVisHint.Width = 720
-    $Body.Controls.Add($script:LblSettingsVisHint)
+    Add-Ctrl $card $script:RadioPrivate 14 70
+    $script:LblSettingsVisHint = New-Lbl 'Private: friends join via Direct Connect using the address shown on the Stats page (IP:port). A private server cannot be found through Search.' $Theme.yellow 9 36  $false 700
+    Add-Ctrl $card $script:LblSettingsVisHint 14 102
     $script:BtnApplyVis = New-Btn 'Apply visibility' 'Save the public/private choice. If the server is running it restarts to apply it.' { Apply-Visibility }
     $script:BtnApplyVis.Size = New-Object System.Drawing.Size(150, 32)
-    $script:BtnApplyVis.Location = New-Object System.Drawing.Point(8, 660)
-    $Body.Controls.Add($script:BtnApplyVis)
+    Add-Ctrl $card $script:BtnApplyVis 14 999
+
+    $card = New-SettingsCard $Body 'Presets - save a whole setup (settings + enabled mods) under a name, load it back later. Great for different game nights.'
+
+    $script:TxtPresetName = New-SettingsInput
+    $script:TxtPresetName.Size = New-Object System.Drawing.Size(200, 26)
+    Add-Ctrl $card $script:TxtPresetName 14 40
+    $script:CmbPresets = New-Object System.Windows.Forms.ComboBox
+    $script:CmbPresets.DropDownStyle = 'DropDownList'
+    $script:CmbPresets.Size = New-Object System.Drawing.Size(260, 26)
+    $script:CmbPresets.BackColor = $Theme.bg
+    $script:CmbPresets.ForeColor = [System.Drawing.Color]::White
+    $script:CmbPresets.FlatStyle = 'Flat'
+    $script:CmbPresets.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+    Add-Ctrl $card $script:CmbPresets 266 40
+    $script:LblPresetName = New-Lbl 'Type a name for the new preset' $Theme.dim 8.5 20
+    Add-Ctrl $card $script:LblPresetName 14 70
+    $script:BtnSavePreset = New-Btn 'Save preset' 'Save the current settings + enabled mods under the name you typed (or the selected one).' { Save-PresetFlow }
+    $script:BtnSavePreset.Size = New-Object System.Drawing.Size(110, 32)
+    Add-Ctrl $card $script:BtnSavePreset 14 102
+    $script:BtnLoadPreset = New-Btn 'Load preset' 'Apply the selected preset: restores its settings and switches the mods to match it.' { Load-PresetFlow }
+    $script:BtnLoadPreset.Size = New-Object System.Drawing.Size(110, 32)
+    Add-Ctrl $card $script:BtnLoadPreset 130 102
+    $script:BtnDeletePreset = New-Btn 'Delete preset' 'Delete the selected preset (asks first).' { Delete-PresetFlow }
+    $script:BtnDeletePreset.Size = New-Object System.Drawing.Size(110, 32)
+    Add-Ctrl $card $script:BtnDeletePreset 246 102
+    $script:LblPresetHint = New-Lbl 'Presets are saved privately in the Server\Presets folder - they are not uploaded anywhere. Loading a preset restarts the server if it is running (so the map and mods take effect).' $Theme.dim 8.5 20  $false 780
+    Add-Ctrl $card $script:LblPresetHint 14 142
 
     $script:LblSettingsResult = New-Lbl '' $Theme.green 9.5 40  $false 800
-    $script:LblSettingsResult.Location = New-Object System.Drawing.Point(8, 700)
     $Body.Controls.Add($script:LblSettingsResult)
 
+    Refresh-SettingsFields
     Refresh-MapCombo
+    Refresh-PresetCombo
+}
+
+# Fills the settings inputs from the current ServerConfig.toml values.
+function Refresh-SettingsFields {
+    try {
+        if (-not $script:TxtName) { return }
+        $script:TxtName.Text = Get-ConfigValue 'Name'
+        $script:TxtPlayers.Text = Get-ConfigValue 'MaxPlayers'
+        $script:TxtCars.Text = Get-ConfigValue 'MaxCars'
+        $script:TxtDescription.Text = Get-ConfigValue 'Description'
+        $script:TxtTags.Text = Get-ConfigValue 'Tags'
+        $script:ChkAllowGuests.Checked = ((Get-ConfigValue 'AllowGuests') -match 'true|1')
+        $script:ChkLogChat.Checked = ((Get-ConfigValue 'LogChat') -match 'true|1')
+        $script:ChkDebug.Checked = ((Get-ConfigValue 'Debug') -match 'true|1')
+        $script:ChkInfoPacket.Checked = ((Get-ConfigValue 'InformationPacket') -match 'true|1')
+    } catch { Write-Log "[ERROR] Could not read settings: $($_.Exception.Message)" }
+}
+
+function Refresh-PresetCombo {
+    if (-not $script:CmbPresets) { return }
+    $keep = $script:CmbPresets.SelectedItem
+    $script:CmbPresets.Items.Clear()
+    foreach ($n in Get-Presets) { [void]$script:CmbPresets.Items.Add($n) }
+    if ($keep -and $script:CmbPresets.Items.Contains($keep)) { $script:CmbPresets.SelectedItem = $keep }
+    elseif ($script:CmbPresets.Items.Count) { $script:CmbPresets.SelectedIndex = 0 }
+}
+
+function Save-PresetFlow {
+    $name = $script:TxtPresetName.Text.Trim()
+    if (-not $name) { $name = $script:CmbPresets.SelectedItem }
+    if (-not $name) { Add-Log "[INFO] Type a preset name first."; return }
+    Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Save-Preset $(QStr $name))`n`$State.PresetChanged = (Get-Date).ToString('o')" 'preset'
+}
+
+function Load-PresetFlow {
+    $name = $script:CmbPresets.SelectedItem
+    if (-not $name) { Add-Log "[INFO] Select a preset first."; return }
+    Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Load-Preset $(QStr $name))`n`$State.PresetChanged = (Get-Date).ToString('o')" 'preset'
+}
+
+function Delete-PresetFlow {
+    $name = $script:CmbPresets.SelectedItem
+    if (-not $name) { Add-Log "[INFO] Select a preset first."; return }
+    $r = [System.Windows.Forms.MessageBox]::Show("Delete preset '$name'? This cannot be undone.", 'Delete preset', [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Question)
+    if ($r -ne 'Yes') { return }
+    Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Delete-Preset $(QStr $name))`n`$State.PresetChanged = (Get-Date).ToString('o')" 'preset'
 }
 
 function Refresh-MapCombo([bool]$ForceRescan = $false) {
@@ -1450,25 +1856,34 @@ function Refresh-MapCombo([bool]$ForceRescan = $false) {
         } catch { Add-Log "[ERROR] Map scan failed: $($_.Exception.Message)" }
         $ps.Dispose()
     }
-    $cur = Get-ServerMap
-    $curName = Get-MapNameFromPath $cur
+    Refresh-MapListBox
+    Add-Log "[INFO] Map scan done - $($script:CachedMaps.Count) map(s) available."
+}
+
+# Rebuilds the combo from $script:CachedMaps, honoring the search filter text.
+function Refresh-MapListBox {
+    if (-not $script:CmbMaps) { return }
+    $q = ''
+    if ($script:TxtMapSearch) { $q = $script:TxtMapSearch.Text.Trim() }
+    $script:FilteredMaps = @($script:CachedMaps | Where-Object { -not $q -or $_.Name -like "*$q*" -or $_.Path -like "*$q*" })
     $script:CmbMaps.Items.Clear()
     $script:MapPlaceholder = $false
-    foreach ($m in $script:CachedMaps) {
+    foreach ($m in $script:FilteredMaps) {
         $disp = $m.Name + $(if ($m.Kind -eq 'Vanilla') { '   (Vanilla)' } else { '   [MAP MOD]' })
         [void]$script:CmbMaps.Items.Add($disp)
     }
-    if ($curName) {
+    $cur = Get-ServerMap
+    $curName = Get-MapNameFromPath $cur
+    if ($curName -and -not $q) {
         $idx = -1
-        for ($i = 0; $i -lt $script:CachedMaps.Count; $i++) { if ($script:CachedMaps[$i].Name -ieq $curName) { $idx = $i; break } }
+        for ($i = 0; $i -lt $script:FilteredMaps.Count; $i++) { if ($script:FilteredMaps[$i].Name -ieq $curName) { $idx = $i; break } }
         if ($idx -ge 0) { $script:CmbMaps.SelectedIndex = $idx }
         else {
             $script:MapPlaceholder = $true
             [void]$script:CmbMaps.Items.Insert(0, "$curName   (current, not found in scan)")
             $script:CmbMaps.SelectedIndex = 0
         }
-    } elseif ($script:CachedMaps.Count) { $script:CmbMaps.SelectedIndex = 0 }
-    Add-Log "[INFO] Map scan done - $($script:CachedMaps.Count) map(s) available."
+    } elseif ($script:FilteredMaps.Count -and $script:CmbMaps.SelectedIndex -lt 0) { $script:CmbMaps.SelectedIndex = 0 }
 }
 
 function Apply-MapSelection {
@@ -1476,7 +1891,7 @@ function Apply-MapSelection {
     $idx = $script:CmbMaps.SelectedIndex
     if ($idx -lt 0) { Add-Log "[INFO] Select a map first."; return }
     if ($script:MapPlaceholder -and $idx -eq 0) { Add-Log "[INFO] The current map was not found in the scan - pick another map from the list."; return }
-    $map = $script:CachedMaps[$idx]
+    $map = $script:FilteredMaps[$idx]
     if (-not $map) { Add-Log "[INFO] Select a map first."; return }
     $zipArg = ''
     if ($map.Zip) { $zipArg = " -ZipToHost " + (QStr $map.Zip) }
@@ -1492,48 +1907,55 @@ function Apply-Visibility {
 }
 
 function Layout-Settings {
-    if (-not $script:TxtName -or -not $script:SettingsBody) { return }
+    if (-not $script:SettingsCards -or -not $script:SettingsBody) { return }
     try {
-        $w = $script:SettingsBody.ClientSize.Width - 16
-        $y36 = SY 36; $y74 = SY 74; $y96 = SY 96; $y130 = SY 130; $y152 = SY 152
-        $y188 = SY 188; $y240 = SY 240; $y264 = SY 264; $y316 = SY 316; $y340 = SY 340
-        $y390 = SY 390; $y440 = SY 440; $y464 = SY 464; $y496 = SY 496; $y540 = SY 540
-        $y544 = SY 544; $y568 = SY 568; $y596 = SY 596; $y626 = SY 626; $y660 = SY 660; $y700 = SY 700
-        $tw = SX 300; $pw2 = SX 120
-        $script:ChkLock.Width = $w
-        $script:ChkLock.Location = New-Object System.Drawing.Point(8, $y36)
-        $script:LblSettings1.Location = New-Object System.Drawing.Point(8, $y74)
-        $script:TxtName.Location = New-Object System.Drawing.Point(8, $y96)
-        $script:TxtName.Size = New-Object System.Drawing.Size($tw, 26)
-        $script:LblSettings2.Location = New-Object System.Drawing.Point(8, $y130)
-        $script:TxtPlayers.Location = New-Object System.Drawing.Point(8, $y152)
-        $script:TxtPlayers.Size = New-Object System.Drawing.Size($pw2, 26)
-        $script:BtnSave.Location = New-Object System.Drawing.Point(8, $y188)
-        $script:LblSettings3.Location = New-Object System.Drawing.Point(8, $y240)
-        $script:LblSettings3.Width = $w
-        $script:BtnPort.Location = New-Object System.Drawing.Point(8, $y264)
-        $script:LblSettings4.Location = New-Object System.Drawing.Point(8, $y316)
-        $script:LblSettings4.Width = $w
-        $script:BtnKey.Location = New-Object System.Drawing.Point(8, $y340)
-        $script:BtnUpdate.Location = New-Object System.Drawing.Point(8, $y390)
-        $script:LblSettings5.Location = New-Object System.Drawing.Point(8, $y440)
-        $script:LblSettings5.Width = $w
-        $cw2 = [int][math]::Min($w, (SX 380))
-        $script:CmbMaps.Location = New-Object System.Drawing.Point(8, $y464)
-        $script:CmbMaps.Size = New-Object System.Drawing.Size($cw2, 26)
-        $script:BtnApplyMap.Location = New-Object System.Drawing.Point(8, $y496)
-        $script:BtnScanMaps.Location = New-Object System.Drawing.Point(124, $y496)
-        $script:LblSettings6.Location = New-Object System.Drawing.Point(8, $y544)
-        $script:LblSettings6.Width = $w
-        $script:RadioPublic.Location = New-Object System.Drawing.Point(12, $y568)
-        $script:RadioPrivate.Location = New-Object System.Drawing.Point(12, $y596)
-        $script:LblSettingsVisHint.Width = [int][math]::Min($w, (SX 720))
-        $mVis = Measure-Text $script:LblSettingsVisHint.Text $script:LblSettingsVisHint.Font $script:LblSettingsVisHint.Width
-        $script:LblSettingsVisHint.Height = [int][math]::Max(36, $mVis.Lines * 20 + 4)
-        $script:LblSettingsVisHint.Location = New-Object System.Drawing.Point(12, $y626)
-        $btnVisY = $script:LblSettingsVisHint.Location.Y + $script:LblSettingsVisHint.Height + 8
-        $script:BtnApplyVis.Location = New-Object System.Drawing.Point(8, $btnVisY)
-        $script:LblSettingsResult.Location = New-Object System.Drawing.Point(8, ($btnVisY + 40))
+        $w = [int][math]::Max($script:SettingsBody.ClientSize.Width - 16, 400)
+        $y = SY(56)
+        foreach ($card in $script:SettingsCards) {
+            $card.Width = $w
+            $card.Location = New-Object System.Drawing.Point(8, $y)
+            if ($script:SettingsCardLines.ContainsKey($card)) {
+                $script:SettingsCardLines[$card].Width = $w - 28
+            }
+            $cardH = 0
+            foreach ($c in $card.Controls) {
+                if (-not $c.Tag) { continue }
+                $tx = $c.Tag.X
+                $ty = $c.Tag.Y
+                if ($c -eq $script:LblSettingsVisHint) {
+                    $c.Width = $w - 28
+                    $mVis = Measure-Text $c.Text $c.Font $c.Width
+                    $c.Height = [int][math]::Max(36, $mVis.Lines * 20 + 4)
+                    $c.Location = New-Object System.Drawing.Point((SX 14), (SY $ty))
+                } elseif ($c -eq $script:LblPresetHint) {
+                    $c.Width = $w - 28
+                    $mPre = Measure-Text $c.Text $c.Font $c.Width
+                    $c.Height = [int][math]::Max(20, $mPre.Lines * 18 + 4)
+                    $c.Location = New-Object System.Drawing.Point((SX 14), (SY $ty))
+                } elseif ($c -eq $script:LblCarsHint) {
+                    $c.Width = [int][math]::Max(($w - 250), 300)
+                    $mC = Measure-Text $c.Text $c.Font $c.Width
+                    $c.Height = [int][math]::Max(20, $mC.Lines * 18 + 4)
+                    $c.Location = New-Object System.Drawing.Point((SX $tx), (SY $ty))
+                } elseif ($c -eq $script:BtnApplyVis) {
+                    $c.Location = New-Object System.Drawing.Point((SX 14), ($script:LblSettingsVisHint.Location.Y + $script:LblSettingsVisHint.Height + 8))
+                } else {
+                    $c.Location = New-Object System.Drawing.Point((SX $tx), (SY $ty))
+                    if ($c -eq $script:TxtDescription) {
+                        $c.Width = [int][math]::Min(($w - 28), (SX 600))
+                    } elseif ($c -eq $script:CmbMaps) {
+                        $c.Width = [int][math]::Max(($w - 250), 200)
+                    } elseif ($c -eq $script:LblTags) {
+                        $c.Width = [int][math]::Min(($w - 28), (SX 700))
+                    }
+                }
+                $cardH = [int][math]::Max($cardH, ($c.Location.Y + $c.Height))
+            }
+            $card.Height = $cardH + 14
+            Set-Round $card 10
+            $y += $card.Height + 10
+        }
+        $script:LblSettingsResult.Location = New-Object System.Drawing.Point(8, $y)
         $script:LblSettingsResult.Width = $w
         $m = Measure-Text $script:LblSettingsResult.Text $script:LblSettingsResult.Font $w
         $script:LblSettingsResult.Height = [int][math]::Max(40, $m.Lines * 20 + 6)
@@ -1541,28 +1963,39 @@ function Layout-Settings {
 }
 
 function Save-Settings {
+    $vals = @{}
     $name = $script:TxtName.Text.Trim()
-    $players = $script:TxtPlayers.Text.Trim()
-    if ($name -and $name -notmatch '^[^"]{1,60}$') {
-        Add-Log "[ERROR] Server name must be 60 characters or fewer and cannot contain double quotes."
-        return
+    if ($name) {
+        if ($name -notmatch '^[^"]{1,60}$') {
+            Add-Log "[ERROR] Server name must be 60 characters or fewer and cannot contain double quotes."
+            return
+        }
+        $vals['Name'] = '"' + $name + '"'
     }
-    if ($players -and $players -notmatch '^\d+$') {
-        Add-Log "[ERROR] Max players must be a number."
-        return
+    foreach ($pair in @(@{ Key = 'MaxPlayers'; Txt = $script:TxtPlayers }, @{ Key = 'MaxCars'; Txt = $script:TxtCars })) {
+        $v = $pair.Txt.Text.Trim()
+        if ($v) {
+            if ($v -notmatch '^\d+$') { Add-Log "[ERROR] $($pair.Key) must be a number."; return }
+            $vals[$pair.Key] = [int]$v
+        }
     }
-    $nameArg = $(if ($name) { QStr $name } else { "''" })
-    $playersArg = $(if ($players -match '^\d+$') { $players } else { '0' })
-    if ($name -or $players) {
-        Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Update-Config -Name $nameArg -Players $playersArg)`n`$State.SettingsSaved = (Get-Date).ToString('o')" 'settings'
-    }
+    $desc = $script:TxtDescription.Text.Trim().Replace('"', "'")
+    if ($desc) { $vals['Description'] = '"' + $desc + '"' } else { $vals['Description'] = '""' }
+    $tags = $script:TxtTags.Text.Trim().Replace('"', "'")
+    if ($tags) { $vals['Tags'] = '"' + $tags + '"' } else { $vals['Tags'] = '""' }
+    $vals['AllowGuests'] = $script:ChkAllowGuests.Checked.ToString().ToLower()
+    $vals['LogChat'] = $script:ChkLogChat.Checked.ToString().ToLower()
+    $vals['Debug'] = $script:ChkDebug.Checked.ToString().ToLower()
+    $vals['InformationPacket'] = $script:ChkInfoPacket.Checked.ToString().ToLower()
+    $valsText = ($vals.GetEnumerator() | ForEach-Object { "'$($_.Key)' = $($_.Value)" }) -join '; '
+    Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Set-ServerConfig -Values @{$valsText})`n`$State.SettingsSaved = (Get-Date).ToString('o')" 'settings'
     $lockNow = Test-StaticIpLocked
     if ($script:ChkLock.Checked -and -not $lockNow) {
         Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay ""Enabling the IP lock...""`nif (Set-StaticLanIp) { Say ""IP lock enabled - it will be applied on the next server start."" } else { Say ""Could not enable the lock (was the Windows window cancelled?)."" }" 'lockon'
     } elseif (-not $script:ChkLock.Checked -and $lockNow) {
         Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay ""Disabling the IP lock...""`nif (Restore-DhcpLanIp) { Remove-Item -LiteralPath ($script:ServerDir + 'staticip.cfg') -Force -ErrorAction SilentlyContinue; Say ""Lock disabled - your IP returns to DHCP now."" } else { Say ""Could not disable it (was the Windows window cancelled?)."" }" 'lockoff'
     }
-    Add-Log "[OK] Settings saved."
+    Add-Log "[OK] Settings saved (applies on the next server start)."
     Refresh-Dashboard
 }
 
@@ -1894,7 +2327,8 @@ function Stop-ServerFlow {
 }
 
 function Copy-ConnectionLine {
-    $conn = $script:State.Conn
+    try { $conn = Get-ConnectionInfo -SkipRouterWan } catch { $conn = $script:State.Conn }
+    if (-not $conn) { $conn = $script:State.Conn }
     $port = if ($conn) { $conn.Port } else { Get-ServerPort }
     $line = "127.0.0.1:$port"
     if ($conn -and $conn.LAN) { $line = "$($conn.LAN):$port" }
@@ -1907,6 +2341,35 @@ function Copy-ConnectionLine {
         Add-Log "[OK] Copied to clipboard: $line  (send this to your friends)"
     } catch {
         Add-Log "[ERROR] Could not copy to clipboard: $_"
+    }
+}
+
+# Copies a friendly full invite message (address + connect steps) - the easy way
+# to invite friends to a PRIVATE server (or any server).
+function Copy-Invite {
+    try { $conn = Get-ConnectionInfo -SkipRouterWan } catch { $conn = $script:State.Conn }
+    if (-not $conn) { $conn = $script:State.Conn }
+    $port = if ($conn) { $conn.Port } else { Get-ServerPort }
+    $addr = $null
+    if ($conn) {
+        $vpnLines = @($conn.Vpn | Where-Object { $_.Ip })
+        if ($conn.LAN) { $addr = $conn.LAN }
+        elseif ($vpnLines.Count) { $addr = $vpnLines[0].Ip }
+        elseif ($conn.Tailscale) { $addr = $conn.Tailscale }
+        elseif ($conn.Public) { $addr = $conn.Public }
+    }
+    if (-not $addr) { $addr = '127.0.0.1' }
+    $priv = Get-ServerPrivate
+    $text = if ($priv) {
+        "Join my private BeamNG server!`n1) Open BeamNG -> More... -> BeamMP -> Direct Connect`n2) Address: $addr : $port`n3) Press Connect - done!"
+    } else {
+        "Join my BeamNG server! It is listed on BeamMP - search for it, or Direct Connect to: $addr : $port"
+    }
+    try {
+        [System.Windows.Forms.Clipboard]::SetText($text)
+        Add-Log "[OK] Invite copied - paste it to your friends."
+    } catch {
+        Add-Log "[ERROR] Could not copy the invite: $_"
     }
 }
 
@@ -2053,6 +2516,10 @@ $timerMain.Add_Tick({
         switch ($tag) {
             'precheck' { Continue-StartFlow }
             'fixscan' { Update-FixRows }
+            'fixfw' { Update-FixRows }
+            'fixfwbng' { Update-FixRows }
+            'fixport' { Update-FixRows }
+            'fixter' { Update-FixRows }
             'fixall' {
                 Update-FixRows
                 Add-Log "[INFO] Fix all finished. Anything still listed needs your action (see the row buttons)."
@@ -2100,6 +2567,26 @@ $timerMain.Add_Tick({
                 }
                 Refresh-Dashboard
             }
+            'preset' {
+                Refresh-SettingsFields
+                Refresh-MapCombo
+                Refresh-PresetCombo
+                Refresh-ModListsAsync
+                if ($script:LblSettingsResult) { $script:LblSettingsResult.Text = 'Preset applied - settings and mods now match it.'; $script:LblSettingsResult.ForeColor = $Theme.green }
+                if ($script:State.Running) {
+                    $r = [System.Windows.Forms.MessageBox]::Show(
+                        'The preset changes the server on the next start. Restart the server now?',
+                        'Preset loaded', [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Question)
+                    if ($r -eq 'Yes') {
+                        Add-Log "[INFO] Restarting the server to apply the preset..."
+                        $script:RestartAfterStop = $true
+                        Stop-ServerFlow
+                    }
+                } else {
+                    Add-Log "[INFO] Preset applied - it will be used on the next server start."
+                }
+            }
+            'live' { Refresh-Dashboard }
             'toolcheck' { if ($script:State.ToolUpdate) { Show-UpdateDialog } }
             'toolupdate' {
                 if ($script:State.ToolUpdateReady) { Ask-ApplyUpdate }
@@ -2243,9 +2730,12 @@ function Show-GuidePage {
     Add-GuideLine '  Settings (Ctrl+T) -> "Server visibility": PUBLIC lists your server'
     Add-GuideLine '  for everyone in BeamMP Search. PRIVATE hides it from the list -'
     Add-GuideLine '  only people you send the address to can join, and the Stats page'
-    Add-GuideLine '  marks the internet line with "(private...)".'
+    Add-GuideLine '  marks the internet line with "(PRIVATE server...)".'
     Add-GuideLine '  Private does NOT add a password - anyone with the address'
     Add-GuideLine '  (IP:port) can still join. It applies on the next server start.'
+    Add-GuideLine '  Inviting friends to a private server is one press: on the Stats'
+    Add-GuideLine '  page click "Copy invite (private)" - it copies the full message'
+    Add-GuideLine '  (address + connect steps) - paste it into chat. No typing.'
     Add-GuideLine ''
     Add-GuideLine 'STEP 4  -  CANNOT CONNECT? RUN FIX PROBLEMS' 'yellow' $true 12
     Add-GuideLine '  Click Fix Problems (or Ctrl+F). It checks everything - key, port,'
@@ -2269,16 +2759,20 @@ function Show-GuidePage {
     Add-GuideLine ''
     Add-GuideLine 'STEP 6  -  SETTINGS' 'yellow' $true 12
     Add-GuideLine '  Click Settings (or press Ctrl+T): server name, max players,'
-    Add-GuideLine '  free port, IP lock, your server key, public/private and the'
-    Add-GuideLine '  MAP everyone plays on. No config files needed - the GUI saves'
-    Add-GuideLine '  everything.'
-    Add-GuideLine '  Pick a map in Settings and press Apply map - vanilla maps work'
-    Add-GuideLine '  instantly, and map MODS you have are sent to players'
-    Add-GuideLine '  automatically when they join. The map applies on the next'
-    Add-GuideLine '  server start (the tool offers to restart for you).'
-    Add-GuideLine '  NEVER change the map from inside the game - it breaks the'
-    Add-GuideLine '  multiplayer screen (player list and ping disappear). Always'
-    Add-GuideLine '  change it here instead.'
+    Add-GuideLine '  max cars per player, description and tags (shown in the BeamMP'
+    Add-GuideLine '  list), behavior switches (guests, chat log, debug, info packets),'
+    Add-GuideLine '  free port, IP lock, your server key, public/private and the MAP.'
+    Add-GuideLine '  No config files needed - the GUI saves everything. Change a'
+    Add-GuideLine '  setting, press "Save settings" - it applies on the next start.'
+    Add-GuideLine '  The map box has a search field - type to filter long map lists.'
+    Add-GuideLine '  Pick a map and press Apply map - vanilla maps work instantly,'
+    Add-GuideLine '  and map MODS you have are sent to players automatically when'
+    Add-GuideLine '  they join. The map applies on the next server start (the tool'
+    Add-GuideLine '  offers to restart for you). NEVER change the map from inside'
+    Add-GuideLine '  the game - it breaks the multiplayer screen. Always here.'
+    Add-GuideLine '  PRESETS: save a whole setup (all settings + your enabled mods)'
+    Add-GuideLine '  under a name - e.g. "Drift night" or "Crash event" - and load it'
+    Add-GuideLine '  back in one press. Presets are stored privately in Server\Presets.'
     Add-GuideLine ''
     Add-GuideLine 'STEP 7  -  BEFORE SHARING THE FOLDER' 'yellow' $true 12
     Add-GuideLine '  Click Clean Info (the red button) - it wipes your key, webhook,'
@@ -2295,6 +2789,15 @@ function Show-GuidePage {
     Add-GuideLine '  version. If one exists it offers to download and install it'
     Add-GuideLine '  automatically - your key, mods and settings are kept, and old'
     Add-GuideLine '  downloaded versions are deleted.'
+    Add-GuideLine ''
+    Add-GuideLine 'STEP 10  -  LOST WINDOWS + REPORTING A PROBLEM' 'yellow' $true 12
+    Add-GuideLine '  The server console opens minimized on purpose. If you ever'
+    Add-GuideLine '  wonder where a window went, click Extra (or Ctrl+E): it lists'
+    Add-GuideLine '  every window the tool opened, with a "Show window" button'
+    Add-GuideLine '  that restores it to the front.'
+    Add-GuideLine '  Same page has "Submit issue": one press copies a ready-made'
+    Add-GuideLine '  report (app version, system, recent log lines) and opens the'
+    Add-GuideLine '  GitHub issues page - paste it there. Nothing is sent on its own.'
     Add-GuideLine ''
 
     $script:Content.Controls.Add($p)
@@ -2363,6 +2866,7 @@ $script:Form.Add_KeyDown({
             'V' { Show-VpnPage; $e.SuppressKeyPress = $true }
             'M' { Show-ModsPage; $e.SuppressKeyPress = $true }
             'T' { Show-SettingsPage; $e.SuppressKeyPress = $true }
+            'E' { Show-ExtraPage; $e.SuppressKeyPress = $true }
             'G' { Show-GuidePage; $e.SuppressKeyPress = $true }
             'D' { Run-Diagnose; $e.SuppressKeyPress = $true }
             'C' { Copy-ConnectionLine; $e.SuppressKeyPress = $true }
