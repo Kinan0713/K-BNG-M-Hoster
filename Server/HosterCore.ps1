@@ -1,5 +1,5 @@
 # ========================================================================================
-# K BNG M Hoster v0.6.8 - HosterCore.ps1
+# K BNG M Hoster v0.6.9 - HosterCore.ps1
 # All logic lives here (single source of truth). The GUI (Play_BeamMP.ps1) and every
 # background task load this file and call these functions. No console UI in this file.
 #
@@ -941,6 +941,13 @@ function Stop-VpnApp([string]$Key) {
 function Get-UpnpControlUrl {
     $client = New-Object System.Net.Sockets.UdpClient
     $client.Client.ReceiveTimeout = 2000
+    # Bind to the LAN interface so VPN adapters (Radmin/Tailscale/ZeroTier...)
+    # cannot hijack the SSDP multicast - without this the router never hears us
+    # and UPnP "does not work" even though it is enabled in the router.
+    try {
+        $lan = Get-LanIp
+        if ($lan) { $client.Client.Bind((New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Parse($lan), 0))) }
+    } catch { }
     $search = "M-SEARCH * HTTP/1.1`r`nHOST: 239.255.255.250:1900`r`nMAN: `"ssdp:discover`"`r`nMX: 2`r`nST: urn:schemas-upnp-org:device:InternetGatewayDevice:1`r`n`r`n"
     $bytes = [System.Text.Encoding]::ASCII.GetBytes($search)
     $endpoint = New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Parse('239.255.255.250'), 1900)
@@ -1005,6 +1012,10 @@ function Invoke-UpnpAddMapping {
         return $true
     } catch {
         if ($_.Exception.Message -match '718') { return $true }
+        $code = ''
+        if ($_.Exception.Message -match 'Error\s+(\d{3})') { $code = $Matches[1] }
+        elseif ($_.Exception.Message -match '>(\d{3})<') { $code = $Matches[1] }
+        if ($code) { Write-Log "UPnP: router refused AddPortMapping with error $code (500 ActionFailed / 606 no support / 714-716 conflict / 725 only LAN or WAN)" }
         return $false
     }
 }

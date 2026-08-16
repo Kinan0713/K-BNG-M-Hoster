@@ -1,4 +1,15 @@
-﻿## v0.6.8 - Update 6, Fix 8: Extra tab, upgraded Settings, VPN one-press Stop, presets and invites
+﻿## v0.6.9 - Update 6, Fix 9: UPnP now works with VPNs running
+
+- **UPnP port-forward fixed:** the router search now binds to your LAN interface,
+  so Radmin VPN / Tailscale / ZeroTier can no longer hijack the discovery - "Open
+  port on router via UPnP" and the automatic forward on server start now reach the
+  router even while a VPN is connected (verified: mapping created on a TP-Link).
+- **Clearer failures:** when a router refuses a mapping, the log now shows the
+  router's own SOAP error code (conflict, unsupported, LAN-only...) instead of a
+  generic "enable UPnP" hint - and the UPnP button says to retry with VPNs closed
+  if the forward still fails.
+
+## v0.6.8 - Update 6, Fix 8: Extra tab, upgraded Settings, VPN one-press Stop, presets and invites
 
 - **New "Extra" tab (toolbar button or Ctrl+E):** lists every window the tool opened
   (server console, launcher, game) with a "Show window" button that restores it - the

@@ -1,5 +1,5 @@
 # ========================================================================================
-# K BNG M Hoster v0.6.8 - Simplest Edition (GUI)
+# K BNG M Hoster v0.6.9 - Simplest Edition (GUI)
 # All logic lives in HosterCore.ps1 (single source of truth). This file is the window.
 # Start_Here.bat / Play_BeamMP.bat only launch this file.
 #
@@ -75,7 +75,7 @@ $script:State = @{
     ToolUpdateReady = $null
     ToolUpdateErr = ''
 }
-$script:AppVersion = '0.6.8'
+$script:AppVersion = '0.6.9'
 $script:CorePath = Join-Path $PSScriptRoot 'HosterCore.ps1'
 $script:CoreText = "`$script:CorePath = '" + ($script:CorePath -replace "'", "''") + "'`r`n" + (Get-Content -LiteralPath $script:CorePath -Raw)
 $script:PendingAction = $null
@@ -248,7 +248,7 @@ function Update-BusyUi {
 # MAIN FORM
 # ---------------------------------------------------------------------------------------
 $script:Form = New-Object System.Windows.Forms.Form
-$script:Form.Text = 'K BNG M Hoster v0.6.8 - by Kinan (@raed713)'
+$script:Form.Text = 'K BNG M Hoster v0.6.9 - by Kinan (@raed713)'
 $script:Form.Size = New-Object System.Drawing.Size(1000, 720)
 $script:Form.MinimumSize = New-Object System.Drawing.Size(960, 660)
 $script:Form.StartPosition = 'CenterScreen'
@@ -270,13 +270,13 @@ $title = New-Lbl 'K BNG M Hoster' ([System.Drawing.Color]::White) 19 34 $true
 $title.AutoSize = $false
 $title.Size = New-Object System.Drawing.Size(240, 34)
 $title.Location = New-Object System.Drawing.Point(16, 6)
-$script:LblSubtitle = New-Lbl 'v0.6.8  |  Update 6 - Fix 8  |  by Kinan  |  Discord: @raed713' $Theme.dim 9 18
+$script:LblSubtitle = New-Lbl 'v0.6.9  |  Update 6 - Fix 9  |  by Kinan  |  Discord: @raed713' $Theme.dim 9 18
 $script:LblSubtitle.Location = New-Object System.Drawing.Point(17, 44)
 $script:LblVersionChip = New-Object System.Windows.Forms.Panel
 $script:LblVersionChip.BackColor = [System.Drawing.Color]::FromArgb(52, 52, 58)
 $script:LblVersionChip.Size = New-Object System.Drawing.Size(112, 34)
 $script:LblVersionChip.Location = New-Object System.Drawing.Point(($script:Form.ClientSize.Width - 128), 16)
-$chipText = New-Lbl 'v0.6.8' $Theme.blue 10 20 $true
+$chipText = New-Lbl 'v0.6.9' $Theme.blue 10 20 $true
 $chipText.AutoSize = $false
 $chipText.Width = 112
 $chipText.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
@@ -723,7 +723,7 @@ function Show-FixPage {
     $btnScan.Tag = @{ X = 4; Y = 54; W = 160; H = 34 }
     $script:FixTop.Controls.Add($btnScan)
 
-    $btnUpnp = New-Btn 'Open port on router via UPnP' 'Ask the router to forward the server port (TCP+UDP) automatically - no admin needed.' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$port = Get-ServerPort`nif (Add-UpnpPortForward `$port) { Say ""UPnP: port `$port (TCP+UDP) forwarded on the router. Friends can now connect!"" } else { Say ""UPnP failed. Enable UPnP in your router settings, or forward port `$port (TCP+UDP) manually."" }" 'upnp' }
+    $btnUpnp = New-Btn 'Open port on router via UPnP' 'Ask the router to forward the server port (TCP+UDP) automatically - no admin needed.' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$port = Get-ServerPort`nif (Add-UpnpPortForward `$port) { Say ""UPnP: port `$port (TCP+UDP) forwarded on the router. Friends can now connect!"" } else { Say ""UPnP failed. VPNs can block it - retry with Radmin/Tailscale closed, or forward port `$port (TCP+UDP) manually."" }" 'upnp' }
     $btnUpnp.Size = New-Object System.Drawing.Size(210, 34)
     $btnUpnp.Location = New-Object System.Drawing.Point(172, 54)
     $btnUpnp.Tag = @{ X = 172; Y = 54; W = 210; H = 34 }
