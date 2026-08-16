@@ -1,5 +1,5 @@
 # ========================================================================================
-# K BNG M Hoster v0.6.5 - HosterCore.ps1
+# K BNG M Hoster v0.6.8 - HosterCore.ps1
 # All logic lives here (single source of truth). The GUI (Play_BeamMP.ps1) and every
 # background task load this file and call these functions. No console UI in this file.
 #
@@ -182,6 +182,48 @@ function Update-Config {
         else { $_ }
     }
     Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
+    return "Server settings saved."
+}
+
+# Reads any key from ServerConfig.toml as a plain string (quotes stripped).
+function Get-ConfigValue([string]$Key) {
+    $cfgPath = $script:RootDir + 'ServerConfig.toml'
+    if (-not (Test-Path -LiteralPath $cfgPath)) { return '' }
+    $m = Select-String -LiteralPath $cfgPath -Pattern ("^\s*" + [regex]::Escape($Key) + "\s*=\s*(.+?)\s*$") | Select-Object -First 1
+    if ($m) { return $m.Matches[0].Groups[1].Value.Trim().Trim('"') }
+    return ''
+}
+
+# Writes any set of ServerConfig.toml keys in one go (backup first, idempotent).
+# Values must already be TOML-ready: numbers/booleans bare, strings double-quoted.
+function Set-ServerConfig {
+    param([hashtable]$Values)
+    $cfgPath = $script:RootDir + 'ServerConfig.toml'
+    if (-not (Test-Path -LiteralPath $cfgPath)) { return "ServerConfig.toml not found - nothing saved." }
+    $backupDir = $script:ServerDir + 'Backups'
+    if (-not (Test-Path -LiteralPath $backupDir)) { New-Item -ItemType Directory -Path $backupDir -Force | Out-Null }
+    Copy-Item -LiteralPath $cfgPath -Destination (Join-Path $backupDir ("ServerConfig-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + ".toml")) -Force
+    $lines = @(Get-Content -LiteralPath $cfgPath)
+    $remaining = @($Values.Keys)
+    $out = @()
+    foreach ($line in $lines) {
+        $written = $false
+        foreach ($key in $Values.Keys) {
+            if ($line -match ("^\s*" + [regex]::Escape($key) + "\s*=")) {
+                if ($null -ne $Values[$key]) { $out += "$key = $($Values[$key])" } else { $out += $line }
+                $written = $true
+                $remaining = @($remaining | Where-Object { $_ -ne $key })
+                break
+            }
+        }
+        if (-not $written) { $out += $line }
+    }
+    foreach ($key in $remaining) {
+        if ($null -eq $Values[$key]) { continue }
+        $out += "$key = $($Values[$key])"
+    }
+    Set-Content -LiteralPath $cfgPath -Value $out -Encoding UTF8
+    Write-Log "ServerConfig updated: $($Values.Keys -join ', ')"
     return "Server settings saved."
 }
 
@@ -548,6 +590,55 @@ Read-Host "Press Enter to close this window"
     return $ok
 }
 
+# $true when BeamNG.drive has its own ALLOW firewall rule.
+function Test-BeamNGFirewallRule {
+    try {
+        $found = @(netsh advfirewall firewall show rule name=all 2>$null | Select-String -Pattern 'K BNG M Hoster BeamNG')
+        return [bool]$found
+    } catch { }
+    return $false
+}
+
+# Adds an ALLOW rule for BeamNG.drive.exe (one UAC prompt, like the server rule).
+function Add-BeamNGFirewallRule {
+    $exe = Get-BeamNGPath
+    if (-not $exe) { return "BeamNG.drive.exe was not found - install the game first, then re-run this fix." }
+    $resultFile = Join-Path $env:TEMP ('kbfwb-' + [guid]::NewGuid().ToString('N') + '.txt')
+    $script = @"
+`$resultFile = '$resultFile'
+`$lines = @()
+try { New-NetFirewallRule -DisplayName 'K BNG M Hoster BeamNG' -Direction Inbound -Action Allow -Program '$exe' -ErrorAction Stop -WarningAction SilentlyContinue | Out-Null; `$lines += "[OK] BeamNG.drive allowed (inbound)" } catch { `$lines += "[FAIL] " + `$_.Exception.Message }
+try { New-NetFirewallRule -DisplayName 'K BNG M Hoster BeamNG Out' -Direction Outbound -Action Allow -Program '$exe' -ErrorAction Stop -WarningAction SilentlyContinue | Out-Null; `$lines += "[OK] BeamNG.drive allowed (outbound)" } catch { `$lines += "[FAIL] " + `$_.Exception.Message }
+Set-Content -LiteralPath `$resultFile -Value (`$lines -join [Environment]::NewLine)
+Write-Host ""
+Write-Host "Firewall setup for BeamNG.drive finished."
+Read-Host "Press Enter to close this window"
+"@
+    $tmp = Join-Path $env:TEMP ('kbfwb-' + [guid]::NewGuid().ToString('N') + '.ps1')
+    Set-Content -LiteralPath $tmp -Value $script
+    $ok = $false
+    try {
+        Say "A Windows security window will appear. Click 'Yes' to allow BeamNG.drive."
+        Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $tmp + '"') -Verb RunAs -Wait | Out-Null
+        if (Test-Path -LiteralPath $resultFile) {
+            Get-Content -LiteralPath $resultFile | ForEach-Object { Say $_ }
+            if (Select-String -LiteralPath $resultFile -Pattern '\[FAIL\]' -Quiet) {
+                Say "Some BeamNG rules could not be created - see the messages above."
+            } else {
+                Say "BeamNG.drive is now allowed through Windows Firewall."
+                $ok = $true
+            }
+        } else {
+            Say "BeamNG.drive firewall rule added."
+            $ok = $true
+        }
+    } catch {
+        Say "Could not add the BeamNG rule (was the Windows window cancelled?)."
+    }
+    Remove-Item -LiteralPath $tmp, $resultFile -Force -ErrorAction SilentlyContinue
+    return $ok
+}
+
 # ---------------------------------------------------------------------------------------
 # STATIC IP LOCK (keeps the LAN IP stable while hosting so router forwards never break)
 # ---------------------------------------------------------------------------------------
@@ -711,10 +802,12 @@ function Get-RouterWanIp {
 # CGNAT check: carrier-grade NAT public IPs live in the ISP CGNAT range (RFC 6598).
 # Checks BOTH the public IP (from the internet) and the router's own WAN IP,
 # because some ISPs hand out a 100.x WAN address while the public IP looks normal.
-function Test-Cgnat([string]$PublicIp) {
+function Test-Cgnat([string]$PublicIp, [switch]$SkipRouterWan) {
     $candidates = @($PublicIp)
-    $routerWan = Get-RouterWanIp
-    if ($routerWan) { $candidates += $routerWan }
+    if (-not $SkipRouterWan) {
+        $routerWan = Get-RouterWanIp
+        if ($routerWan) { $candidates += $routerWan }
+    }
     foreach ($ip in $candidates) {
         if (-not $ip) { continue }
         $o = $ip.Split('.')
@@ -729,7 +822,7 @@ function Test-Cgnat([string]$PublicIp) {
 # ---------------------------------------------------------------------------------------
 function Get-VpnApps {
     @(
-        @{ Key = 'radmin';    Name = 'Radmin VPN'; Match = 'Radmin';  Exes = @('C:\Program Files (x86)\Radmin VPN\Radmin_VPN.exe', 'C:\Program Files\Radmin VPN\Radmin_VPN.exe'); Url = 'https://www.radmin-vpn.com/' },
+        @{ Key = 'radmin';    Name = 'Radmin VPN'; Match = 'Radmin';  Exes = @('C:\Program Files (x86)\Radmin VPN\RvRvpnGui.exe', 'C:\Program Files\Radmin VPN\RvRvpnGui.exe', 'C:\Program Files (x86)\Radmin VPN\Radmin_VPN.exe', 'C:\Program Files\Radmin VPN\Radmin_VPN.exe'); Url = 'https://www.radmin-vpn.com/' },
         @{ Key = 'hamachi';   Name = 'Hamachi';    Match = 'Hamachi'; Exes = @('C:\Program Files (x86)\LogMeIn Hamachi\hamachi-2.exe', 'C:\Program Files\LogMeIn Hamachi\hamachi-ui.exe'); Url = 'https://www.vpn.net/' },
         @{ Key = 'zerotier';  Name = 'ZeroTier';   Match = 'ZeroTier';Exes = @('C:\Program Files (x86)\ZeroTier\One\zerotier_desktop_ui.exe', 'C:\Program Files (x86)\ZeroTier\One\ZeroTier_GUI.exe', 'C:\Program Files (x86)\ZeroTier\One\zerotier-one_x64.exe', 'C:\Program Files\ZeroTier\One\zerotier_desktop_ui.exe'); Url = 'https://www.zerotier.com/download/' },
         @{ Key = 'tailscale'; Name = 'Tailscale';  Match = 'Tailscale';Exes = @('C:\Program Files\Tailscale\tailscale-ipn.exe'); Url = 'https://tailscale.com/download' }
@@ -799,6 +892,47 @@ function Start-OrDownload-Vpn($App, [int]$WaitSeconds = 20) {
         if ($hit.Count) { return "$($App.Name) connected - friends join via $($hit[0].Ip)" }
     }
     return "$($App.Name) is opening. If it shows no VPN IP, click/join your network inside the app window, then refresh."
+}
+
+# Turns a VPN completely off with one press: kills its processes, disconnects
+# Tailscale and stops the background service (one UAC prompt if a service is used).
+function Stop-VpnApp([string]$Key) {
+    $defs = @{
+        radmin    = @{ Name = 'Radmin VPN'; Exes = @('RvRvpnGui.exe', 'Radmin_VPN.exe', 'Radmin.exe'); Srv = 'Radmin*' }
+        hamachi   = @{ Name = 'Hamachi';    Exes = @('hamachi-2.exe', 'hamachi-ui.exe', 'hamachi.exe'); Srv = 'Hamachi2Svc' }
+        zerotier  = @{ Name = 'ZeroTier';   Exes = @('zerotier_desktop_ui.exe', 'ZeroTier_GUI.exe', 'zerotier-one_x64.exe'); Srv = 'ZeroTierOne' }
+        tailscale = @{ Name = 'Tailscale';  Exes = @('tailscale-ipn.exe'); Srv = 'Tailscale'; Cli = 'C:\Program Files\Tailscale\tailscale.exe' }
+    }
+    if (-not $defs.ContainsKey($Key)) { return "Unknown VPN: $Key" }
+    $d = $defs[$Key]
+    $what = @()
+    foreach ($n in $d.Exes) {
+        Get-Process -Name ($n -replace '\.exe$', '') -ErrorAction SilentlyContinue | ForEach-Object {
+            Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+            $what += $n
+        }
+    }
+    if ($Key -eq 'tailscale' -and (Test-Path -LiteralPath $d.Cli)) {
+        try { & $d.Cli down 2>$null | Out-Null; $what += 'tailscale down' } catch { }
+    }
+    $svc = Get-Service -ErrorAction SilentlyContinue | Where-Object { $_.Name -like $d.Srv -or $_.DisplayName -like $d.Srv } | Select-Object -First 1
+    if ($svc -and $svc.Status -ne 'Stopped') {
+        $tmp = Join-Path $env:TEMP ('kbvpn-' + [guid]::NewGuid().ToString('N') + '.ps1')
+        Set-Content -LiteralPath $tmp -Value ("Stop-Service -Name '" + $svc.Name + "' -Force -ErrorAction SilentlyContinue; Set-Service -Name '" + $svc.Name + "' -StartupType Manual -ErrorAction SilentlyContinue")
+        try {
+            Say "A Windows security window will appear. Click 'Yes' to stop the $($d.Name) background service."
+            Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $tmp + '"') -Verb RunAs -Wait | Out-Null
+            Start-Sleep -Seconds 2
+            $what += 'service'
+        } catch { }
+        Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
+    }
+    $still = @(Get-VpnIps | Where-Object { $_.Key -eq $Key })
+    if ($still.Count) {
+        return "$($d.Name) is still showing a network adapter - close it from its tray icon too. Friends should no longer see it as connected."
+    }
+    if ($what.Count) { Write-Log "VPN stopped: $Key ($($what -join ', '))" }
+    return "$($d.Name) is now fully stopped."
 }
 
 # ---------------------------------------------------------------------------------------
@@ -936,6 +1070,7 @@ function Get-PublicIpCached {
 }
 
 function Get-ConnectionInfo {
+    param([switch]$SkipRouterWan)
     $port = Get-ServerPort
     $lan = Get-LanIp
     $tail = ''
@@ -945,7 +1080,7 @@ function Get-ConnectionInfo {
         elseif (Get-Command tailscale -ErrorAction SilentlyContinue) { $tail = (& tailscale ip -4 2>$null | Select-Object -First 1).Trim() }
     } catch { }
     $public = Get-PublicIpCached
-    return [pscustomobject]@{ Port = $port; LAN = $lan; Tailscale = $tail; Public = $public; Vpn = @(Get-VpnIps | Where-Object { $_.Key -ne 'tailscale' }); Cgnat = (Test-Cgnat $public) }
+    return [pscustomobject]@{ Port = $port; LAN = $lan; Tailscale = $tail; Public = $public; Vpn = @(Get-VpnIps | Where-Object { $_.Key -ne 'tailscale' }); Cgnat = (Test-Cgnat $public -SkipRouterWan:$SkipRouterWan) }
 }
 
 # Returns $true if we can reach our own server over IPv4 loopback (127.0.0.1).
@@ -958,6 +1093,43 @@ function Test-Loopback([int]$Port) {
         $c.Close()
         return $false
     } catch { return $false }
+}
+
+# Teredo state: 'disabled' / 'client' / 'unknown' (used by the Fix scan; re-enable is one click).
+function Test-TeredoState {
+    try {
+        $out = (& netsh interface teredo show state 2>$null | Out-String)
+        if ($out -match '(?i)Type\s*:\s*disabled') { return 'disabled' }
+        if ($out -match '(?i)Type\s*:\s*(\S+)') { return $Matches[1] }
+    } catch { }
+    return 'unknown'
+}
+
+# Re-enables Teredo via an elevated helper window (one UAC prompt). Reversible.
+function Enable-Teredo {
+    $resultFile = Join-Path $env:TEMP ('kbter-' + [guid]::NewGuid().ToString('N') + '.txt')
+    $script = @"
+`$resultFile = '$resultFile'
+try { netsh interface teredo set state type=enterpriseclient | Out-Null; Set-Content -LiteralPath `$resultFile -Value '[OK] Teredo enabled' } catch { Set-Content -LiteralPath `$resultFile -Value '[FAIL] ' + `$_.Exception.Message }
+Write-Host ""
+Write-Host "Teredo enabled. You can disable it again anytime from Fix Problems."
+Read-Host "Press Enter to close this window"
+"@
+    $tmp = Join-Path $env:TEMP ('kbter-' + [guid]::NewGuid().ToString('N') + '.ps1')
+    Set-Content -LiteralPath $tmp -Value $script
+    try {
+        Say "A Windows security window will appear. Click 'Yes' to enable Teredo."
+        Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $tmp + '"') -Verb RunAs -Wait | Out-Null
+        if (Test-Path -LiteralPath $resultFile) {
+            $msg = Get-Content -LiteralPath $resultFile -Raw
+            if ($msg -match '\[FAIL\]') { Say "Could not enable Teredo - see the message above." } else { Say "Teredo is enabled again (only needed by old games / rare setups)." }
+        } else {
+            Say "Teredo enable was cancelled (no Windows window appeared)."
+        }
+    } catch {
+        Say "Could not enable Teredo (was the Windows window cancelled?)."
+    }
+    Remove-Item -LiteralPath $tmp, $resultFile -Force -ErrorAction SilentlyContinue
 }
 
 # ---------------------------------------------------------------------------------------
@@ -1079,10 +1251,16 @@ function Get-FixReport {
     $fwRulePort = Get-FirewallRulePort
     $fwPortMismatch = ($fwRulePort -and $fwRulePort -ne 'program' -and $fwRulePort -ne "$port")
     $fwOk = [bool]$fwRulePort -and -not $fwPortMismatch
-    $rows += [pscustomobject]@{ Key = 'FW'; Label = 'Firewall'; Ok = $fwOk; Detail = $(if (-not $fwRulePort) { 'BeamMP-Server may be blocked' } elseif ($fwPortMismatch) { "rules exist for port $fwRulePort but the server now uses $port" } else { 'BeamMP-Server is allowed' }); Action = 'Add a firewall rule (asks for admin)'; NeedsAction = -not $fwOk }
+    $rows += [pscustomobject]@{ Key = 'FW'; Label = 'Firewall (server)'; Ok = $fwOk; Detail = $(if (-not $fwRulePort) { 'BeamMP-Server may be blocked' } elseif ($fwPortMismatch) { "rules exist for port $fwRulePort but the server now uses $port" } else { 'BeamMP-Server is allowed' }); Action = 'Add a firewall rule (asks for admin)'; NeedsAction = -not $fwOk }
+    Say "Fix scan: checking BeamNG.drive through the firewall..."
+    $fwBeamngOk = Test-BeamNGFirewallRule
+    $rows += [pscustomobject]@{ Key = 'FWBEAMNG'; Label = 'Firewall (BeamNG.drive)'; Ok = $fwBeamngOk; Detail = $(if ($fwBeamngOk) { 'BeamNG.drive is allowed' } else { 'no rule yet - if BeamNG.drive ever shows a firewall warning or friends cannot connect, add it' }); Action = 'Add a firewall rule for BeamNG.drive (asks for admin)'; NeedsAction = -not $fwBeamngOk }
     Say "Fix scan: checking Tailscale..."
     $tailOk = Test-Path -LiteralPath 'C:\Program Files\Tailscale\tailscale.exe'
     $rows += [pscustomobject]@{ Key = 'TAIL'; Label = 'Tailscale'; Ok = $tailOk; Detail = $(if ($tailOk) { 'installed' } else { 'not installed (friends can still join via public IP)' }); Action = ''; NeedsAction = $false }
+    Say "Fix scan: checking Teredo..."
+    $teredo = Test-TeredoState
+    $rows += [pscustomobject]@{ Key = 'TEREDO'; Label = 'Teredo (advanced)'; Ok = $true; Detail = $(if ($teredo -eq 'disabled') { 'disabled (recommended for hosting - friends connect over IPv4 directly)' } elseif ($teredo -eq 'unknown') { 'state unknown (nothing to do)' } else { 'enabled (rarely needed for hosting - fine to leave)' }); Action = $(if ($teredo -eq 'disabled') { 'Re-enable Teredo (only if you need it)' } else { '' }); NeedsAction = $false }
     Say "Fix scan: checking VPNs..."
     $vpnRunning = @(Get-VpnIps)
     if ($vpnRunning.Count) {
@@ -1159,6 +1337,13 @@ function Fix-AllPossible {
         else { $manual += 'firewall rule (the admin window was cancelled?)' }
     }
 
+    if (-not (Test-BeamNGFirewallRule)) {
+        Say "Fix all: adding a firewall rule for BeamNG.drive (a Windows security window may appear - click Yes)..."
+        $r = Add-BeamNGFirewallRule
+        Say $r
+        if (Test-BeamNGFirewallRule) { $fixed += 'BeamNG.drive firewall rule added' }
+    }
+
     $curMap = Get-ServerMap
     $curMapName = Get-MapNameFromPath $curMap
     $mapOk = [bool]$curMapName
@@ -1232,7 +1417,7 @@ function Scan-Mods {
     $mj = $client + '\mods.json'
     if (Test-Path -LiteralPath $mj) {
         $raw = Get-Content -LiteralPath $mj -Raw
-        if ($raw -match '^\s*null\s*$') { Set-Content -LiteralPath $mj -Value '[]' }
+        if ($raw -match '^\s*(null|\[\])\s*$') { Set-Content -LiteralPath $mj -Value '{}' }
     }
     $s = @()
     $s += Get-ChildItem -LiteralPath $client -Recurse -File -ErrorAction SilentlyContinue |
@@ -1256,6 +1441,79 @@ function Scan-Mods {
         return "[SECURITY] $($s.Count) suspect file(s) quarantined."
     }
     return "Scan clean - no suspicious files found."
+}
+
+# ---------------------------------------------------------------------------------------
+# PRESETS (named snapshots of server settings + the enabled mod list)
+# ---------------------------------------------------------------------------------------
+function Get-PresetPath([string]$Name) {
+    $dir = $script:ServerDir + 'Presets'
+    if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    $safe = ($Name -replace '[^\w\- ]', '').Trim()
+    return (Join-Path $dir ($safe + '.json'))
+}
+
+function Get-Presets {
+    $dir = $script:ServerDir + 'Presets'
+    if (-not (Test-Path -LiteralPath $dir)) { return @() }
+    return @(Get-ChildItem -LiteralPath $dir -Filter '*.json' -File -ErrorAction SilentlyContinue | ForEach-Object { $_.BaseName } | Sort-Object)
+}
+
+function Save-Preset([string]$Name) {
+    if (-not $Name -or -not $Name.Trim()) { return "Type a preset name first." }
+    $settings = @{
+        Name               = Get-ConfigValue 'Name'
+        MaxPlayers         = Get-ConfigValue 'MaxPlayers'
+        MaxCars            = Get-ConfigValue 'MaxCars'
+        Description        = Get-ConfigValue 'Description'
+        Tags               = Get-ConfigValue 'Tags'
+        AllowGuests        = Get-ConfigValue 'AllowGuests'
+        LogChat            = Get-ConfigValue 'LogChat'
+        Debug              = Get-ConfigValue 'Debug'
+        InformationPacket  = Get-ConfigValue 'InformationPacket'
+        Private            = Get-ConfigValue 'Private'
+        Map                = Get-ServerMap
+    }
+    $mods = @(Get-ChildItem -LiteralPath ($script:RootDir + 'Resources\Client') -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne 'mods.json' } | ForEach-Object { $_.Name })
+    $preset = @{ Name = $Name.Trim(); Saved = (Get-Date).ToString('o'); Settings = $settings; Mods = $mods } | ConvertTo-Json -Depth 6
+    Set-Content -LiteralPath (Get-PresetPath $Name) -Value $preset -Encoding UTF8
+    Write-Log "Preset saved: $Name ($(@($mods).Count) mods)"
+    return "Preset '$Name' saved - it includes your server settings and the $(@($mods).Count) enabled mod(s)."
+}
+
+function Load-Preset([string]$Name) {
+    $p = Get-PresetPath $Name
+    if (-not (Test-Path -LiteralPath $p)) { return "Preset '$Name' not found." }
+    $data = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
+    $vals = @{}
+    foreach ($k in @('Name', 'MaxPlayers', 'MaxCars', 'Description', 'Tags', 'AllowGuests', 'LogChat', 'Debug', 'InformationPacket', 'Private', 'Map')) {
+        $v = $data.Settings.$k
+        if ($null -eq $v -or "$v" -eq '') { continue }
+        if ($v -is [int] -or $v -is [long] -or $v -match '^\d+$') { $vals[$k] = "$v"; continue }
+        if ($v -is [bool] -or $v -match '^(true|false)$') { $vals[$k] = "$v".ToLower(); continue }
+        $vals[$k] = '"' + ("$v".Replace('"', "'")) + '"'
+    }
+    $msg = Set-ServerConfig -Values $vals
+    $want = @($data.Mods)
+    $info = Get-ModsInfo
+    $changed = 0
+    foreach ($f in @($info.Enabled)) {
+        if ($f.Name -eq 'mods.json') { continue }
+        if ($want -notcontains $f.Name) { $r = Disable-Mod $f.Name; if ($r -match '^Disabled') { $changed++ } }
+    }
+    foreach ($f in @($info.Disabled)) {
+        if ($want -contains $f.Name) { $r = Enable-Mod $f.Name; if ($r -match '^Enabled') { $changed++ } }
+    }
+    Write-Log "Preset loaded: $Name (mods changed: $changed)"
+    return "Preset '$Name' applied. ($msg, $changed mod(s) switched to match it.)"
+}
+
+function Delete-Preset([string]$Name) {
+    $p = Get-PresetPath $Name
+    if (-not (Test-Path -LiteralPath $p)) { return "Preset '$Name' not found." }
+    Remove-Item -LiteralPath $p -Force
+    Write-Log "Preset deleted: $Name"
+    return "Preset '$Name' deleted."
 }
 
 # ---------------------------------------------------------------------------------------
@@ -1333,6 +1591,13 @@ function Start-HosterSession {
         Say "A BeamMP server is already running. Stop it first, then try again."
         $script:St.SessionEnded = (Get-Date).ToString('o')
         return
+    }
+
+    $leftover = @(Get-Process -Name 'BeamMP-Launcher' -ErrorAction SilentlyContinue)
+    if ($leftover.Count) {
+        Write-Log "Stopped $($leftover.Count) leftover BeamMP-Launcher process(es) from an earlier session"
+        $leftover | Stop-Process -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 1
     }
 
     $serverName = 'K BNG M Server'
@@ -1573,7 +1838,7 @@ Always use Direct Connect with the correct address above.
     if ($conn.Public) { Say "Anyone on the internet: $($conn.Public):$($conn.Port) $(if ($upnpOk) { '(UPnP open)' } elseif ($conn.Cgnat) { '(CGNAT - forwarding impossible, use a VPN)' } else { '(forward manually)' })" }
     Say "Copy the line for your friends with the Copy IP button. Do NOT click your own server in the list - always Direct Connect."
     Say "Press Stop (or close the launcher) to shut the server down. Closing this app also stops it."
-    Start-Process -FilePath $script:LauncherPath | Out-Null
+    Start-Process -FilePath $script:LauncherPath -WorkingDirectory (Split-Path $script:LauncherPath) | Out-Null
 
     while (Get-Process -Name 'BeamMP-Launcher' -ErrorAction SilentlyContinue) {
         if ($script:St.StopRequested) { break }

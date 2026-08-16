@@ -1,10 +1,8 @@
 # 🚗 K BNG M HOSTER
 
-### *(Kinan BeamNG Multiplayer Hoster)* — **v0.6.7** *(Update 6 - Fix 7)*
+### *(Kinan BeamNG Multiplayer Hoster)* — **v0.6.8** *(Update 6 - Fix 8)*
 
 **The All-In-One Automated BeamMP Hosting & Joining Tool**
-
-*Solely created and developed by **Kinan** (`@raed713`)*
 
 > ⚠️ **OFFICIAL DOWNLOAD ONLY** - This tool is distributed exclusively through the
 > GitHub Releases page: https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest
@@ -26,11 +24,15 @@ That's everything. The tool handles the server key, settings, ports and problems
 
 ## 📌 What is K BNG M Hoster?
 
-**K BNG M Hoster** (*Kinan BeamNG Multiplayer Hoster*) is an all-in-one automation utility designed to make hosting, configuring, and joining BeamMP multiplayer servers effortless. Built entirely from scratch by **Kinan**, it handles process execution, automates background server management, and streamlines the direct connection workflow so you and your friends can drive together in seconds.
+**K BNG M Hoster** (*Kinan BeamNG Multiplayer Hoster*) is an all-in-one automation utility designed to make hosting, configuring, and joining BeamMP multiplayer servers effortless. Built entirely from scratch, it handles process execution, automates background server management, and streamlines the direct connection workflow so you and your friends can drive together in seconds.
 
 ### ✨ Key Features
 
-* **Stats page (v0.6.7):** Live server status and every join address for friends (LAN / VPN / internet). Private servers are marked `(private - hidden from the server list)`.
+* **Extra tab (v0.6.8):** Lists every window the tool opened (server console, launcher, game) with a "Show window" restore button - press the **Extra** button or `Ctrl+E`. The same page has **Submit issue**: one press copies a ready-made problem report (app version, system, recent logs) and opens the GitHub issues page - paste it there yourself.
+* **Settings upgrades (v0.6.8):** map search box, max cars per player, description, tags, behavior switches (guests / chat log / debug / info packets), one Save button, and **Presets** - save a whole setup (settings + enabled mods) under a name and load it back later. Stored privately in `Server\Presets`.
+* **VPN Manager (v0.6.8):** every VPN row now has **Stop** (fully closes that VPN in one press) and **Copy IP** (the IP:port to send friends).
+* **Invites (v0.6.8):** the Stats page has **Copy invite** - one press copies a ready-made invite message (address + connect steps).
+* **Stats page (v0.6.7):** Live server status and every join address for friends (LAN / VPN / internet). Private servers are marked `(PRIVATE server - hidden from the server list)`.
 * **Settings tab (Ctrl+T):** Server name, max players, free port, IP lock, your server key, map and public/private - all in plain language, no config files needed.
 * **Public/Private server (v0.6.6):** Settings (`Ctrl+T`) -> "Server visibility". Public lists your server for everyone; Private hides it - only people you send the address (IP:port) to can join via Direct Connect. Applies on the next server start.
 * **Fix all possible (v0.6.6):** One click repairs everything it safely can: busy port, firewall rule, broken map, UPnP forward. The scan streams live progress, adds version/mods/disk-space checks and ends with an OK/attention summary. The Fix page never scans on its own - it only runs when you press "Re-scan everything" or "Fix all possible".
@@ -232,7 +234,7 @@ To load custom vehicles, maps, or physics mods onto your server:
 ## 👑 Credits & Ownership
 
 - **Sole Developer & Creator:** **Kinan** (`@raed713`)
-- *All original code, tools, scripts, and rights belong strictly and exclusively to Kinan.*
+- *All original code, tools, scripts, and rights belong strictly and exclusively to the original author.*
 - **Official Discord:** https://discord.gg/2FxsJvKr4a (Innocent BeamMP Server Community)
 
 ### 🤝 Contributions
@@ -244,7 +246,7 @@ To load custom vehicles, maps, or physics mods onto your server:
   - v0.5: zero-skill "Simplest Edition" - guided setup + auto-fix
   - v0.5.1 / v0.5.2: IPv4/IPv6 binding fixes so same-PC clients can connect
 
-*(Changes by contributors are merged only after review and approval by Kinan.)*
+*(Changes by contributors are merged only after review and approval by the maintainer.)*
 
 ---
 
