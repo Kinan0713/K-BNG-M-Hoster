@@ -105,4 +105,4 @@ This software is distributed under a proprietary EULA. By using this software yo
 - **Credits:** early co-development by **Ali Alldoboni** (`@alialldoboni`) for v0.2–v0.5.2
 - **Discord:** [Innocent BeamMP Server Community](https://discord.gg/2FxsJvKr4a)
 
-*All original code, tools, scripts, and rights belong strictly and exclusively to the original author.*
+*All original code, tools, scripts, and rights belong strictly and exclusively to the original author. kinan @raed713*
