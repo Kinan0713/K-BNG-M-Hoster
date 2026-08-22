@@ -818,14 +818,15 @@ function Test-Cgnat([string]$PublicIp, [switch]$SkipRouterWan) {
 }
 
 # ---------------------------------------------------------------------------------------
-# VPN SUPPORT (Radmin VPN / Hamachi / ZeroTier / Tailscale)
+# VPN SUPPORT (Radmin VPN / Hamachi / ZeroTier / Tailscale / Playit.gg)
 # ---------------------------------------------------------------------------------------
 function Get-VpnApps {
     @(
         @{ Key = 'radmin';    Name = 'Radmin VPN'; Match = 'Radmin';  Exes = @('C:\Program Files (x86)\Radmin VPN\RvRvpnGui.exe', 'C:\Program Files\Radmin VPN\RvRvpnGui.exe', 'C:\Program Files (x86)\Radmin VPN\Radmin_VPN.exe', 'C:\Program Files\Radmin VPN\Radmin_VPN.exe'); Url = 'https://www.radmin-vpn.com/' },
         @{ Key = 'hamachi';   Name = 'Hamachi';    Match = 'Hamachi'; Exes = @('C:\Program Files (x86)\LogMeIn Hamachi\hamachi-2.exe', 'C:\Program Files\LogMeIn Hamachi\hamachi-ui.exe'); Url = 'https://www.vpn.net/' },
         @{ Key = 'zerotier';  Name = 'ZeroTier';   Match = 'ZeroTier';Exes = @('C:\Program Files (x86)\ZeroTier\One\zerotier_desktop_ui.exe', 'C:\Program Files (x86)\ZeroTier\One\ZeroTier_GUI.exe', 'C:\Program Files (x86)\ZeroTier\One\zerotier-one_x64.exe', 'C:\Program Files\ZeroTier\One\zerotier_desktop_ui.exe'); Url = 'https://www.zerotier.com/download/' },
-        @{ Key = 'tailscale'; Name = 'Tailscale';  Match = 'Tailscale';Exes = @('C:\Program Files\Tailscale\tailscale-ipn.exe'); Url = 'https://tailscale.com/download' }
+        @{ Key = 'tailscale'; Name = 'Tailscale';  Match = 'Tailscale';Exes = @('C:\Program Files\Tailscale\tailscale-ipn.exe'); Url = 'https://tailscale.com/download' },
+        @{ Key = 'playit';    Name = 'Playit.gg';  Match = 'playit';   Exes = @(); Url = 'https://playit.gg' }
     )
 }
 
@@ -843,6 +844,11 @@ function Get-InstalledVpns {
         $exe = $app.Exes | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
         $installed = [bool]$exe -or [bool]($lnks | Where-Object { $_.Name -match $app.Match }) -or [bool]($regItems | Where-Object { $_.DisplayName -match $app.Match })
         $out += [pscustomobject]@{ Key = $app.Key; Name = $app.Name; Url = $app.Url; Exe = $(if ($exe) { $exe } else { '' }); Installed = $installed }
+    }
+    # Check if playit is installed
+    $playitInstalled = Test-Path -LiteralPath "$env:APPDATA\playit-agent\"
+    if ($playitInstalled) {
+        $out += [pscustomobject]@{ Key = 'playit'; Name = 'Playit.gg'; Url = 'https://playit.gg'; Exe = ''; Installed = $true }
     }
     return $out
 }
@@ -903,7 +909,17 @@ function Stop-VpnApp([string]$Key) {
         zerotier  = @{ Name = 'ZeroTier';   Exes = @('zerotier_desktop_ui.exe', 'ZeroTier_GUI.exe', 'zerotier-one_x64.exe'); Srv = 'ZeroTierOne' }
         tailscale = @{ Name = 'Tailscale';  Exes = @('tailscale-ipn.exe'); Srv = 'Tailscale'; Cli = 'C:\Program Files\Tailscale\tailscale.exe' }
     }
-    if (-not $defs.ContainsKey($Key)) { return "Unknown VPN: $Key" }
+    if (-not $defs.ContainsKey($Key)) {
+        # Special handling for Playit
+        if ($Key -eq 'playit') {
+            # Kill all playit processes
+            Get-Process -Name "playit-agent" -ErrorAction SilentlyContinue | ForEach-Object {
+                Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+            }
+            return "Playit.gg agent stopped"
+        }
+        return "Unknown VPN: $Key"
+    }
     $d = $defs[$Key]
     $what = @()
     foreach ($n in $d.Exes) {
@@ -933,6 +949,73 @@ function Stop-VpnApp([string]$Key) {
     }
     if ($what.Count) { Write-Log "VPN stopped: $Key ($($what -join ', '))" }
     return "$($d.Name) is now fully stopped."
+}
+
+# Checks if playit agent is running and gets the public address
+function Get-PlayitAddress {
+    # Check if Playit agent is installed
+    $playitPath = "$env:APPDATA\playit-agent\"
+    if (-not (Test-Path -LiteralPath $playitPath)) {
+        return $null
+    }
+    
+    try {
+        # Look for the config file or log to extract address
+        $logFile = "$playitPath\agent.log"
+        $configFile = "$playitPath\config.json"
+        
+        if (Test-Path -LiteralPath $configFile) {
+            $config = Get-Content -LiteralPath $configFile -Raw | ConvertFrom-Json
+            if ($config.tunnels) {
+                foreach ($tunnel in $config.tunnels) {
+                    if ($tunnel.port -eq 30814 -and $tunnel.host) {
+                        return "$($tunnel.host):$($tunnel.port)"
+                    }
+                }
+            }
+        }
+        
+        # Fallback to parsing log file for the address
+        if (Test-Path -LiteralPath $logFile) {
+            $logContent = Get-Content -LiteralPath $logFile -TotalCount 100
+            foreach ($line in $logContent) {
+                if ($line -match 'tunnel.*at\s+(\S+:\d+)') {
+                    return $Matches[1]
+                }
+            }
+        }
+        
+        return $null
+    } catch {
+        return $null
+    }
+}
+
+# Starts the playit agent
+function Start-PlayitAgent {
+    $playitPath = "$env:APPDATA\playit-agent\"
+    if (-not (Test-Path -LiteralPath $playitPath)) {
+        return "Playit.gg agent not installed. Please install it from playit.gg first."
+    }
+    
+    # Check if already running
+    $running = Get-Process -Name "playit-agent" -ErrorAction SilentlyContinue
+    if ($running) {
+        return "Playit.gg agent already running"
+    }
+    
+    try {
+        # Run the agent from the install directory
+        $agentExe = "$playitPath\playit-agent.exe"
+        if (Test-Path -LiteralPath $agentExe) {
+            Start-Process -FilePath $agentExe -WindowStyle Hidden
+            return "Started Playit.gg agent successfully"
+        } else {
+            return "Could not find playit-agent.exe in installation folder"
+        }
+    } catch {
+        return "Failed to start Playit.gg agent: $($_.Exception.Message)"
+    }
 }
 
 # ---------------------------------------------------------------------------------------
@@ -1021,6 +1104,10 @@ function Invoke-UpnpAddMapping {
 }
 
 # Opens the server port on the router via UPnP (no admin needed).
+# Implementation details:
+# 1. First tries Windows HNetCfg.UPnPNAT COM object (native Windows method)
+# 2. Falls back to HTTP/SOAP discovery and mapping if COM fails
+# Compatible with VPNs by binding to LAN interface during SSDP discovery
 function Add-UpnpPortForward {
     param([int]$Port)
     $lan = Get-LanIp

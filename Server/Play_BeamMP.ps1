@@ -483,10 +483,12 @@ function Show-HomePage {
     $script:LblConnLan.Location = New-Object System.Drawing.Point(16, 58)
     $script:LblConnVpn = New-Lbl '' $Theme.green 10 22  $false 900
     $script:LblConnVpn.Location = New-Object System.Drawing.Point(16, 82)
+    $script:LblConnTunnel = New-Lbl '' $Theme.blue 10 22  $true 900
+    $script:LblConnTunnel.Location = New-Object System.Drawing.Point(16, 106)
     $script:LblConnTail = New-Lbl '' $Theme.blue 10 22
-    $script:LblConnTail.Location = New-Object System.Drawing.Point(16, 106)
+    $script:LblConnTail.Location = New-Object System.Drawing.Point(16, 130)
     $script:LblConnPub = New-Lbl '' $Theme.dim 10 22
-    $script:LblConnPub.Location = New-Object System.Drawing.Point(16, 130)
+    $script:LblConnPub.Location = New-Object System.Drawing.Point(16, 154)
     $script:LblConnRouter = New-Lbl '' $Theme.dim 10 22  $false 900
     $script:LblConnRouter.Location = New-Object System.Drawing.Point(16, 154)
     $script:LblConnNote = New-Lbl '' $Theme.yellow 9 42  $false 900
@@ -511,7 +513,7 @@ function Show-HomePage {
     $script:ConnVpnFlow.FlowDirection = [System.Windows.Forms.FlowDirection]::LeftToRight
     $script:ConnVpnFlow.BackColor = $Theme.bg
 
-    foreach ($l in @($script:LblConnThis, $script:LblConnLan, $script:LblConnVpn, $script:ConnVpnFlow, $script:LblConnTail, $script:LblConnPub, $script:LblConnRouter, $script:LblConnNote, $script:BtnDiag, $script:BtnCopy, $script:BtnInvite, $script:BtnRefreshHome)) { $script:ConnCard.Controls.Add($l) }
+    foreach ($l in @($script:LblConnThis, $script:LblConnLan, $script:LblConnVpn, $script:ConnVpnFlow, $script:LblConnTunnel, $script:LblConnTail, $script:LblConnPub, $script:LblConnRouter, $script:LblConnNote, $script:BtnDiag, $script:BtnCopy, $script:BtnInvite, $script:BtnRefreshHome)) { $script:ConnCard.Controls.Add($l) }
 
     $script:StatusCard = New-Object System.Windows.Forms.Panel
     $script:StatusCard.Dock = 'Top'
@@ -641,6 +643,14 @@ function Refresh-Dashboard {
     $script:LblConnLan.Text = if ($conn -and $conn.LAN) { "Friends (same WiFi):      $($conn.LAN)  :  $port" } else { 'Friends (same WiFi):     (LAN IP not detected)' }
     $vpnLines = @()
     if ($conn) { $vpnLines = @($conn.Vpn | Where-Object { $_.Ip }) }
+    # Add playit tunnel address if available 
+    $playitAddress = Get-PlayitAddress
+    if ($playitAddress) {
+        $script:LblConnTunnel.Text = "Friends (Playit.gg):      $playitAddress"
+        $script:LblConnTunnel.Visible = $true
+    } else {
+        $script:LblConnTunnel.Visible = $false
+    }
     if ($vpnLines.Count) {
         $vpnText = (($vpnLines | ForEach-Object { "$($_.Name) -> $($_.Ip):$port" }) -join '   ')
         if ($vpnLines.Count -ge 2) { $vpnText += '   (friends must use the SAME VPN as the line you send)' }
@@ -1047,16 +1057,36 @@ function Refresh-VpnRows {
         $btnStop = $null
         $btnCopy = $null
         if ($app.Installed -and $run.Count) {
-            $btnStop = New-Btn 'Stop' "Fully stop $($app.Name) with one press: closes it, disconnects, and stops its background service (one admin prompt). Friends will see it as offline." { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Stop-VpnApp '$($app.Key)')`n`$State.VpnRefresh = (Get-Date).ToString('o')" 'vpn' }
-            $btnStop.Size = New-Object System.Drawing.Size(84, 30)
-            $btnStop.Font = New-Object System.Drawing.Font('Segoe UI', 9)
-            $btnStop.BackColor = [System.Drawing.Color]::FromArgb(122, 26, 26)
-            $btnStop.FlatAppearance.MouseOverBackColor = [System.Drawing.Color]::FromArgb(158, 34, 34)
-            $btnStop.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(220, 60, 60)
-            $btnStop.ForeColor = [System.Drawing.Color]::White
-            $rowPanel.Controls.Add($btnStop)
+            # Special handling for playit
+            if ($app.Key -eq 'playit') {
+                $btnStop = New-Btn 'Stop' "Stop the Playit.gg agent." { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Stop-VpnApp 'playit')`n`$State.VpnRefresh = (Get-Date).ToString('o')" 'vpn' }
+                $btnStop.Size = New-Object System.Drawing.Size(84, 30)
+                $btnStop.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+                $btnStop.BackColor = [System.Drawing.Color]::FromArgb(122, 26, 26)
+                $btnStop.FlatAppearance.MouseOverBackColor = [System.Drawing.Color]::FromArgb(158, 34, 34)
+                $btnStop.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(220, 60, 60)
+                $btnStop.ForeColor = [System.Drawing.Color]::White
+                $rowPanel.Controls.Add($btnStop)
+                
+                # For playit, we also want to show the tunnel address
+                $address = Get-PlayitAddress
+                if ($address) {
+                    $btnCopy = New-CopyButton 'Copy Address' "Copy the Playit.gg tunnel address to your clipboard - paste it to your friends so they can direct-connect." "$address" "Playit.gg address: $address"
+                    $btnCopy.Size = New-Object System.Drawing.Size(84, 30)
+                    $rowPanel.Controls.Add($btnCopy)
+                }
+            } else {
+                $btnStop = New-Btn 'Stop' "Fully stop $($app.Name) with one press: closes it, disconnects, and stops its background service (one admin prompt). Friends will see it as offline." { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Stop-VpnApp '$($app.Key)')`n`$State.VpnRefresh = (Get-Date).ToString('o')" 'vpn' }
+                $btnStop.Size = New-Object System.Drawing.Size(84, 30)
+                $btnStop.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+                $btnStop.BackColor = [System.Drawing.Color]::FromArgb(122, 26, 26)
+                $btnStop.FlatAppearance.MouseOverBackColor = [System.Drawing.Color]::FromArgb(158, 34, 34)
+                $btnStop.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(220, 60, 60)
+                $btnStop.ForeColor = [System.Drawing.Color]::White
+                $rowPanel.Controls.Add($btnStop)
+            }
         }
-        if ($run.Count -and $run[0].Ip) {
+        if ($run.Count -and $run[0].Ip -and $app.Key -ne 'playit') {
             $btnCopy = New-CopyButton 'Copy IP' "Copy the VPN address (IP:port) of $($app.Name) to your clipboard - paste it to your friends so they can direct-connect." "$($run[0].Ip):$(Get-ServerPort)" "VPN address of $($app.Name): $($run[0].Ip):$(Get-ServerPort)"
             $btnCopy.Size = New-Object System.Drawing.Size(84, 30)
             $rowPanel.Controls.Add($btnCopy)
