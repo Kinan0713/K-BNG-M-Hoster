@@ -2,11 +2,11 @@
 
 # K BNG M Hoster
 
-### *(Kinan BeamNG Multiplayer Hoster)* — **v0.6.8** *(Update 6 - Fix 8)*
+### *(Kinan BeamNG Multiplayer Hoster)* — **v0.7.0** *(Update 7 - FRP + Playit.gg)*
 
 **The All-In-One Automated BeamMP Hosting & Joining Tool**
 
-> 🔽 **Download the latest release:** [K BNG M Hoster v0.6.8 ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
+> 🔽 **Download the latest release:** [K BNG M Hoster v0.7.0 ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
 
 > ⚠️ **Official download only:** Get K BNG M Hoster exclusively from the GitHub Releases page above. Please do **not** share, reupload, or forward this tool — everyone should download it from here so they always get the latest version.
 
@@ -34,6 +34,10 @@ That's everything. The tool handles the key, settings, ports and problems for yo
 - **Settings tab** (`Ctrl+T`): server name, max players, port, IP lock, server key, map, and Public/Private — all in plain language.
 - **Fix Problems page** (`Ctrl+F`): checks key, port, firewall, VPNs, maps and more — each with its own one-click Fix. It only scans when you press "Re-scan everything" or "Fix all possible".
 - **VPN Manager** (`Ctrl+V`): starts Radmin VPN / Hamachi / ZeroTier / Tailscale for you, or opens their download pages.
+- **Full GUI (v0.7.0):** clean modern dark theme, a simpler 8-button toolbar
+  (Home, Start, Stop, Settings, Mods, Fix, Network + a More menu), and every page
+  built from scrollable rounded cards that reflow at any window size.
+- **FRP tunnel** (Network tab): hosts through a remote frps server — no router port forwarding, works behind CGNAT. The frpc client is bundled and extracts itself automatically. Press **"FRP setup guide"** in the FRP card for a step-by-step setup walkthrough (run your own frps / use a friend's / use a public service), or follow the Network step in the in-app Guide (`Ctrl+G`).
 - **Mods page** (`Ctrl+M`): list, enable/disable and scan your mods for safety.
 - **Built-in Guide** (`Ctrl+G`): the whole README, explained step by step inside the app.
 - **Fullscreen**: press `F11` (or `Alt+Enter`) anytime; `Esc` to exit.
@@ -47,6 +51,7 @@ Pick **one** method:
 
 | Method | When to use it | What friends do |
 |---|---|---|
+| **FRP tunnel** | Anywhere, even CGNAT — needs a shared frps server | They Direct Connect to the FRP server address shown on your Stats page |
 | **Tailscale** | Easy, no router changes, private group | They join your Tailscale network, then Direct Connect to your Tailscale IP |
 | **Port forwarding** (Public) | You want anyone to find your server in the BeamMP list | They search your server name in the BeamMP browser, or Direct Connect to your public IP |
 | **P2P VPN** (Radmin / Hamachi / ZeroTier) | Your ISP blocks port forwarding (CGNAT) | They install the same VPN app, join your network, then Direct Connect to your VPN IP |

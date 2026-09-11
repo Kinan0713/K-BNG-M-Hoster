@@ -1,4 +1,52 @@
-﻿## v0.6.9 - Update 6, Fix 9: UPnP now works with VPNs running
+﻿## v0.7.0 - Update 7: Transfer tab, FRP tunneling & GitHub-verified license
+
+### ðŸš€ Added (New features)
+
+- **New "Transfer" tab** (toolbar button or Ctrl+U) for automated mod packaging:
+  - **Scan Server Mods** - matches the server's mod list (Resources/Client) against the mods actually cached on the host and shows the total count and combined size.
+  - **Smart Client Mod Export** - exports the hashed, cached mod copies from the host's own BeamMP launcher data (AppData), never the raw server files, so recipients get exactly what BeamMP verifies.
+  - **Dynamic folder size-chunking** - "Max folder size" selector (5GB / 10GB / 15GB / 20GB / 25GB); the export automatically splits into numbered parts (Export\Part_1, Part_2, ...) whenever a file would push a folder past the limit - tuned for free cloud tiers.
+  - **Select Export Destination** - a folder picker that saves the chosen path globally and shows it on the page ("Export Path: ..."); "Export Server Mods" refuses to run until a destination is chosen.
+  - **Cloud upload shortcuts** - "Upload to Google Drive (15GB)" and "Upload to Mega.io (20GB Free)" open the right cloud page in the browser for the exported parts.
+  - **Install Downloaded Mods** - picks a folder and moves only its .zip files into the BeamMP client mods folder; every other file type is ignored.
+  - **Selective Mod Deletion** - a checklist of installed client mods (name + size) with Refresh, Select All / Deselect All and "Delete Selected Mods": only ticked files are removed after a confirmation, so mods belonging to other servers are never wiped.
+- **GitHub-verified Proprietary EULA lockout** - the launcher checks the official repository on startup for the latest required license version (background thread, short timeout, try/catch - the UI never freezes). If the user has not accepted yet, or the remote version is newer, every tab, button and shortcut is locked and a modal dialog presents the full Proprietary License Agreement in a scrollable viewer. "Accept & Continue" stays disabled until the "I have read and agree..." checkbox is ticked; "Decline / Exit" closes the app immediately. The accepted version is recorded locally, so the dialog only returns when the agreement itself changes.
+- **Offline-friendly licensing** - no internet? Users with a previously accepted license keep full access; brand-new users are told an internet connection is required for first-time verification.
+- **FRP tunnel (Fast Reverse Proxy)** - host through a remote frps server with zero router port forwarding (works behind CGNAT), enabled from Settings with a masked token. The official frpc client ships inside the app and self-extracts + verifies itself on first use.
+- **Network tab** - VPN Manager, FRP tunnel and CGNAT help consolidated into one place; Playit.gg is now a fully supported VPN (detection, address display, start/stop/copy).
+
+### ðŸ”„ Changed (Modifications to existing features)
+
+- **Toolbar slimmed down** - 12 buttons became 8 (Home, Start, Stop, Settings, Mods, Fix, Network, More); Guide and Extra moved into the "More" menu alongside Support, Open Folder and Clean Info.
+- **Every page rebuilt** as a scrollable stack of rounded cards with a sticky header - Settings groups everything into clearly labeled cards with the Save button always visible at the top.
+- **Truly responsive layout** - hand-tuned pixel math replaced by TableLayoutPanels, Dock and Anchor; cards, inputs, button bars and notes stretch and reflow at any window size.
+- **Cleaner page headers** - the second hint line became a tooltip on the page title; the Mods drop-zip hint moved into the bottom tip line.
+- **Fix scan banner** - scan results now open with a prominent "X of N checks OK - Y need attention" summary.
+- **Tailscale is a normal VPN** - it has its own row in VPN tools (start/stop/copy/download) instead of a special one-off button.
+- **Playit.gg support** - detection, tunnel address display and dedicated stop/copy handling.
+- **Upgrade-safe config** - existing ServerConfig.toml files automatically gain an [FRP] section with sane defaults.
+- **Full proprietary license text** - the startup agreement now shows the complete Proprietary License Agreement instead of the old short summary.
+
+### ðŸ› ï¸ Fixed (Bug fixes or logic corrections)
+
+- Settings saves that started back-to-back silently dropped the second one - background actions are now queued and a save runs as one atomic action.
+- Boolean settings saved as bare values crashed the whole save invisibly - values are now quoted and normalized into valid TOML; toggles persist the moment they are flipped and the page re-loads saved values on every visit.
+- VPN row Start/Stop/Download buttons all fired the last row's action (PowerShell handlers do not capture loop variables) - values are now baked into each handler, verified by automated click tests.
+- Stopping Playit.gg now goes through the core stop routine.
+- WinForms style-collection Add() calls leaked return values into page builders and polluted card lists - suppressed.
+- "Start Server" toolbar text clipped - buttons now have explicit widths.
+- Header hint lines pushed action buttons off-screen on narrow windows - hints are now tooltips.
+- Fix-scan rows flickered and overlapped with long details clipped - rows now rebuild cleanly and wrap.
+- Network tab cards overflowed when nested auto-size controls reflowed - cards now size from the table's real preferred size after every layout pass.
+- FRP: a busy game port halts cleanly, a missing frpc binary explains itself, a failed tunnel aborts server start, and teardown covers every exit path including orphaned process sweeps.
+
+### ðŸ”’ Security & Privacy (EULA, data scrubbing)
+
+- **Proprietary EULA enforced at startup** - version-checked against the official GitHub repository, full application lockout until accepted, per-version acceptance tracking, and graceful offline behavior.
+- **Privacy scrubbing of distributed files** - hardcoded IP-like literals and machine-specific local PC paths were removed from the released code and its on-screen help/status texts; network addresses are only ever detected at runtime, so no personal data ships inside the product or its documentation.
+- **Clean Info deep-cleans for sharing** - removes the server key, webhook URL, logs, backups, quarantine folder, the IP-lock marker, and now also the FRP token and its generated config folder, so a shared folder contains no personal data.
+- **No lingering tunnel credentials** - the FRP token is masked in Settings, the runtime tunnel config is written atomically and deleted the instant the tunnel stops.
+## v0.6.9 - Update 6, Fix 9: UPnP now works with VPNs running
 
 - **UPnP port-forward fixed:** the router search now binds to your LAN interface,
   so Radmin VPN / Tailscale / ZeroTier can no longer hijack the discovery - "Open

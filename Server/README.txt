@@ -1,6 +1,6 @@
 # 🚗 K BNG M HOSTER
 
-### *(Kinan BeamNG Multiplayer Hoster)* — **v0.6.8** *(Update 6 - Fix 8)*
+### *(Kinan BeamNG Multiplayer Hoster)* — **v0.7.0** *(Update 7 - FRP + Playit.gg)*
 
 **The All-In-One Automated BeamMP Hosting & Joining Tool**
 
@@ -30,7 +30,11 @@ That's everything. The tool handles the server key, settings, ports and problems
 
 * **Extra tab (v0.6.8):** Lists every window the tool opened (server console, launcher, game) with a "Show window" restore button - press the **Extra** button or `Ctrl+E`. The same page has **Submit issue**: one press copies a ready-made problem report (app version, system, recent logs) and opens the GitHub issues page - paste it there yourself.
 * **Settings upgrades (v0.6.8):** map search box, max cars per player, description, tags, behavior switches (guests / chat log / debug / info packets), one Save button, and **Presets** - save a whole setup (settings + enabled mods) under a name and load it back later. Stored privately in `Server\Presets`.
-* **VPN Manager (v0.6.8):** every VPN row now has **Stop** (fully closes that VPN in one press) and **Copy IP** (the IP:port to send friends).
+* **FRP tunnel (v0.7.0 - Fast Reverse Proxy):** Host through a remote frps server with NO router port forwarding - works even behind CGNAT. Enable it in Settings -> "FRP tunnel" (server address, port, token - masked). The frpc client is BUNDLED: it is extracted from the included zip into `Server\bin\frpc.exe` automatically on first use - zero manual setup. The tool starts it before the game server and forwards the game port (TCP+UDP) through the tunnel; friends Direct Connect to the FRP server address. The token-bearing runtime config is generated while the tunnel runs and **deleted** when it stops; the tunnel is stopped on every exit path (Stop, window close, session end). If the tunnel cannot come up, the server start is halted and you are alerted.
+* **Playit.gg VPN support (v0.7.0):** The tool now recognizes and integrates with Playit.gg as a supported VPN option, including:
+  - Detection of Playit.gg installation
+  - Displaying Playit.gg tunnel addresses alongside other connection methods
+  - Special handling for Playit.gg in VPN management with dedicated stop and copy buttons
 * **Invites (v0.6.8):** the Stats page has **Copy invite** - one press copies a ready-made invite message (address + connect steps).
 * **Stats page (v0.6.7):** Live server status and every join address for friends (LAN / VPN / internet). Private servers are marked `(PRIVATE server - hidden from the server list)`.
 * **Settings tab (Ctrl+T):** Server name, max players, free port, IP lock, your server key, map and public/private - all in plain language, no config files needed.

@@ -17,6 +17,14 @@ Server.log
 CONNECTING.txt
 staticip.cfg
 
+# FRP tunnel runtime (contains the user's plaintext FRP token while running - never commit)
+Server/frp_configs/
+# Extracted frpc binary + extraction temporaries are ignored; the official FRP
+# zip it ships with (Server/bin/frp_*.zip) stays tracked for the public build
+Server/bin/frpc.exe
+Server/bin/frpc.exe.tmp
+Server/bin/frpc.exe.extract.lock
+
 # Launcher artifacts (created when the launcher runs with the tool's working folder)
 Launcher.cfg
 Launcher.log
@@ -28,3 +36,7 @@ Server/Resources/Client/*.zip
 
 # Release zip (upload to GitHub Releases instead)
 K.BNG.M.Hoster.v*.zip
+
+# Mod export output (user-generated, often hundreds of MB - never commit)
+Server/Export/
+
