@@ -1,5 +1,5 @@
 # ========================================================================================
-# K BNG M Hoster v0.6.9 - HosterCore.ps1
+# K BNG M Hoster v0.7.0 - HosterCore.ps1
 # All logic lives here (single source of truth). The GUI (Play_BeamMP.ps1) and every
 # background task load this file and call these functions. No console UI in this file.
 #
@@ -8,7 +8,8 @@
 #                                         CHANGELOG.md, LICENSE
 #   Server\ (the engine - users never open it): this file, Play_BeamMP.ps1,
 #                         BeamMP-Server.exe, Launcher.cfg, ServerConfig.toml,
-#                         Resources\, logs, .env (your key), webhook.txt.
+#                         Resources\, logs, .env (your key), webhook.txt,
+#                         bin\frpc.exe (optional FRP client), frp_configs\ (runtime).
 #
 # The server process runs FROM the Server\ folder, so the ServerConfig.toml
 # and Resources\ it uses live next to it.
@@ -51,6 +52,19 @@ function Initialize-HosterPaths {
         $script:RootDir = $script:ServerDir
     }
     $script:LauncherPath = Join-Path $env:APPDATA 'BeamMP-Launcher\BeamMP-Launcher.exe'
+
+    # Fast Reverse Proxy (FRP) - client binary + runtime config location.
+    $script:FrpcExe = $script:ServerDir + 'bin\frpc.exe'
+    $script:FrpConfigDir = $script:ServerDir + 'frp_configs'
+    $script:FrpRuntimeConfig = Join-Path $script:FrpConfigDir 'frpc_runtime.toml'
+
+    # Older ServerConfig.toml files lack the [FRP] section - add it once,
+    # idempotently, so every FRP feature has sane defaults from the start.
+    Initialize-FrpConfigSection
+
+    # One-time binary setup: frpc.exe ships inside Server\bin\frp_*.zip and is
+    # extracted automatically on first run - the user never touches any file.
+    try { $null = Initialize-FrpBinary } catch { }
 }
 
 # ---------------------------------------------------------------------------------------
@@ -194,8 +208,23 @@ function Get-ConfigValue([string]$Key) {
     return ''
 }
 
+# Normalizes any value into TOML-ready text: booleans -> true/false, numbers
+# bare, strings double-quoted with escaping. Strings that already carry their
+# quotes are kept untouched. This makes every Set-ServerConfig caller safe,
+# regardless of how the value travelled into the hashtable.
+function ConvertTo-TomlValue($Value) {
+    if ($null -eq $Value) { return '""' }
+    if ($Value -is [bool]) { return $(if ($Value) { 'true' } else { 'false' }) }
+    if ($Value -is [int] -or $Value -is [long] -or $Value -is [double]) { return [string]$Value }
+    $t = ([string]$Value).Trim()
+    if ($t.Length -ge 2 -and $t[0] -eq '"' -and $t[$t.Length - 1] -eq '"') { return $t }
+    if ($t -match '^\d+$') { return $t }
+    if ($t -ieq 'true' -or $t -ieq 'false') { return $t.ToLower() }
+    return '"' + ($t.Replace('\', '\\').Replace('"', '\"')) + '"'
+}
+
 # Writes any set of ServerConfig.toml keys in one go (backup first, idempotent).
-# Values must already be TOML-ready: numbers/booleans bare, strings double-quoted.
+# Values are normalized with ConvertTo-TomlValue before writing.
 function Set-ServerConfig {
     param([hashtable]$Values)
     $cfgPath = $script:RootDir + 'ServerConfig.toml'
@@ -210,7 +239,7 @@ function Set-ServerConfig {
         $written = $false
         foreach ($key in $Values.Keys) {
             if ($line -match ("^\s*" + [regex]::Escape($key) + "\s*=")) {
-                if ($null -ne $Values[$key]) { $out += "$key = $($Values[$key])" } else { $out += $line }
+                if ($null -ne $Values[$key]) { $out += "$key = $(ConvertTo-TomlValue $Values[$key])" } else { $out += $line }
                 $written = $true
                 $remaining = @($remaining | Where-Object { $_ -ne $key })
                 break
@@ -220,7 +249,7 @@ function Set-ServerConfig {
     }
     foreach ($key in $remaining) {
         if ($null -eq $Values[$key]) { continue }
-        $out += "$key = $($Values[$key])"
+        $out += "$key = $(ConvertTo-TomlValue $Values[$key])"
     }
     Set-Content -LiteralPath $cfgPath -Value $out -Encoding UTF8
     Write-Log "ServerConfig updated: $($Values.Keys -join ', ')"
@@ -818,14 +847,15 @@ function Test-Cgnat([string]$PublicIp, [switch]$SkipRouterWan) {
 }
 
 # ---------------------------------------------------------------------------------------
-# VPN SUPPORT (Radmin VPN / Hamachi / ZeroTier / Tailscale)
+# VPN SUPPORT (Radmin VPN / Hamachi / ZeroTier / Tailscale / Playit.gg)
 # ---------------------------------------------------------------------------------------
 function Get-VpnApps {
     @(
         @{ Key = 'radmin';    Name = 'Radmin VPN'; Match = 'Radmin';  Exes = @('C:\Program Files (x86)\Radmin VPN\RvRvpnGui.exe', 'C:\Program Files\Radmin VPN\RvRvpnGui.exe', 'C:\Program Files (x86)\Radmin VPN\Radmin_VPN.exe', 'C:\Program Files\Radmin VPN\Radmin_VPN.exe'); Url = 'https://www.radmin-vpn.com/' },
         @{ Key = 'hamachi';   Name = 'Hamachi';    Match = 'Hamachi'; Exes = @('C:\Program Files (x86)\LogMeIn Hamachi\hamachi-2.exe', 'C:\Program Files\LogMeIn Hamachi\hamachi-ui.exe'); Url = 'https://www.vpn.net/' },
         @{ Key = 'zerotier';  Name = 'ZeroTier';   Match = 'ZeroTier';Exes = @('C:\Program Files (x86)\ZeroTier\One\zerotier_desktop_ui.exe', 'C:\Program Files (x86)\ZeroTier\One\ZeroTier_GUI.exe', 'C:\Program Files (x86)\ZeroTier\One\zerotier-one_x64.exe', 'C:\Program Files\ZeroTier\One\zerotier_desktop_ui.exe'); Url = 'https://www.zerotier.com/download/' },
-        @{ Key = 'tailscale'; Name = 'Tailscale';  Match = 'Tailscale';Exes = @('C:\Program Files\Tailscale\tailscale-ipn.exe'); Url = 'https://tailscale.com/download' }
+        @{ Key = 'tailscale'; Name = 'Tailscale';  Match = 'Tailscale';Exes = @('C:\Program Files\Tailscale\tailscale-ipn.exe'); Url = 'https://tailscale.com/download' },
+        @{ Key = 'playit';    Name = 'Playit.gg';  Match = 'playit';   Exes = @(); Url = 'https://playit.gg' }
     )
 }
 
@@ -843,6 +873,11 @@ function Get-InstalledVpns {
         $exe = $app.Exes | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
         $installed = [bool]$exe -or [bool]($lnks | Where-Object { $_.Name -match $app.Match }) -or [bool]($regItems | Where-Object { $_.DisplayName -match $app.Match })
         $out += [pscustomobject]@{ Key = $app.Key; Name = $app.Name; Url = $app.Url; Exe = $(if ($exe) { $exe } else { '' }); Installed = $installed }
+    }
+    # Check if playit is installed
+    $playitInstalled = Test-Path -LiteralPath "$env:APPDATA\playit-agent\"
+    if ($playitInstalled) {
+        $out += [pscustomobject]@{ Key = 'playit'; Name = 'Playit.gg'; Url = 'https://playit.gg'; Exe = ''; Installed = $true }
     }
     return $out
 }
@@ -875,7 +910,21 @@ function Get-VpnIps {
 # Starts an installed VPN (or opens its official download page when missing).
 function Start-OrDownload-Vpn($App, [int]$WaitSeconds = 20) {
     if (-not $App.Installed) {
-        try { Start-Process $App.Url } catch { }
+        try { 
+            if ($App.Url -and $App.Url.Trim()) {
+                # Ensure we have a valid URL
+                $urlToOpen = $App.Url.Trim()
+                if ($urlToOpen -and $urlToOpen -match '^https?://') {
+                    Start-Process $urlToOpen 
+                } else {
+                    # If not a proper URL, fallback to opening in browser via shell
+                    [System.Diagnostics.Process]::Start("explorer.exe", $urlToOpen)
+                }
+            }
+        } catch {
+            # Log error but don't break functionality
+            Write-Log "Failed to open VPN URL for $($App.Name): $($_.Exception.Message)"
+        }
         return "Opened the official page: $($App.Url). Install it, then come back here."
     }
     if (-not $App.Exe) {
@@ -902,14 +951,31 @@ function Stop-VpnApp([string]$Key) {
         hamachi   = @{ Name = 'Hamachi';    Exes = @('hamachi-2.exe', 'hamachi-ui.exe', 'hamachi.exe'); Srv = 'Hamachi2Svc' }
         zerotier  = @{ Name = 'ZeroTier';   Exes = @('zerotier_desktop_ui.exe', 'ZeroTier_GUI.exe', 'zerotier-one_x64.exe'); Srv = 'ZeroTierOne' }
         tailscale = @{ Name = 'Tailscale';  Exes = @('tailscale-ipn.exe'); Srv = 'Tailscale'; Cli = 'C:\Program Files\Tailscale\tailscale.exe' }
+        playit    = @{ Name = 'Playit.gg';  Exes = @(); Srv = 'playit'; Cli = $null } 
     }
-    if (-not $defs.ContainsKey($Key)) { return "Unknown VPN: $Key" }
+    if (-not $defs.ContainsKey($Key)) {
+        # Special handling for Playit
+        if ($Key -eq 'playit') {
+            # Kill all playit processes
+            Get-Process -Name "playit-agent" -ErrorAction SilentlyContinue | ForEach-Object {
+                Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+            }
+            return "Playit.gg agent stopped"
+        }
+        return "Unknown VPN: $Key"
+    }
     $d = $defs[$Key]
     $what = @()
     foreach ($n in $d.Exes) {
         Get-Process -Name ($n -replace '\.exe$', '') -ErrorAction SilentlyContinue | ForEach-Object {
             Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
             $what += $n
+        }
+    }
+    if ($Key -eq 'playit') {
+        Get-Process -Name 'playit-agent' -ErrorAction SilentlyContinue | ForEach-Object {
+            Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+            $what += 'playit-agent'
         }
     }
     if ($Key -eq 'tailscale' -and (Test-Path -LiteralPath $d.Cli)) {
@@ -933,6 +999,73 @@ function Stop-VpnApp([string]$Key) {
     }
     if ($what.Count) { Write-Log "VPN stopped: $Key ($($what -join ', '))" }
     return "$($d.Name) is now fully stopped."
+}
+
+# Checks if playit agent is running and gets the public address
+function Get-PlayitAddress {
+    # Check if Playit agent is installed
+    $playitPath = "$env:APPDATA\playit-agent\"
+    if (-not (Test-Path -LiteralPath $playitPath)) {
+        return $null
+    }
+    
+    try {
+        # Look for the config file or log to extract address
+        $logFile = "$playitPath\agent.log"
+        $configFile = "$playitPath\config.json"
+        
+        if (Test-Path -LiteralPath $configFile) {
+            $config = Get-Content -LiteralPath $configFile -Raw | ConvertFrom-Json
+            if ($config.tunnels) {
+                foreach ($tunnel in $config.tunnels) {
+                    if ($tunnel.port -eq 30814 -and $tunnel.host) {
+                        return "$($tunnel.host):$($tunnel.port)"
+                    }
+                }
+            }
+        }
+        
+        # Fallback to parsing log file for the address
+        if (Test-Path -LiteralPath $logFile) {
+            $logContent = Get-Content -LiteralPath $logFile -TotalCount 100
+            foreach ($line in $logContent) {
+                if ($line -match 'tunnel.*at\s+(\S+:\d+)') {
+                    return $Matches[1]
+                }
+            }
+        }
+        
+        return $null
+    } catch {
+        return $null
+    }
+}
+
+# Starts the playit agent
+function Start-PlayitAgent {
+    $playitPath = "$env:APPDATA\playit-agent\"
+    if (-not (Test-Path -LiteralPath $playitPath)) {
+        return "Playit.gg agent not installed. Please install it from playit.gg first."
+    }
+    
+    # Check if already running
+    $running = Get-Process -Name "playit-agent" -ErrorAction SilentlyContinue
+    if ($running) {
+        return "Playit.gg agent already running"
+    }
+    
+    try {
+        # Run the agent from the install directory
+        $agentExe = "$playitPath\playit-agent.exe"
+        if (Test-Path -LiteralPath $agentExe) {
+            Start-Process -FilePath $agentExe -WindowStyle Hidden
+            return "Started Playit.gg agent successfully"
+        } else {
+            return "Could not find playit-agent.exe in installation folder"
+        }
+    } catch {
+        return "Failed to start Playit.gg agent: $($_.Exception.Message)"
+    }
 }
 
 # ---------------------------------------------------------------------------------------
@@ -1021,6 +1154,10 @@ function Invoke-UpnpAddMapping {
 }
 
 # Opens the server port on the router via UPnP (no admin needed).
+# Implementation details:
+# 1. First tries Windows HNetCfg.UPnPNAT COM object (native Windows method)
+# 2. Falls back to HTTP/SOAP discovery and mapping if COM fails
+# Compatible with VPNs by binding to LAN interface during SSDP discovery
 function Add-UpnpPortForward {
     param([int]$Port)
     $lan = Get-LanIp
@@ -1455,6 +1592,163 @@ function Scan-Mods {
 }
 
 # ---------------------------------------------------------------------------------------
+# TRANSFER / INSTALL (export + split for cloud upload, install & selective delete)
+# ---------------------------------------------------------------------------------------
+
+# Finds where the BeamMP client stores its downloaded .zip mods.
+# Primary: BeamMP Launcher download folder. Secondary: BeamNG.drive multiplayer mods.
+function Resolve-BeamClientDir {
+    $prim = Join-Path $env:APPDATA 'BeamMP-Launcher\Resources'
+    if (Test-Path -LiteralPath $prim) { return $prim }
+    $base = Join-Path $env:LOCALAPPDATA 'BeamNG.drive'
+    if (Test-Path -LiteralPath $base) {
+        $hit = Get-ChildItem -LiteralPath $base -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            $m = Join-Path $_.FullName 'mods\multiplayer'
+            if (Test-Path -LiteralPath $m) { $m }
+        } | Select-Object -First 1
+        if ($hit) { return $hit }
+    }
+    return ''
+}
+
+function Test-TransferLocked($Err) {
+    $e = $Err.Exception
+    while ($e) {
+        if ($e -is [System.IO.IOException]) { return $true }
+        $e = $e.InnerException
+    }
+    return $false
+}
+
+# Host tools: matches the server's mod list (Resources\Client, base names only)
+# against the HOST's own launcher cache (APPDATA\BeamMP-Launcher\Resources),
+# which holds the hashed copies BeamMP needs. The matched hashed files are what
+# gets exported - never the raw server files.
+function Get-TransferScan {
+    $serverDir = $script:RootDir + 'Resources\Client'
+    $launcherDir = Join-Path $env:APPDATA 'BeamMP-Launcher\Resources'
+    $bases = @()
+    if (Test-Path -LiteralPath $serverDir) {
+        $bases = @(Get-ChildItem -LiteralPath $serverDir -File -Filter '*.zip' -ErrorAction SilentlyContinue | ForEach-Object { $_.BaseName } | Where-Object { $_ })
+    }
+    $files = @()
+    $unmatched = @()
+    if (Test-Path -LiteralPath $launcherDir) {
+        $all = @(Get-ChildItem -LiteralPath $launcherDir -File -Filter '*.zip' -ErrorAction SilentlyContinue)
+        foreach ($f in $all) {
+            $hit = $false
+            foreach ($b in $bases) {
+                if ($f.Name.StartsWith($b + '-') -or $f.Name -eq ($b + '.zip')) { $hit = $true; break }
+            }
+            if ($hit) { $files += $f } else { $unmatched += $f }
+        }
+    }
+    $files = @($files | Sort-Object Name)
+    $total = 0L
+    foreach ($f in $files) { $total += $f.Length }
+    return [pscustomobject]@{ ServerDir = $serverDir; LauncherDir = $launcherDir; Bases = $bases; Files = $files; Unmatched = $unmatched; BaseCount = @($bases).Count; Count = @($files).Count; TotalBytes = $total }
+}
+
+# Host tools: copies the MATCHED hashed mods from the host launcher cache into
+# <DestDir>\Export\Part_1, Part_2, ... keeping every folder under the chosen size
+# limit. Copy-Item only - zips are never repacked or extracted.
+function Export-ServerMods([string]$DestDir, [double]$LimitGB) {
+    $scan = Get-TransferScan
+    if (-not $scan.Count) { return [pscustomobject]@{ Ok = $false; Locked = @(); Summary = "No hashed mods matching your server mods were found in $($scan.LauncherDir) - run BeamMP and download the mods first." } }
+    $limit = [long]($LimitGB * 1GB)
+    if ($limit -le 0) { return [pscustomobject]@{ Ok = $false; Locked = @(); Summary = 'Invalid folder size limit.' } }
+    if (-not $DestDir -or -not (Test-Path -LiteralPath $DestDir)) { return [pscustomobject]@{ Ok = $false; Locked = @(); Summary = 'Export destination folder not found.' } }
+    $root = Join-Path $DestDir 'Export'
+    try {
+        if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction Stop }
+        New-Item -ItemType Directory -Path $root -Force | Out-Null
+    } catch { return [pscustomobject]@{ Ok = $false; Locked = @(); Summary = "Could not prepare the Export folder: $($_.Exception.Message)" } }
+    $part = 1
+    $partBytes = 0L
+    $dest = Join-Path $root ("Part_$part")
+    New-Item -ItemType Directory -Path $dest -Force | Out-Null
+    $copied = 0
+    $failed = 0
+    $locked = @()
+    foreach ($f in $scan.Files) {
+        if ($partBytes -gt 0 -and (($partBytes + $f.Length) -gt $limit)) {
+            $part++
+            $partBytes = 0L
+            $dest = Join-Path $root ("Part_$part")
+            New-Item -ItemType Directory -Path $dest -Force | Out-Null
+            Write-Log "Export: starting Part_$part (limit $LimitGB GB per folder)"
+        }
+        try {
+            Copy-Item -LiteralPath $f.FullName -Destination $dest -Force -ErrorAction Stop
+            $partBytes += $f.Length
+            $copied++
+        } catch {
+            $failed++
+            if (Test-TransferLocked $_) { $locked += $f.Name }
+            Write-Log "Export: could not copy $($f.Name) - $($_.Exception.Message)"
+        }
+    }
+    $sum = "Export finished: $copied of $($scan.Count) hashed mod(s) copied into $part folder(s) under $root."
+    if ($failed) { $sum += " $failed file(s) failed - $($locked.Count) locked (close BeamMP / BeamNG and retry)." }
+    return [pscustomobject]@{ Ok = ($failed -eq 0); Locked = $locked; Copied = $copied; Failed = $failed; Parts = $part; Root = $root; Summary = $sum }
+}
+
+# Player tools: lists every installed .zip in the client mods folder.
+function Get-ClientModsList {
+    $dir = Resolve-BeamClientDir
+    if (-not $dir) { return [pscustomobject]@{ Path = ''; Mods = @() } }
+    $mods = @(Get-ChildItem -LiteralPath $dir -File -Filter '*.zip' -ErrorAction SilentlyContinue | Sort-Object Name)
+    return [pscustomobject]@{ Path = $dir; Mods = $mods }
+}
+
+# Player tools: moves *.zip files (only) from the picked folder into the client mods folder.
+function Install-ClientMods([string]$FromDir) {
+    $dir = Resolve-BeamClientDir
+    if (-not $dir) { return [pscustomobject]@{ Ok = $false; Locked = @(); Moved = 0; Total = 0; Summary = 'BeamMP client mods folder not found. Install BeamMP (or BeamNG.drive) and try again.' } }
+    $zips = @(Get-ChildItem -LiteralPath $FromDir -File -Filter '*.zip' -ErrorAction SilentlyContinue)
+    if (-not $zips.Count) { return [pscustomobject]@{ Ok = $false; Locked = @(); Moved = 0; Total = 0; Summary = "No .zip files found in '$FromDir'." } }
+    $moved = 0
+    $locked = @()
+    foreach ($z in $zips) {
+        try {
+            Move-Item -LiteralPath $z.FullName -Destination (Join-Path $dir $z.Name) -Force -ErrorAction Stop
+            $moved++
+        } catch {
+            if (Test-TransferLocked $_) { $locked += $z.Name }
+            Write-Log "Install: could not move $($z.Name) - $($_.Exception.Message)"
+        }
+    }
+    $sum = "Installed $moved of $($zips.Count) mod(s) into $dir."
+    if ($locked.Count) { $sum += " $($locked.Count) locked (close BeamMP / BeamNG and retry)." }
+    return [pscustomobject]@{ Ok = ($moved -gt 0); Locked = $locked; Moved = $moved; Total = $zips.Count; Summary = $sum }
+}
+
+# Player tools: deletes ONLY the given file names from the client mods folder.
+function Remove-ClientMods([string[]]$Names) {
+    $dir = Resolve-BeamClientDir
+    if (-not $dir) { return [pscustomobject]@{ Ok = $false; Locked = @(); Removed = 0; Summary = 'BeamMP client mods folder not found.' } }
+    $removed = 0
+    $locked = @()
+    foreach ($n in $Names) {
+        $leaf = Split-Path $n -Leaf
+        if ($leaf -ne $n) { Write-Log "Delete: skipped '$n' (not a plain file name)"; continue }
+        $p = Join-Path $dir $leaf
+        if (-not (Test-Path -LiteralPath $p)) { continue }
+        try {
+            Remove-Item -LiteralPath $p -Force -ErrorAction Stop
+            $removed++
+            Write-Log "Deleted client mod: $leaf"
+        } catch {
+            if (Test-TransferLocked $_) { $locked += $leaf }
+            Write-Log "Delete: could not remove $leaf - $($_.Exception.Message)"
+        }
+    }
+    $sum = "Deleted $removed mod(s) from $dir."
+    if ($locked.Count) { $sum += " $($locked.Count) locked (close BeamMP / BeamNG and retry)." }
+    return [pscustomobject]@{ Ok = ($removed -gt 0); Locked = $locked; Removed = $removed; Summary = $sum }
+}
+
+# ---------------------------------------------------------------------------------------
 # PRESETS (named snapshots of server settings + the enabled mod list)
 # ---------------------------------------------------------------------------------------
 function Get-PresetPath([string]$Name) {
@@ -1536,7 +1830,7 @@ function Invoke-CleanForSharing {
         Say "IP lock is on - restoring DHCP first..."
         $null = Restore-DhcpLanIp
     }
-    foreach ($p in @('Logs', 'Backups', 'Quarantine', 'CONNECTING.txt', 'Server.log', '.env', 'webhook.txt', 'staticip.cfg')) {
+    foreach ($p in @('Logs', 'Backups', 'Quarantine', 'CONNECTING.txt', 'Server.log', '.env', 'webhook.txt', 'staticip.cfg', 'frp_configs')) {
         $full = $script:ServerDir + $p
         if (Test-Path -LiteralPath $full) {
             try {
@@ -1553,14 +1847,435 @@ function Invoke-CleanForSharing {
     }
     $cfgPath = $script:RootDir + 'ServerConfig.toml'
     $lines = @(Get-Content -LiteralPath $cfgPath) | ForEach-Object {
-        if ($_ -match '^\s*AuthKey\s*=') { 'AuthKey = ""' } else { $_ }
+        if ($_ -match '^\s*AuthKey\s*=') { 'AuthKey = ""' }
+        elseif ($_ -match '^\s*FRPToken\s*=') { 'FRPToken = ""' }
+        else { $_ }
     }
     Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
     Write-Log "Clean-for-sharing: removed $($removed -join ', ')"
     if ($removed.Count) {
-        return "Removed: $($removed -join ', ')" + [Environment]::NewLine + "ServerConfig.toml: AuthKey cleared. The folder is now safe to zip and share."
+        return "Removed: $($removed -join ', ')" + [Environment]::NewLine + "ServerConfig.toml: AuthKey and FRPToken cleared. The folder is now safe to zip and share."
     }
-    return "Nothing to clean - the folder was already clean. ServerConfig.toml: AuthKey cleared."
+    return "Nothing to clean - the folder was already clean. ServerConfig.toml: AuthKey and FRPToken cleared."
+}
+
+# ---------------------------------------------------------------------------------------
+# FRP TUNNEL (Fast Reverse Proxy, frp v0.52+)
+# ---------------------------------------------------------------------------------------
+# Friends connect to the frps server; frpc forwards the game ports through it, so
+# no router port forwarding is needed (works behind CGNAT). The tunnel starts
+# BEFORE BeamMP-Server.exe and is torn down on every session end.
+# ---------------------------------------------------------------------------------------
+
+# One-time binary setup. The release ships the official FRP client zip inside
+# Server\bin\ (e.g. frp_0.70.1_windows_amd64.zip). The first run extracts
+# frpc.exe from it automatically, verifies the binary with "frpc.exe -v" and
+# logs the version - completely hands-off for the user. A lock file keeps
+# parallel runspaces (GUI + background tasks) from extracting at the same time.
+# Returns @{ Ok; Message }. Never throws.
+function Initialize-FrpBinary {
+    $exe = $script:FrpcExe
+    if (Test-Path -LiteralPath $exe) {
+        if ((Get-Item -LiteralPath $exe).Length -ge 1048576) { return [pscustomobject]@{ Ok = $true; Message = 'frpc.exe already present' } }
+    }
+    $binDir = Split-Path -Parent $exe
+    $zipPath = ''
+    if (Test-Path -LiteralPath $binDir) {
+        $zipPath = @(Get-ChildItem -LiteralPath $binDir -Filter 'frp*.zip' -File -ErrorAction SilentlyContinue |
+            Sort-Object Name -Descending | Select-Object -First 1).FullName
+    }
+    if (-not $zipPath) {
+        return [pscustomobject]@{ Ok = $false; Message = "frpc.exe is missing and no bundled FRP zip was found in Server\bin" }
+    }
+    $lock = $exe + '.extract.lock'
+    if (Test-Path -LiteralPath $lock) {
+        try {
+            if (((Get-Date) - (Get-Item -LiteralPath $lock).LastWriteTime).TotalSeconds -lt 30) {
+                return [pscustomobject]@{ Ok = $false; Message = 'frpc extraction already in progress - retry in a moment' }
+            }
+        } catch { }
+    }
+    try {
+        if (-not (Test-Path -LiteralPath $binDir)) { New-Item -ItemType Directory -Path $binDir -Force | Out-Null }
+        Set-Content -LiteralPath $lock -Value (Get-Date -Format 'o')
+        Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+        $z = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+        $entry = $null
+        try {
+            foreach ($e in $z.Entries) {
+                if ($e.FullName -match '(?i)frpc\.exe$' -and $e.Length -gt 0) { $entry = $e; break }
+            }
+            if ($entry) {
+                $tmp = $exe + '.tmp'
+                $fs = [System.IO.File]::Create($tmp)
+                try { $entry.Open().CopyTo($fs) } finally { $fs.Close() }
+                Move-Item -LiteralPath $tmp -Destination $exe -Force
+            }
+        } finally { $z.Dispose() }
+        Remove-Item -LiteralPath $lock -Force -ErrorAction SilentlyContinue
+    } catch {
+        Remove-Item -LiteralPath $lock -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath ($exe + '.tmp') -Force -ErrorAction SilentlyContinue
+        Write-Log "[FRP] frpc extraction failed: $($_.Exception.Message)"
+        return [pscustomobject]@{ Ok = $false; Message = "frpc.exe extraction failed: $($_.Exception.Message)" }
+    }
+    if (-not (Test-Path -LiteralPath $exe) -or (Get-Item -LiteralPath $exe).Length -lt 1048576) {
+        return [pscustomobject]@{ Ok = $false; Message = 'the bundled FRP zip contained no usable frpc.exe' }
+    }
+    $ver = ''
+    try {
+        $vOut = (& $exe -v 2>$null | Out-String).Trim()
+        if ($vOut) { $ver = ('v' + ($vOut -split "`r?`n" | Select-Object -First 1)) }
+    } catch { }
+    Write-Log "[FRP] Automatic setup: extracted frpc.exe $ver from $(Split-Path -Leaf $zipPath) into Server\bin"
+    return [pscustomobject]@{ Ok = $true; Message = "frpc.exe $ver extracted and ready" }
+}
+
+# Makes sure ServerConfig.toml has the four [FRP] keys. Older configs get them
+# appended under their own [FRP] table; existing values are never touched.
+function Initialize-FrpConfigSection {
+    $cfgPath = $script:RootDir + 'ServerConfig.toml'
+    if (-not (Test-Path -LiteralPath $cfgPath)) { return }
+    try {
+        $lines = @(Get-Content -LiteralPath $cfgPath)
+        $has = @{}
+        foreach ($ln in $lines) {
+            foreach ($k in @('FRPEnabled', 'FRPServerAddress', 'FRPServerPort', 'FRPToken')) {
+                if ($ln -match ('^\s*' + [regex]::Escape($k) + '\s*=')) { $has[$k] = $true }
+            }
+        }
+        if ($has.Count -eq 4) { return }
+        $shutup = $false
+        $out = @($lines)
+        foreach ($k in @('FRPEnabled', 'FRPServerAddress', 'FRPServerPort', 'FRPToken')) {
+            if ($has.ContainsKey($k)) { continue }
+            if (-not $shutup) {
+                $out += ''
+                $out += '[FRP]'
+                $out += '# Fast Reverse Proxy tunnel (frp v0.52+). When enabled, K BNG M Hoster runs'
+                $out += '# Server\bin\frpc.exe BEFORE the game server so friends can join through a remote'
+                $out += '# frps server - no router port forwarding needed (works behind CGNAT).'
+                $out += '# FRPServerPort is the frps bind port (default 7000). The FRPToken stays private:'
+                $out += '# it is only written to a temporary runtime config while the tunnel is running.'
+                $shutup = $true
+            }
+            switch ($k) {
+                'FRPEnabled'       { $out += 'FRPEnabled = false' }
+                'FRPServerAddress' { $out += 'FRPServerAddress = ""' }
+                'FRPServerPort'    { $out += 'FRPServerPort = 7000' }
+                'FRPToken'         { $out += 'FRPToken = ""' }
+            }
+        }
+        Set-Content -LiteralPath $cfgPath -Value $out -Encoding UTF8
+        Write-Log "ServerConfig.toml upgraded with the [FRP] section"
+    } catch {
+        Write-Log "[FRP] Config upgrade failed: $($_.Exception.Message)"
+    }
+}
+
+# Escapes a value for use inside a TOML basic double-quoted string.
+function ConvertTo-FrpTomlString([string]$Value) {
+    $v = $Value -replace '[\x00-\x1F\x7F]', ''
+    return $v.Replace('\', '\\').Replace('"', '\"')
+}
+
+# Generates frp_configs\frpc_runtime.toml (frp v0.52+ syntax) with the
+# user's server address/port/token, [auth] (method = "token") and dual
+# [[proxies]] (TCP + UDP) that map local game port -> identical remote port.
+# Proxy names get a random 4-hex suffix so two hosts sharing one frps never
+# collide (name = "beammp-tcp-8F2A"). Written atomically, UTF-8 without BOM.
+# Returns an object with Ok / Message (or the written path on success).
+function Initialize-FrpClientConfig {
+    param([int]$LocalPort = 0)
+    if ($LocalPort -le 0) { $LocalPort = Get-ServerPort }
+    if ($LocalPort -lt 1 -or $LocalPort -gt 65535) {
+        return [pscustomobject]@{ Ok = $false; Message = "The game port $LocalPort is not a valid port (1-65535)." }
+    }
+    $addr = (Get-ConfigValue 'FRPServerAddress').Trim()
+    if (-not $addr) {
+        return [pscustomobject]@{ Ok = $false; Message = 'FRPServerAddress is empty - fill in the FRP server in Settings.' }
+    }
+    $token = Get-ConfigValue 'FRPToken'
+    if (-not $token) {
+        return [pscustomobject]@{ Ok = $false; Message = 'FRPToken is empty - the frps server requires its token in Settings.' }
+    }
+    $srvPort = 7000
+    if ((Get-ConfigValue 'FRPServerPort') -match '^\d+$') { $srvPort = [int](Get-ConfigValue 'FRPServerPort') }
+    if ($srvPort -lt 1 -or $srvPort -gt 65535) { $srvPort = 7000 }
+
+    if (-not (Test-Path -LiteralPath $script:FrpConfigDir)) {
+        New-Item -ItemType Directory -Path $script:FrpConfigDir -Force | Out-Null
+    }
+    $suffix = '{0:X4}' -f (Get-Random -Minimum 0 -Maximum 65535)
+    $lines = @(
+        '# frpc runtime config - generated by K BNG M Hoster v0.7.0'
+        '# This file contains your FRP token. It is DELETED as soon as the tunnel stops.'
+        '# FRP v0.52+ TOML syntax - do not edit by hand while the tunnel is running.'
+        "serverAddr = `"$addr`""
+        "serverPort = $srvPort"
+        ''
+        '[auth]'
+        'method = "token"'
+        "token = `"$(ConvertTo-FrpTomlString $token)`""
+        ''
+        '[[proxies]]'
+        "name = `"beammp-tcp-$suffix`""
+        'type = "tcp"'
+        'localIP = "127.0.0.1"'
+        "localPort = $LocalPort"
+        "remotePort = $LocalPort"
+        ''
+        '[[proxies]]'
+        "name = `"beammp-udp-$suffix`""
+        'type = "udp"'
+        'localIP = "127.0.0.1"'
+        "localPort = $LocalPort"
+        "remotePort = $LocalPort"
+        ''
+    )
+    $tmp = $script:FrpRuntimeConfig + '.tmp'
+    try {
+        $enc = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllLines($tmp, [string[]]$lines, $enc)
+        if (Test-Path -LiteralPath $script:FrpRuntimeConfig) { Remove-Item -LiteralPath $script:FrpRuntimeConfig -Force -ErrorAction SilentlyContinue }
+        Move-Item -LiteralPath $tmp -Destination $script:FrpRuntimeConfig -Force
+    } catch {
+        Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
+        Write-Log "[FRP] Could not write the runtime config: $($_.Exception.Message)"
+        return [pscustomobject]@{ Ok = $false; Message = "Could not write the FRP runtime config: $($_.Exception.Message)" }
+    }
+    Write-Log "[FRP] Runtime config generated: $script:FrpRuntimeConfig (proxies beammp-tcp-$suffix / beammp-udp-$suffix -> port $LocalPort)"
+    return [pscustomobject]@{ Ok = $true; Message = $script:FrpRuntimeConfig }
+}
+
+# Pre-flight listener scan: the game port must be completely unallocated
+# (no TCP listener, no UDP binder) before the tunnel starts, otherwise the
+# game server will crash on bind once frpc starts forwarding to it.
+function Test-FrpLocalPortFree {
+    param([int]$Port)
+    if ($Port -lt 1 -or $Port -gt 65535) { return [pscustomobject]@{ Free = $false; Reason = "Port $Port is not valid." } }
+    $busy = @()
+    $tcp = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.OwningProcess -ne $PID } | Select-Object -First 1)
+    if ($tcp.Count) { $busy += "TCP is already listening (PID $($tcp[0].OwningProcess))" }
+    $udp = @(Get-NetUDPEndpoint -LocalPort $Port -ErrorAction SilentlyContinue | Select-Object -First 1)
+    if ($udp.Count) { $busy += "UDP is already bound (PID $($udp[0].OwningProcess))" }
+    if ($busy.Count) {
+        return [pscustomobject]@{ Free = $false; Reason = "port $Port is not free: $($busy -join '; '). Stop the app using it, or choose a free port in Settings." }
+    }
+    return [pscustomobject]@{ Free = $true; Reason = "port $Port is free (TCP+UDP)" }
+}
+
+# Starts the frpc tunnel headlessly and pipes its output into the GUI log.
+# Returns @{ Ok; Message; Proc; Pid }. Never throws.
+function Start-FrpTunnel {
+    # Sweep stale frpc instances and leftover token files from a crashed
+    # session first, so every failed start still leaves no credentials behind.
+    Stop-FrpTunnel | Out-Null
+
+    # The bundled zip auto-extracts frpc.exe when it is missing - do it now so
+    # a freshly unpacked copy is ready without any user action.
+    $frpBin = Initialize-FrpBinary
+    if (-not $frpBin.Ok -or -not (Test-Path -LiteralPath $script:FrpcExe)) {
+        $msg = "Server\bin\frpc.exe is not available ($($frpBin.Message)). Re-install K BNG M Hoster v0.7.0 (it extracts frpc.exe from the bundled zip automatically), or drop frpc.exe into Server\bin manually."
+        Write-Log "[FRP] ERROR: $msg"
+        Say "[FRP] ERROR: $msg"
+        return [pscustomobject]@{ Ok = $false; Message = $msg; Proc = $null; Pid = 0; Queue = $null }
+    }
+    if (-not ((Get-ConfigValue 'FRPEnabled') -match '^(true|1)$')) {
+        return [pscustomobject]@{ Ok = $false; Message = 'FRP is disabled in Settings.'; Proc = $null; Pid = 0 }
+    }
+    $addr = (Get-ConfigValue 'FRPServerAddress').Trim()
+    if (-not $addr) {
+        $msg = 'FRPServerAddress is empty - set the FRP server in Settings -> FRP tunnel.'
+        Write-Log "[FRP] ERROR: $msg"
+        Say "[FRP] ERROR: $msg"
+        return [pscustomobject]@{ Ok = $false; Message = $msg; Proc = $null; Pid = 0 }
+    }
+    if (-not (Get-ConfigValue 'FRPToken')) {
+        $msg = 'FRPToken is empty - set the token in Settings -> FRP tunnel.'
+        Write-Log "[FRP] ERROR: $msg"
+        Say "[FRP] ERROR: $msg"
+        return [pscustomobject]@{ Ok = $false; Message = $msg; Proc = $null; Pid = 0 }
+    }
+
+    $localPort = Get-ServerPort
+    $portCheck = Test-FrpLocalPortFree -Port $localPort
+    if (-not $portCheck.Free) {
+        Write-Log "[FRP] Pre-flight failed: $($portCheck.Reason)"
+        Say "[FRP] Pre-flight failed: $($portCheck.Reason)"
+        return [pscustomobject]@{ Ok = $false; Message = $portCheck.Reason; Proc = $null; Pid = 0 }
+    }
+    Write-Log "[FRP] Pre-flight OK: $($portCheck.Reason)"
+
+    $cfg = Initialize-FrpClientConfig -LocalPort $localPort
+    if (-not $cfg.Ok) {
+        Say "[FRP] ERROR: $($cfg.Message)"
+        return [pscustomobject]@{ Ok = $false; Message = $cfg.Message; Proc = $null; Pid = 0 }
+    }
+
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $script:FrpcExe
+    $psi.Arguments = '-c "' + $script:FrpRuntimeConfig + '"'
+    $psi.WorkingDirectory = Split-Path -Parent $script:FrpcExe
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.CreateNoWindow = $true
+    $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+
+    $proc = New-Object System.Diagnostics.Process
+    $proc.StartInfo = $psi
+    $script:FrpReady = $false
+    $script:FrpLogQueue = New-Object System.Collections.Concurrent.ConcurrentQueue[string]
+
+    # Async OutputDataReceived / ErrorDataReceived handlers. They run via
+    # Register-ObjectEvent -Action on their OWN background runspace so they can
+    # never deadlock this busy session runspace; the lines land in a concurrent
+    # queue that the session drains into Write-Log / Say (live GUI stream).
+    $evtOk = $true
+    try {
+        $null = Register-ObjectEvent -InputObject $proc -EventName 'OutputDataReceived' -SourceIdentifier 'KB-FRPC-OUT' -MessageData $script:FrpLogQueue -Action {
+            $e = $Event.SourceEventArgs
+            if ($e -and $e.Data) {
+                try { $Event.MessageData.Enqueue('[FRP] ' + $e.Data) } catch { }
+            }
+        }
+    } catch { $evtOk = $false }
+    try {
+        $null = Register-ObjectEvent -InputObject $proc -EventName 'ErrorDataReceived' -SourceIdentifier 'KB-FRPC-ERR' -MessageData $script:FrpLogQueue -Action {
+            $e = $Event.SourceEventArgs
+            if ($e -and $e.Data) {
+                try { $Event.MessageData.Enqueue('[FRP] ' + $e.Data) } catch { }
+            }
+        }
+    } catch { $evtOk = $false }
+    if (-not $evtOk) {
+        Write-Log "[FRP] WARNING: output handlers could not be registered - tunnel runs, but its log may stay silent"
+    }
+
+    try {
+        $ok = $proc.Start()
+        if (-not $ok) {
+            $msg = 'Could not start frpc.exe (Start() returned false).'
+            Write-Log "[FRP] ERROR: $msg"
+            return [pscustomobject]@{ Ok = $false; Message = $msg; Proc = $null; Pid = 0 }
+        }
+    } catch {
+        $msg = "Could not start frpc.exe: $($_.Exception.Message)"
+        Write-Log "[FRP] ERROR: $msg"
+        return [pscustomobject]@{ Ok = $false; Message = $msg; Proc = $null; Pid = 0 }
+    }
+    try { $proc.BeginOutputReadLine() } catch { }
+    try { $proc.BeginErrorReadLine() } catch { }
+    Write-Log "[FRP] frpc.exe started (PID $($proc.Id), config $script:FrpRuntimeConfig)"
+
+    # Give the tunnel up to 20 seconds to report "start proxy success".
+    $deadline = (Get-Date).AddSeconds(20)
+    while ($true) {
+        $line = $null
+        while ($script:FrpLogQueue.TryDequeue([ref]$line)) {
+            Write-Log $line
+            Say $line
+            if ($line -match '(?i)(start proxy success|login to server success)') { $script:FrpReady = $true }
+        }
+        if ($script:FrpReady) { break }
+        try { if ($proc.HasExited) { break } } catch { }
+        if ((Get-Date) -gt $deadline) { break }
+        Start-Sleep -Milliseconds 300
+    }
+    if (-not $script:FrpReady) {
+        $exitCode = ''
+        try { if ($proc.HasExited) { $exitCode = $proc.ExitCode } } catch { }
+        $killMsg = ''
+        try {
+            if (-not $proc.HasExited) { $proc.Kill(); $null = $proc.WaitForExit(3000) }
+        } catch { $killMsg = " (could not terminate it: $($_.Exception.Message))" }
+        if ($exitCode -ne '') {
+            $msg = "frpc.exe exited during startup (exit code $exitCode). Check the FRP server address, port and token in Settings."
+        } else {
+            $msg = 'The tunnel did not come up within 20 seconds. Check the FRP server address, port and token, and that the frps server is running.'
+        }
+        $msg += $killMsg
+        Write-Log "[FRP] Tunnel failed: $msg"
+        Say "[FRP] Tunnel failed: $msg"
+        Stop-FrpTunnel | Out-Null
+        return [pscustomobject]@{ Ok = $false; Message = $msg; Proc = $null; Pid = 0; Queue = $null }
+    }
+
+    $script:FrpClientProc = $proc
+    Write-Log "[FRP] Tunnel is live (PID $($proc.Id)) - proxies ready on port $localPort"
+    return [pscustomobject]@{ Ok = $true; Message = "FRP tunnel established via $addr (game ports forwarded)."; Proc = $proc; Pid = $proc.Id; Queue = $script:FrpLogQueue }
+}
+
+# Drains the FRP output queue into the GUI log (live stream). Called from the
+# session loops so every frpc line keeps flowing while the server runs.
+function Receive-FrpOutput {
+    if (-not $script:FrpLogQueue) { return }
+    $drained = 0
+    $line = $null
+    while ($drained -lt 200 -and $script:FrpLogQueue.TryDequeue([ref]$line)) {
+        Write-Log $line
+        Say $line
+        $drained++
+    }
+}
+
+# Bulletproof teardown: verifies process state (HasExited), force-terminates
+# active handles (Kill()), sweeps orphaned frpc.exe instances that belong to
+# this install, and deletes the runtime TOML containing the plaintext token.
+# Safe to call at any time (no-op when nothing is running). Never throws.
+function Stop-FrpTunnel {
+    $stopped = $false
+    $trackedId = 0
+    # Detach the async output handlers (each lives on its own background runspace
+    # via Register-ObjectEvent) and drop the log queue.
+    foreach ($sid in @('KB-FRPC-OUT', 'KB-FRPC-ERR')) {
+        try { Unregister-Event -SourceIdentifier $sid -ErrorAction SilentlyContinue } catch { }
+        try { Get-Event -SourceIdentifier $sid -ErrorAction SilentlyContinue | Remove-Event -ErrorAction SilentlyContinue } catch { }
+    }
+    $script:FrpLogQueue = $null
+    $proc = $script:FrpClientProc
+    if ($proc) {
+        try { $trackedId = [int]$proc.Id } catch { }
+        try {
+            if (-not $proc.HasExited) {
+                $proc.Kill()
+                $null = $proc.WaitForExit(4000)
+                Write-Log "[FRP] frpc process terminated (PID $trackedId)"
+                $stopped = $true
+            }
+        } catch { }
+        try { $proc.Close() } catch { }
+        $script:FrpClientProc = $null
+    }
+    $ourExe = $script:ServerDir.TrimEnd('\') + '\bin\frpc.exe'
+    foreach ($p in @(Get-Process -Name 'frpc' -ErrorAction SilentlyContinue)) {
+        try {
+            $ours = $false
+            if ($p.Id -eq $trackedId -and $trackedId -gt 0) { $ours = $true }
+            if ($p.Path -and $p.Path -ieq $ourExe) { $ours = $true }
+            if ($ours) {
+                Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+                Write-Log "[FRP] Orphan frpc instance killed (PID $($p.Id))"
+                $stopped = $true
+            }
+        } catch { }
+    }
+    foreach ($f in @($script:FrpRuntimeConfig, ($script:FrpRuntimeConfig + '.tmp'))) {
+        if (-not (Test-Path -LiteralPath $f)) { continue }
+        $gone = $false
+        for ($i = 0; $i -lt 6 -and -not $gone; $i++) {
+            try {
+                Remove-Item -LiteralPath $f -Force -ErrorAction Stop
+                $gone = $true
+                Write-Log "[FRP] Credential sanitization: deleted $f"
+            } catch {
+                Start-Sleep -Milliseconds 400
+            }
+        }
+        if (-not $gone) { Write-Log "[FRP] WARNING: could not delete runtime config $f (is it locked?)" }
+    }
+    return $stopped
 }
 
 # ---------------------------------------------------------------------------------------
@@ -1691,6 +2406,30 @@ function Start-HosterSession {
 
     if ($script:St.StopRequested) { $script:St.SessionEnded = (Get-Date).ToString('o'); return }
 
+    # From here on every exit path (return, error, normal end) tears the FRP
+    # tunnel down in the finally block - no zombie frpc, no leftover token file.
+    $frpTunnelUp = $false
+    try {
+
+    $script:St.Frp = ''
+    if ((Get-ConfigValue 'FRPEnabled') -match '^(true|1)$') {
+        Say 'FRP is enabled - establishing the tunnel BEFORE the server starts...'
+        $frpResult = Start-FrpTunnel
+        if (-not $frpResult.Ok) {
+            Say "[FRP] Tunnel could not start: $($frpResult.Message)"
+            Say 'The server was NOT started. Fix FRP in Settings, or turn FRP off.'
+            $script:St.FrpError = "The FRP tunnel failed, so the server was NOT started:`n`n$($frpResult.Message)`n`nCheck Settings -> FRP tunnel (server address, port, token) and confirm Server\bin\frpc.exe exists, then try again."
+            Write-Log "[FRP] Server start halted: $($frpResult.Message)"
+            return
+        }
+        $frpTunnelUp = $true
+        $frpAddr = (Get-ConfigValue 'FRPServerAddress').Trim()
+        $frpPublic = "$frpAddr`:$serverPort"
+        $script:St.Frp = $frpPublic
+        Say "[FRP] Tunnel is up - friends anywhere connect via $frpPublic"
+        Write-Log "[FRP] Tunnel established ($frpPublic) - continuing with the server start"
+    }
+
     $ipLockedBefore = $false
     if (Test-StaticIpLocked) {
         Say "Locking your IP for the session (Settings: 'Lock my IP while hosting' is ON)..."
@@ -1706,6 +2445,7 @@ function Start-HosterSession {
     for ($i = 0; $i -lt 40; $i++) {
         if ($server.HasExited) { break }
         if ($script:St.StopRequested) { break }
+        Receive-FrpOutput
         if (Get-NetTCPConnection -LocalPort $serverPort -State Listen -ErrorAction SilentlyContinue) { $ready = $true; break }
         Start-Sleep -Seconds 1
     }
@@ -1805,6 +2545,10 @@ function Start-HosterSession {
     } else {
         $vpnDoc = '   Install the same VPN as you (Radmin VPN / Hamachi / ZeroTier / Tailscale), join your network, then Direct Connect with the host VPN IP shown on the Stats page.'
     }
+    $frpSection = ''
+    if ($frpTunnelUp) {
+        $frpSection = "2.75) FRIENDS ANYWHERE VIA FRP TUNNEL (no port forwarding needed):`n   Direct Connect, IP: $frpAddr   Port: $serverPort`n"
+    }
     $connectDoc = @"
 HOW TO CONNECT TO YOUR SERVER
 =============================
@@ -1821,6 +2565,7 @@ HOW TO CONNECT TO YOUR SERVER
 2.5) FRIENDS VIA VPN:
    $vpnDoc
 
+$frpSection
 3) FRIENDS ANYWHERE (internet):
    IP: $(if ($conn.Public) { "$($conn.Public)   Port: $($conn.Port)" } else { '(public IP not detected)' })
 
@@ -1846,6 +2591,7 @@ Always use Direct Connect with the correct address above.
     if ($conn.LAN) { Say "Friends on the same WiFi join via: $($conn.LAN):$($conn.Port)" }
     foreach ($v in $vpnWithIp) { Say "Friends via $($v.Name): $($v.Ip):$($conn.Port) (same VPN as you)" }
     if ($conn.Tailscale) { Say "Friends via Tailscale: $($conn.Tailscale):$($conn.Port)" }
+    if ($frpTunnelUp) { Say "Friends anywhere via FRP tunnel: $frpPublic (no port forwarding needed)" }
     if ($conn.Public) { Say "Anyone on the internet: $($conn.Public):$($conn.Port) $(if ($upnpOk) { '(UPnP open)' } elseif ($conn.Cgnat) { '(CGNAT - forwarding impossible, use a VPN)' } else { '(forward manually)' })" }
     Say "Copy the line for your friends with the Copy IP button. Do NOT click your own server in the list - always Direct Connect."
     Say "Press Stop (or close the launcher) to shut the server down. Closing this app also stops it."
@@ -1853,6 +2599,7 @@ Always use Direct Connect with the correct address above.
 
     while (Get-Process -Name 'BeamMP-Launcher' -ErrorAction SilentlyContinue) {
         if ($script:St.StopRequested) { break }
+        Receive-FrpOutput
         Start-Sleep -Seconds 2
     }
 
@@ -1885,6 +2632,12 @@ Always use Direct Connect with the correct address above.
     $script:St.Running = $false
     $script:St.LastUptime = $uptimeMin
     $script:St.SessionEnded = (Get-Date).ToString('o')
+    } finally {
+        if ($frpTunnelUp) { Say 'Stopping the FRP tunnel...' }
+        Stop-FrpTunnel | Out-Null
+        $script:St.Frp = ''
+        Write-Log "===== Session finished ====="
+    }
 }
 
 # Self-initialize so every context (dot-sourced, runspace, direct run) gets correct paths.
