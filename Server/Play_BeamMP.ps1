@@ -38,7 +38,10 @@ public class Win32R {
 $ErrorActionPreference = 'SilentlyContinue'
 
 . (Join-Path $PSScriptRoot 'HosterCore.ps1')
-Initialize-HosterPaths
+# -SkipFrpInit: the one-time FRP zip extraction (and the "frpc.exe -v" probe)
+# must NOT run on this thread before the window exists. It is deferred to a
+# background runspace started in Form.Add_Shown, so the first paint is instant.
+Initialize-HosterPaths -SkipFrpInit
 
 # Top-level app folder (the one holding Start_Here.bat) - used by "Open Folder".
 $script:AppDir = $script:RootDir
@@ -214,9 +217,12 @@ function Start-CoreActionImpl([string]$Script, [string]$Tag) {
 }
 
 # Public entry: runs now when free, otherwise QUEUES so no action is ever lost.
+# The start flow's own 'precheck' ALWAYS runs immediately (v0.6.9 behavior):
+# Start-ServerFlow sets $script:Starting before asking for it, so the generic
+# queue gate would latch the startup forever after "===== Starting the server =====".
 function Start-CoreAction {
     param([string]$Script, [string]$Tag = 'action')
-    if ($script:Busy -or $script:Starting) {
+    if ($script:Busy -or ($script:Starting -and $Tag -ne 'precheck')) {
         $script:ActionQueue.Enqueue(@{ Script = $Script; Tag = $Tag })
         return
     }
@@ -2843,6 +2849,8 @@ $script:LicenseRemoteVersion = $null
 $script:LicenseCheckDone = $false
 $script:LicensePs = $null
 $script:LicenseHandle = $null
+$script:FrpInitPs = $null
+$script:FrpInitHandle = $null
 
 function Get-AllControls($root) {
     $out = @()
@@ -2916,7 +2924,7 @@ function Test-LicenseNeedsAccept([string]$Local, [string]$Remote) {
 function Start-LicenseRemoteCheck {
     $body = @'
 try {
-    $r = Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/Kinan0713/K-BNG-M-Hoster/main/license_version.txt' -TimeoutSec 8 -ErrorAction Stop
+    $r = Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/Kinan0713/K-BNG-M-Hoster/main/license_version.txt' -TimeoutSec 2 -ErrorAction Stop
     $v = ($r.Content -split "\r?\n" | Select-Object -First 1).Trim()
     if (-not $v) { return '' }
     return [string]$v
@@ -2926,6 +2934,17 @@ try {
     $null = $script:LicensePs.AddScript($body)
     $script:LicenseHandle = $script:LicensePs.BeginInvoke()
     $script:LicenseCheckDone = $false
+}
+
+# One-time FRP setup (zip extract + "frpc.exe -v" probe) in its own runspace.
+# Started from Form.Add_Shown so it can only run AFTER the window is painted.
+# The extract lock file inside Initialize-FrpBinary makes it race-safe with any
+# core runspace that initializes it on demand.
+function Start-FrpInitAsync {
+    $script:FrpInitPs = [powershell]::Create()
+    $null = $script:FrpInitPs.AddScript($script:CoreText)
+    $null = $script:FrpInitPs.AddScript('$null = Initialize-FrpBinary')
+    $script:FrpInitHandle = $script:FrpInitPs.BeginInvoke()
 }
 
 function Finish-LicenseGate {
@@ -3363,6 +3382,13 @@ $timerMain.Add_Tick({
     $line = $null
     while ($script:Queue.TryDequeue([ref]$line)) { Add-Log $line }
 
+    if ($script:FrpInitHandle -and $script:FrpInitHandle.IsCompleted) {
+        try { $null = $script:FrpInitPs.EndInvoke($script:FrpInitHandle) } catch { }
+        try { $script:FrpInitPs.Dispose() } catch { }
+        $script:FrpInitPs = $null
+        $script:FrpInitHandle = $null
+    }
+
     if ($script:PendingAction -and $script:PendingAction.Handle.IsCompleted) {
         $pa = $script:PendingAction
         try { $null = $pa.Ps.EndInvoke($pa.Handle) } catch { Add-Log "[ERROR] $($_.Exception.InnerException.Message)" }
@@ -3466,7 +3492,7 @@ $timerMain.Add_Tick({
                 if ($script:LblSettingsResult) { $script:LblSettingsResult.Text = 'IP lock setting saved.'; $script:LblSettingsResult.ForeColor = $Theme.green }
             }
         }
-        if (-not $script:Starting -and $script:ActionQueue.Count) {
+        if ($script:ActionQueue.Count -and -not $script:PendingAction) {
             $next = $script:ActionQueue.Dequeue()
             Start-CoreActionImpl -Script $next.Script -Tag $next.Tag
         }
@@ -3629,6 +3655,10 @@ $script:Form.Add_Shown({
         Show-HomePage
     }
     Set-Round $script:Form 12
+    # The window is fully painted at this point. All slow one-time work starts
+    # HERE, exclusively on background runspaces (FRP zip extraction + probe,
+    # GitHub update check) so the UI can never hang or white-screen on launch.
+    Start-FrpInitAsync
     Start-ToolUpdateCheck
 })
 
@@ -3668,6 +3698,10 @@ try {
 
 if ($script:SessionPs) {
     try { $script:SessionPs.Dispose() } catch { }
+}
+if ($script:FrpInitPs) {
+    try { $script:FrpInitPs.Dispose() } catch { }
+    $script:FrpInitPs = $null
 }
 Stop-FrpTunnel | Out-Null
 exit 0
