@@ -24,6 +24,7 @@ $ErrorActionPreference = 'SilentlyContinue'
 # PATHS (computed once, works from any copy / layout)
 # ---------------------------------------------------------------------------------------
 function Initialize-HosterPaths {
+    param([switch]$SkipFrpInit)
     $src = $null
     if ($PSCommandPath) { $src = $PSCommandPath }
     elseif ($script:CorePath) { $src = $script:CorePath }
@@ -64,7 +65,14 @@ function Initialize-HosterPaths {
 
     # One-time binary setup: frpc.exe ships inside Server\bin\frp_*.zip and is
     # extracted automatically on first run - the user never touches any file.
-    try { $null = Initialize-FrpBinary } catch { }
+    # The GUI host passes -SkipFrpInit so the zip extract + "frpc.exe -v" probe
+    # never run on the UI thread at launch; they are deferred to a background
+    # runspace kicked from Form.Add_Shown (after first paint). Core runspaces
+    # and Start-FrpTunnel still initialize on demand (the extract lock file
+    # makes concurrent attempts race-safe).
+    if (-not $SkipFrpInit) {
+        try { $null = Initialize-FrpBinary } catch { }
+    }
 }
 
 # ---------------------------------------------------------------------------------------
@@ -2641,4 +2649,6 @@ Always use Direct Connect with the correct address above.
 }
 
 # Self-initialize so every context (dot-sourced, runspace, direct run) gets correct paths.
-Initialize-HosterPaths
+# FRP binary setup is skipped here: every core runspace (precheck, session, actions)
+# must start instantly like v0.6.9 - Start-FrpTunnel initializes frpc on demand.
+Initialize-HosterPaths -SkipFrpInit

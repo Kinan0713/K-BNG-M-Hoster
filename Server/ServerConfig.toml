@@ -30,16 +30,14 @@ ImScaredOfUpdates = false
 # Specifies the time between update reminders. You can use any of "s, min, h, d" at the end to specify the units seconds, minutes, hours or days. So 30d or 0.5min will print the update message every 30 days or half a minute.
 UpdateReminderTime = "30s"
 
+
 [FRP]
-# Fast Reverse Proxy (FRP) tunnel - hosted by K BNG M Hoster v0.7.0.
-# When enabled, the tool runs Server\bin\frpc.exe BEFORE the game server and
-# forwards the game port (30814 TCP+UDP) through a remote frps server, so
-# friends never need your router's port forwarding (works behind CGNAT).
-# The token stays private: it is only ever written to a temporary runtime
-# config while the tunnel is running and is deleted when the tunnel stops.
+# Fast Reverse Proxy tunnel (frp v0.52+). When enabled, K BNG M Hoster runs
+# Server\bin\frpc.exe BEFORE the game server so friends can join through a remote
+# frps server - no router port forwarding needed (works behind CGNAT).
+# FRPServerPort is the frps bind port (default 7000). The FRPToken stays private:
+# it is only written to a temporary runtime config while the tunnel is running.
 FRPEnabled = false
 FRPServerAddress = ""
-# The frps bind port (almost always 7000).
 FRPServerPort = 7000
 FRPToken = ""
-

@@ -38,7 +38,10 @@ public class Win32R {
 $ErrorActionPreference = 'SilentlyContinue'
 
 . (Join-Path $PSScriptRoot 'HosterCore.ps1')
-Initialize-HosterPaths
+# -SkipFrpInit: the one-time FRP zip extraction (and the "frpc.exe -v" probe)
+# must NOT run on this thread before the window exists. It is deferred to a
+# background runspace started in Form.Add_Shown, so the first paint is instant.
+Initialize-HosterPaths -SkipFrpInit
 
 # Top-level app folder (the one holding Start_Here.bat) - used by "Open Folder".
 $script:AppDir = $script:RootDir
@@ -214,9 +217,12 @@ function Start-CoreActionImpl([string]$Script, [string]$Tag) {
 }
 
 # Public entry: runs now when free, otherwise QUEUES so no action is ever lost.
+# The start flow's own 'precheck' ALWAYS runs immediately (v0.6.9 behavior):
+# Start-ServerFlow sets $script:Starting before asking for it, so the generic
+# queue gate would latch the startup forever after "===== Starting the server =====".
 function Start-CoreAction {
     param([string]$Script, [string]$Tag = 'action')
-    if ($script:Busy -or $script:Starting) {
+    if ($script:Busy -or ($script:Starting -and $Tag -ne 'precheck')) {
         $script:ActionQueue.Enqueue(@{ Script = $Script; Tag = $Tag })
         return
     }
@@ -2633,54 +2639,140 @@ Product: K BNG M Hoster
 Licensor / Copyright Holder: Kinan (@raed713)
 Copyright (c) 2026 Kinan. All Rights Reserved.
 
-IMPORTANT — READ CAREFULLY: BY DOWNLOADING, INSTALLING, ACCESSING, OR USING THE SOFTWARE, YOU ACCEPT AND AGREE TO THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT DOWNLOAD, INSTALL, OR USE THE SOFTWARE.
+IMPORTANT — READ CAREFULLY: BY DOWNLOADING, INSTALLING, ACCESSING, OR USING THE
+SOFTWARE, YOU ACCEPT AND AGREE TO THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
+DOWNLOAD, INSTALL, OR USE THE SOFTWARE.
 
 1. DEFINITIONS
-1.1 "Software" means the K BNG M Hoster product, including executables, packaged scripts, compiled files, configuration files, assets, documentation, and any materials distributed by the Licensor.
-1.2 "Configuration Files" means files the Licensor expressly authorizes the Licensee to edit (for example, ServerConfig.toml).
-1.3 "Mods Directory" means the folder provided for user-supplied mod archives (for example, Resources/Client/).
-1.4 "Licensor" means the copyright holder named above. "Licensee" means the person or entity that uses the Software.
+1.1 "Software" means the K BNG M Hoster product and all components including
+    executables, packaged scripts, compiled files, configuration files, assets,
+    documentation, and all materials distributed by the Licensor.
+1.2 "Graphical User Interface (GUI)" means the complete, fully-automated
+    user-facing application that launches when executing start_here.bat. The
+    GUI is the sole and exclusive interface through which users interact with
+    and access all features, settings, customization options, mods, and server
+    management capabilities.
+1.3 "Licensor" means Kinan (@raed713), the copyright holder and creator.
+    "Licensee" means any person or entity that downloads, installs, accesses,
+    or uses the Software.
 
 2. LICENSE GRANT — LIMITED USE
-2.1 Subject to strict compliance with this Agreement, the Licensor grants the Licensee a limited, revocable, non-exclusive, non-transferable, non-sublicensable license to:
-    (a) run the unmodified Software on the Licensee's devices for personal, non-commercial use; and
-    (b) edit Configuration Files where the Licensor's documentation permits (for example, setting AuthKey in ServerConfig.toml), and to add user mod archive files into the Mods Directory (for example, Resources/Client/) for server-side mod syncing.
-2.2 All other rights are reserved. Any use not expressly permitted by Section 2.1 is prohibited.
+2.1 Subject to strict compliance with this Agreement, the Licensor grants the
+    Licensee a limited, revocable, non-exclusive, non-transferable,
+    non-sublicensable license to:
+    (a) execute start_here.bat to launch the Software; and
+    (b) use the Software exclusively through the automatic Graphical User
+        Interface (GUI) for personal, non-commercial use only.
+2.2 All features, settings, customization options, mods, and server management
+    are fully accessible and completely automated within the GUI. The Licensee
+    may only interact with the Software through the GUI.
+2.3 All other rights remain reserved to the Licensor. Any use not expressly
+    permitted by Section 2.1 is strictly prohibited.
 
 3. PROHIBITED CONDUCT
 The Licensee shall not, directly or indirectly:
-3.1 Modify, patch, adapt, translate, or create derivative works of the Software outside the narrow permissions in Section 2.1.
-3.2 Decompile, disassemble, reverse-engineer, or attempt to derive the source code, algorithms, or internal logic of the Software.
-3.3 Redistribute, reupload, repost, mirror, fork, publish, share, sell, sublicense, lease, rent, transfer, or otherwise make the Software or any portion of it available to any third party by any means, except by directing others to the official GitHub Releases page.
-3.4 Use the Software as part of paid hosting, subscription, or commercial services without the Licensor's prior written permission.
-3.5 Remove, alter, obscure, or bypass any attribution or copyright notice that identifies the Licensor (including the name "Kinan" and the handle @raed713).
+3.1 Modify, patch, adapt, translate, reverse-engineer, or create derivative
+    works of the Software, including but not limited to the start_here.bat
+    file, the GUI, configuration files, scripts, libraries, or any other
+    components.
+3.2 Access, view, edit, or manipulate any files or the file system in any way
+    outside the GUI, including but not limited to configuration files, resource
+    directories, database files, or any internal data.
+3.3 Decompile, disassemble, obfuscate, or attempt to derive the source code,
+    algorithms, internal logic, or proprietary methods of the Software or the
+    GUI.
+3.4 Redistribute, reupload, repost, mirror, fork, publish, share, sell,
+    sublicense, lease, rent, lend, transfer, or otherwise make the Software or
+    any portion of it available to any third party by any means, except by
+    directing others to the official GitHub Releases page at
+    https://github.com/Kinan0713/K-BNG-M-Hoster/releases
+3.5 Use the Software as part of any paid hosting service, subscription service,
+    commercial product, or business offering without the Licensor's prior
+    written permission.
+3.6 Remove, alter, obscure, or bypass any attribution notice, copyright notice,
+    or license text that identifies the Licensor (including the name "Kinan"
+    and the handle @raed713).
+3.7 Attempt to circumvent, disable, or interfere with any security features,
+    copy protection, or access controls built into the Software or GUI.
 
 4. PERMITTED USER ACTIONS (CLARIFICATION)
-4.1 The Licensee may:
-    (a) edit Configuration Files only as specified in the Licensor's documentation (for example, entering AuthKey = "..." in ServerConfig.toml);
-    (b) place mod archive files (for example, .zip) into the Mods Directory (Resources/Client/) to enable client mod syncing; and
-    (c) run the provided binaries and scripts in their distributed, unmodified form.
-4.2 All other modifications remain strictly prohibited.
+4.1 The Licensee may ONLY:
+    (a) execute start_here.bat to launch the Software; and
+    (b) interact exclusively with the automatic Graphical User Interface (GUI)
+        to access and use all available features.
+4.2 The GUI provides complete automation and all necessary functionality. No
+    manual configuration, file editing, or direct file system access is
+    required or permitted. Users accomplish all tasks through the GUI.
+4.3 Any interaction with the file system, configuration files, or components
+    outside the GUI is strictly prohibited and constitutes a breach of this
+    Agreement.
 
-5. TERMINATION
-5.1 The Licensor may terminate this license immediately upon notice for any breach. Upon termination, the Licensee must cease use and delete all copies of the Software.
+5. INTELLECTUAL PROPERTY RIGHTS
+5.1 All intellectual property rights in the Software, including but not limited
+    to copyrights, patents, trademarks, trade secrets, and proprietary know-how,
+    belong exclusively to the Licensor.
+5.2 The Licensee acquires no ownership rights to the Software, only a limited
+    license to use it as expressly permitted by this Agreement.
 
-6. DISCLAIMER OF WARRANTY
-6.1 THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. THE ENTIRE RISK ARISING OUT OF THE USE OF THE SOFTWARE REMAINS WITH THE LICENSEE.
+6. TERMINATION
+6.1 The Licensor may terminate this license immediately upon notice if the
+    Licensee breaches any term of this Agreement.
+6.2 Upon termination, the Licensee must immediately cease all use of the
+    Software and delete all copies of the Software from all devices.
+6.3 Sections 3, 5, 6.3, 7, 8, 9, and 10 survive termination of this Agreement.
 
-7. LIMITATION OF LIABILITY
-7.1 TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE LICENSOR SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF PROFITS, DATA, OR GOODWILL, ARISING OUT OF OR RELATED TO THE USE OF OR INABILITY TO USE THE SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+7. DISCLAIMER OF WARRANTY
+7.1 THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY
+    KIND, EXPRESS OR IMPLIED. THE LICENSOR DISCLAIMS ALL WARRANTIES, INCLUDING
+    BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+    PURPOSE, AND NON-INFRINGEMENT.
+7.2 THE LICENSOR DOES NOT WARRANT THAT THE SOFTWARE WILL FUNCTION WITHOUT
+    INTERRUPTION OR ERROR, OR THAT ALL DEFECTS WILL BE CORRECTED.
+7.3 THE ENTIRE RISK ARISING OUT OF THE USE AND PERFORMANCE OF THE SOFTWARE
+    REMAINS WITH THE LICENSEE.
 
-8. GOVERNING LAW
-8.1 This Agreement is governed by the laws of Sweden, without regard to its conflict-of-law provisions. The Licensor may also seek to enforce this Agreement (including injunctive relief) in any jurisdiction where the Software is used, where the Licensee resides, or where a breach has occurred.
+8. LIMITATION OF LIABILITY
+8.1 TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSOR SHALL NOT
+    BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, PUNITIVE,
+    OR EXEMPLARY DAMAGES, OR FOR ANY LOSS OF PROFITS, REVENUE, DATA, OR
+    GOODWILL, ARISING OUT OF OR RELATED TO THE USE OF OR INABILITY TO USE THE
+    SOFTWARE, EVEN IF THE LICENSOR HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH
+    DAMAGES.
+8.2 THE LICENSOR'S TOTAL LIABILITY UNDER THIS AGREEMENT SHALL NOT EXCEED THE
+    AMOUNT PAID BY THE LICENSEE FOR THE SOFTWARE, IF ANY.
 
-9. CONTACT
-9.1 Legal inquiries, permissions requests, and DMCA notices should be submitted through the GitHub Issues page of the official repository: https://github.com/Kinan0713/K-BNG-M-Hoster/issues
+9. ENFORCEMENT AND GOVERNING LAW
+9.1 This Agreement is governed by and construed in accordance with the laws of
+    Sweden, without regard to its conflict-of-law principles.
+9.2 The Licensor may seek to enforce this Agreement, including through injunctive
+    relief and damages, in any court of competent jurisdiction where the
+    Licensee resides, where the Software is used, where a breach has occurred,
+    or in any other jurisdiction where enforcement is possible.
+9.3 If any provision of this Agreement is found to be unenforceable, such
+    provision shall be modified to the minimum extent necessary to make it
+    enforceable, and the remaining provisions shall remain in full force.
 
-10. GENERAL
-10.1 Sections 3, 4, 5, 6, 7, 8, 9, and 10 survive termination of this Agreement. This Agreement is the entire agreement between the parties regarding the Software and supersedes any prior agreements or understandings.
+10. CONTACT AND DISPUTE RESOLUTION
+10.1 For legal inquiries, permissions requests, licensing questions, and DMCA
+     notices, please submit through the GitHub Issues page of the official
+     repository: https://github.com/Kinan0713/K-BNG-M-Hoster/issues
+10.2 The Licensor reserves the right to take legal action against any party
+     that violates this Agreement, including seeking damages, injunctive relief,
+     and recovery of attorney fees and costs.
+
+11. GENERAL PROVISIONS
+11.1 This Agreement constitutes the entire and exclusive agreement between the
+     parties regarding the Software and supersedes all prior agreements,
+     understandings, negotiations, and discussions, whether written or oral.
+11.2 The Licensee may not assign or transfer this license to any third party
+     without the Licensor's written consent.
+11.3 The Licensor may modify this Agreement at any time. Continued use of the
+     Software after modifications constitute acceptance of the modified terms.
+11.4 The failure of the Licensor to enforce any provision of this Agreement does
+     not constitute a waiver of that provision or any other provision.
 
 END OF AGREEMENT
+
 '@
 
 function Show-EulaDialog {
@@ -2757,6 +2849,8 @@ $script:LicenseRemoteVersion = $null
 $script:LicenseCheckDone = $false
 $script:LicensePs = $null
 $script:LicenseHandle = $null
+$script:FrpInitPs = $null
+$script:FrpInitHandle = $null
 
 function Get-AllControls($root) {
     $out = @()
@@ -2830,7 +2924,7 @@ function Test-LicenseNeedsAccept([string]$Local, [string]$Remote) {
 function Start-LicenseRemoteCheck {
     $body = @'
 try {
-    $r = Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/Kinan0713/K-BNG-M-Hoster/main/license_version.txt' -TimeoutSec 8 -ErrorAction Stop
+    $r = Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/Kinan0713/K-BNG-M-Hoster/main/license_version.txt' -TimeoutSec 2 -ErrorAction Stop
     $v = ($r.Content -split "\r?\n" | Select-Object -First 1).Trim()
     if (-not $v) { return '' }
     return [string]$v
@@ -2840,6 +2934,17 @@ try {
     $null = $script:LicensePs.AddScript($body)
     $script:LicenseHandle = $script:LicensePs.BeginInvoke()
     $script:LicenseCheckDone = $false
+}
+
+# One-time FRP setup (zip extract + "frpc.exe -v" probe) in its own runspace.
+# Started from Form.Add_Shown so it can only run AFTER the window is painted.
+# The extract lock file inside Initialize-FrpBinary makes it race-safe with any
+# core runspace that initializes it on demand.
+function Start-FrpInitAsync {
+    $script:FrpInitPs = [powershell]::Create()
+    $null = $script:FrpInitPs.AddScript($script:CoreText)
+    $null = $script:FrpInitPs.AddScript('$null = Initialize-FrpBinary')
+    $script:FrpInitHandle = $script:FrpInitPs.BeginInvoke()
 }
 
 function Finish-LicenseGate {
@@ -3277,6 +3382,13 @@ $timerMain.Add_Tick({
     $line = $null
     while ($script:Queue.TryDequeue([ref]$line)) { Add-Log $line }
 
+    if ($script:FrpInitHandle -and $script:FrpInitHandle.IsCompleted) {
+        try { $null = $script:FrpInitPs.EndInvoke($script:FrpInitHandle) } catch { }
+        try { $script:FrpInitPs.Dispose() } catch { }
+        $script:FrpInitPs = $null
+        $script:FrpInitHandle = $null
+    }
+
     if ($script:PendingAction -and $script:PendingAction.Handle.IsCompleted) {
         $pa = $script:PendingAction
         try { $null = $pa.Ps.EndInvoke($pa.Handle) } catch { Add-Log "[ERROR] $($_.Exception.InnerException.Message)" }
@@ -3380,7 +3492,7 @@ $timerMain.Add_Tick({
                 if ($script:LblSettingsResult) { $script:LblSettingsResult.Text = 'IP lock setting saved.'; $script:LblSettingsResult.ForeColor = $Theme.green }
             }
         }
-        if (-not $script:Starting -and $script:ActionQueue.Count) {
+        if ($script:ActionQueue.Count -and -not $script:PendingAction) {
             $next = $script:ActionQueue.Dequeue()
             Start-CoreActionImpl -Script $next.Script -Tag $next.Tag
         }
@@ -3543,6 +3655,10 @@ $script:Form.Add_Shown({
         Show-HomePage
     }
     Set-Round $script:Form 12
+    # The window is fully painted at this point. All slow one-time work starts
+    # HERE, exclusively on background runspaces (FRP zip extraction + probe,
+    # GitHub update check) so the UI can never hang or white-screen on launch.
+    Start-FrpInitAsync
     Start-ToolUpdateCheck
 })
 
@@ -3582,6 +3698,10 @@ try {
 
 if ($script:SessionPs) {
     try { $script:SessionPs.Dispose() } catch { }
+}
+if ($script:FrpInitPs) {
+    try { $script:FrpInitPs.Dispose() } catch { }
+    $script:FrpInitPs = $null
 }
 Stop-FrpTunnel | Out-Null
 exit 0
