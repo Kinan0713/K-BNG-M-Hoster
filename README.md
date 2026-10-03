@@ -2,11 +2,11 @@
 
 # K BNG M Hoster
 
-### *(Kinan BeamNG Multiplayer Hoster)* — **v0.7.0** *(Update 7 - FRP + Playit.gg)*
+### *(Kinan BeamNG Multiplayer Hoster)* — **v0.7.0.2** *(Update 7 - FRP + Playit.gg)*
 
 **The All-In-One Automated BeamMP Hosting & Joining Tool**
 
-> 🔽 **Download the latest release:** [K BNG M Hoster v0.7.0 ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
+> 🔽 **Download the latest release:** [K BNG M Hoster v0.7.0.2 ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
 
 > ⚠️ **Official download only:** Get K BNG M Hoster exclusively from the GitHub Releases page above. Please do **not** share, reupload, or forward this tool — everyone should download it from here so they always get the latest version.
 

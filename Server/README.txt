@@ -1,6 +1,6 @@
 # 🚗 K BNG M HOSTER
 
-### *(Kinan BeamNG Multiplayer Hoster)* — **v0.7.0** *(Update 7 - FRP + Playit.gg)*
+### *(Kinan BeamNG Multiplayer Hoster)* — **v0.7.0.2** *(Update 7 - FRP + Playit.gg)*
 
 **The All-In-One Automated BeamMP Hosting & Joining Tool**
 
