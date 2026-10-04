@@ -153,6 +153,9 @@ function Set-FreePort {
 }
 
 function Test-AuthKeyConfigured {
+    # A private server does not authenticate against Keymaster (it runs with
+    # AuthKey "0" or blank), so it counts as configured without any key.
+    if (Get-ServerPrivate) { return $true }
     if ($env:BEAMMP_AUTHKEY) { return $true }
     if (Test-Path -LiteralPath ($script:ServerDir + '.env')) { return $true }
     $m = Select-String -LiteralPath ($script:RootDir + 'ServerConfig.toml') -Pattern '^\s*AuthKey\s*=\s*"[^"]+"' | Select-Object -First 1
@@ -160,14 +163,24 @@ function Test-AuthKeyConfigured {
 }
 
 # Validates and saves the key to Server\.env. Returns an object with Ok / Message.
+# Private servers skip Keymaster authentication entirely, so "0" or a blank key
+# are explicitly allowed when the selected server visibility is Private.
 function Save-AuthKey {
     param([string]$Key)
     $key = $Key.Trim().Trim('"', "'")
-    if ($key -and $key -notmatch '^[A-Za-z0-9\-]{8,64}$') {
-        return [pscustomobject]@{ Ok = $false; Message = "That doesn't look like a valid key. It should only contain letters, numbers and dashes." }
+    $private = Get-ServerPrivate
+    if (-not $key -or $key -eq '0') {
+        if ($private) {
+            Set-Content -LiteralPath ($script:ServerDir + '.env') -Value ("BEAMMP_AUTHKEY=" + $key)
+            Write-Log "AuthKey set to '$key' (private server - Keymaster auth skipped)"
+            return [pscustomobject]@{ Ok = $true; Message = $(if ($key) { 'Private server: server key 0 saved - Keymaster authentication is not needed.' } else { 'Private server: no key needed - Keymaster authentication is skipped.' }) }
+        }
+        if (-not $key) {
+            return [pscustomobject]@{ Ok = $false; Message = 'No key was provided. To run without Keymaster authentication, first choose Private in Server visibility - a blank server key is then allowed.' }
+        }
     }
-    if (-not $key) {
-        return [pscustomobject]@{ Ok = $false; Message = 'No key was provided.' }
+    if ($key -and $key -notmatch '^[A-Za-z0-9\-]{8,64}$') {
+        return [pscustomobject]@{ Ok = $false; Message = "That doesn't look like a valid key. It should only contain letters, numbers and dashes (8-64 characters). For a private server: choose Private in Server visibility, then use server key 0." }
     }
     Set-Content -LiteralPath ($script:ServerDir + '.env') -Value ("BEAMMP_AUTHKEY=" + $key)
     Write-Log "AuthKey saved to .env"
@@ -306,9 +319,19 @@ function Set-ServerVisibility {
     $lines = @(Get-Content -LiteralPath $cfgPath)
     $changed = $false
     $tomlPrivate = if ($Private) { 'true' } else { 'false' }
-    $lines = $lines | ForEach-Object {
-        if ($_ -match '^\s*Private\s*=') { $changed = $true; "Private = $tomlPrivate" } else { $_ }
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '^\s*Private\s*=') {
+            if ($changed) {
+                # Duplicate Private lines (left by older versions) break TOML
+                # parsers - drop every extra occurrence.
+                $lines[$i] = $null
+            } else {
+                $changed = $true
+                $lines[$i] = "Private = $tomlPrivate"
+            }
+        }
     }
+    $lines = @($lines | Where-Object { $null -ne $_ })
     if (-not $changed) { $lines += "Private = $tomlPrivate" }
     Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
     Write-Log "Visibility set to $(if ($Private) { 'private' } else { 'public' })"
@@ -2386,6 +2409,18 @@ function Start-HosterSession {
         }
     }
     $cfgPath = $script:RootDir + 'ServerConfig.toml'
+    # PRIVATE SERVER BYPASS: when Private = true (or the AuthKey was manually
+    # forced to "0"), Keymaster authentication is not required. Skip the key
+    # validation instead of blocking (or looping) on a missing key, and carry
+    # on with the launch sequence using key "0".
+    if (-not $authKey) {
+        $tomlKey = (Get-ConfigValue 'AuthKey').Trim()
+        if ((Get-ServerPrivate) -or $tomlKey -eq '0') {
+            $authKey = '0'
+            $authSource = 'ServerConfig.toml (private server - Keymaster auth skipped)'
+            Write-Log "Private server launch: Keymaster auth skipped (AuthKey 0)"
+        }
+    }
     if ($authKey) {
         $lines = Get-Content -LiteralPath $cfgPath
         $lines = $lines | ForEach-Object {
@@ -2395,6 +2430,7 @@ function Start-HosterSession {
         Write-Log "AuthKey injected from $authSource"
     } else {
         Say "No server key found. Set it up in Settings (or Fix Problems), then press Start again."
+        Say "Tip: for a private server (Settings -> Server visibility -> Private) no key is needed."
         $script:St.SessionEnded = (Get-Date).ToString('o')
         return
     }

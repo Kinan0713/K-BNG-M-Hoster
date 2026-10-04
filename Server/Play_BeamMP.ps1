@@ -930,6 +930,12 @@ function Show-SettingsPage {
     $script:RadioPrivate.Font = New-Object System.Drawing.Font('Segoe UI', 9.5)
     $script:RadioPrivate.Height = 24
     Add-RowFull $card $script:RadioPrivate
+    $script:RadioPublic.Add_CheckedChanged({
+        if (-not $script:SuppressSettingEvents) { Save-VisibilitySelection }
+    })
+    $script:RadioPrivate.Add_CheckedChanged({
+        if (-not $script:SuppressSettingEvents) { Save-VisibilitySelection }
+    })
     $script:BtnApplyVis = New-Btn 'Apply visibility' 'Save the public/private choice. If the server is running it restarts to apply it.' { Apply-Visibility }
     $script:BtnApplyVis.Size = New-Object System.Drawing.Size(150, 32)
     Add-RowFull $card $script:BtnApplyVis
@@ -1184,9 +1190,16 @@ function Apply-MapSelection {
     Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Set-ServerMap -LevelName $(QStr $map.Name)$zipArg)`n`$State.MapRefresh = (Get-Date).ToString('o')" 'setmap'
 }
 
+function Save-VisibilitySelection {
+    if (-not $script:RadioPrivate) { return }
+    $priv = [bool]$script:RadioPrivate.Checked
+    if ((Get-ServerPrivate) -eq $priv) { return }
+    Apply-Visibility
+}
+
 function Apply-Visibility {
     if (-not $script:RadioPrivate) { return }
-    $priv = if ($script:RadioPrivate.Checked) { $true } else { $false }
+    $priv = [bool]$script:RadioPrivate.Checked
     Add-Log "[INFO] Applying visibility: $(if ($priv) { 'private' } else { 'public' })..."
     Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Set-ServerVisibility -Private $($priv.ToString().ToLower()))`n`$State.VisRefresh = (Get-Date).ToString('o')" 'setvis'
 }
