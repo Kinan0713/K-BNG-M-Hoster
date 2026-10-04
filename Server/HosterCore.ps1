@@ -1,5 +1,5 @@
 # ========================================================================================
-# K BNG M Hoster v0.7.0.2 - HosterCore.ps1
+# K BNG M Hoster v0.7.1.0 - HosterCore.ps1
 # All logic lives here (single source of truth). The GUI (Play_BeamMP.ps1) and every
 # background task load this file and call these functions. No console UI in this file.
 #
@@ -168,16 +168,23 @@ function Test-AuthKeyConfigured {
 function Save-AuthKey {
     param([string]$Key)
     $key = $Key.Trim().Trim('"', "'")
-    $private = Get-ServerPrivate
-    if (-not $key -or $key -eq '0') {
-        if ($private) {
-            Set-Content -LiteralPath ($script:ServerDir + '.env') -Value ("BEAMMP_AUTHKEY=" + $key)
-            Write-Log "AuthKey set to '$key' (private server - Keymaster auth skipped)"
-            return [pscustomobject]@{ Ok = $true; Message = $(if ($key) { 'Private server: server key 0 saved - Keymaster authentication is not needed.' } else { 'Private server: no key needed - Keymaster authentication is skipped.' }) }
-        }
-        if (-not $key) {
-            return [pscustomobject]@{ Ok = $false; Message = 'No key was provided. To run without Keymaster authentication, first choose Private in Server visibility - a blank server key is then allowed.' }
-        }
+    $private = ($script:isPrivate -eq $true) -or (Get-ServerPrivate)
+    # Private servers run without Keymaster authentication: "0" and "" are
+    # valid AuthKey values and must never be rejected by length/regex checks.
+    if ($private -and (-not $key -or $key -eq '0')) {
+        Set-Content -LiteralPath ($script:ServerDir + '.env') -Value ("BEAMMP_AUTHKEY=" + $key)
+        Write-Log "AuthKey set to '$key' (private server - Keymaster auth skipped)"
+        return [pscustomobject]@{ Ok = $true; Message = $(if ($key) { 'Private server: server key 0 saved - Keymaster authentication is not needed.' } else { 'Private server: no key needed - Keymaster authentication is skipped.' }) }
+    }
+    # "0" is always a valid entry: it tells BeamMP-Server to skip Keymaster
+    # authentication. It must never be rejected or trigger an error.
+    if ($key -eq '0') {
+        Set-Content -LiteralPath ($script:ServerDir + '.env') -Value 'BEAMMP_AUTHKEY=0'
+        Write-Log 'AuthKey set to 0 (Keymaster auth skipped)'
+        return [pscustomobject]@{ Ok = $true; Message = 'Server key 0 saved - Keymaster authentication will be skipped.' }
+    }
+    if (-not $key) {
+        return [pscustomobject]@{ Ok = $false; Message = 'No key was provided. To run without Keymaster authentication, first choose Private in Server visibility - a blank server key is then allowed.' }
     }
     if ($key -and $key -notmatch '^[A-Za-z0-9\-]{8,64}$') {
         return [pscustomobject]@{ Ok = $false; Message = "That doesn't look like a valid key. It should only contain letters, numbers and dashes (8-64 characters). For a private server: choose Private in Server visibility, then use server key 0." }
@@ -336,6 +343,35 @@ function Set-ServerVisibility {
     Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
     Write-Log "Visibility set to $(if ($Private) { 'private' } else { 'public' })"
     return "Server is now $(if ($Private) { 'private - hidden from the server list' } else { 'public - listed for everyone' }). It applies on the next server start."
+}
+
+# Writes AuthKey AND Private straight into ServerConfig.toml (backup first).
+# The AuthKey is pulled from the value passed by the caller (the key textbox)
+# and Private is evaluated from the $Private switch at call time, so a manual
+# toggle that is not yet on disk is committed exactly as clicked.
+function Save-AuthConfig {
+    param([string]$AuthKey = '', [bool]$Private = $false)
+    $cfgPath = $script:RootDir + 'ServerConfig.toml'
+    if (-not (Test-Path -LiteralPath $cfgPath)) { return [pscustomobject]@{ Ok = $false; Message = 'ServerConfig.toml not found - nothing saved.' } }
+    $backupDir = $script:ServerDir + 'Backups'
+    if (-not (Test-Path -LiteralPath $backupDir)) { New-Item -ItemType Directory -Path $backupDir -Force | Out-Null }
+    Copy-Item -LiteralPath $cfgPath -Destination (Join-Path $backupDir ("ServerConfig-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + "-auth.toml")) -Force
+    $key = ([string]$AuthKey).Trim().Trim('"', "'")
+    $tomlPrivate = if ($Private) { 'true' } else { 'false' }
+    $lines = @(Get-Content -LiteralPath $cfgPath)
+    $privSeen = $false
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '^\s*Private\s*=') {
+            if ($privSeen) { $lines[$i] = $null } else { $privSeen = $true; $lines[$i] = "Private = $tomlPrivate" }
+            continue
+        }
+        if ($lines[$i] -match '^\s*AuthKey\s*=') { $lines[$i] = 'AuthKey = "' + $key + '"' }
+    }
+    $lines = @($lines | Where-Object { $null -ne $_ })
+    Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
+    Set-Content -LiteralPath ($script:ServerDir + '.env') -Value ('BEAMMP_AUTHKEY=' + $key) -ErrorAction SilentlyContinue
+    Write-Log "Save-AuthConfig: AuthKey = '$key', Private = $tomlPrivate"
+    return [pscustomobject]@{ Ok = $true; Message = "ServerConfig.toml updated: Private = $tomlPrivate, AuthKey = '$key'." }
 }
 
 # Level names found inside a mod/map zip (entries look like levels/<name>/info.json).
@@ -2039,7 +2075,7 @@ function Initialize-FrpClientConfig {
     }
     $suffix = '{0:X4}' -f (Get-Random -Minimum 0 -Maximum 65535)
     $lines = @(
-        '# frpc runtime config - generated by K BNG M Hoster v0.7.0.2'
+        '# frpc runtime config - generated by K BNG M Hoster v0.7.1.0'
         '# This file contains your FRP token. It is DELETED as soon as the tunnel stops.'
         '# FRP v0.52+ TOML syntax - do not edit by hand while the tunnel is running.'
         "serverAddr = `"$addr`""
@@ -2107,7 +2143,7 @@ function Start-FrpTunnel {
     # a freshly unpacked copy is ready without any user action.
     $frpBin = Initialize-FrpBinary
     if (-not $frpBin.Ok -or -not (Test-Path -LiteralPath $script:FrpcExe)) {
-        $msg = "Server\bin\frpc.exe is not available ($($frpBin.Message)). Re-install K BNG M Hoster v0.7.0.2 (it extracts frpc.exe from the bundled zip automatically), or drop frpc.exe into Server\bin manually."
+        $msg = "Server\bin\frpc.exe is not available ($($frpBin.Message)). Re-install K BNG M Hoster v0.7.1.0 (it extracts frpc.exe from the bundled zip automatically), or drop frpc.exe into Server\bin manually."
         Write-Log "[FRP] ERROR: $msg"
         Say "[FRP] ERROR: $msg"
         return [pscustomobject]@{ Ok = $false; Message = $msg; Proc = $null; Pid = 0; Queue = $null }
@@ -2409,31 +2445,40 @@ function Start-HosterSession {
         }
     }
     $cfgPath = $script:RootDir + 'ServerConfig.toml'
-    # PRIVATE SERVER BYPASS: when Private = true (or the AuthKey was manually
-    # forced to "0"), Keymaster authentication is not required. Skip the key
-    # validation instead of blocking (or looping) on a missing key, and carry
-    # on with the launch sequence using key "0".
+    # Private-server state (synced from the UI via $State.IsPrivate, and from
+    # the TOML itself). A private server never requires a Keymaster key.
+    $script:isPrivate = [bool](Get-ServerPrivate)
+    if ($script:St -and $script:St.IsPrivate -is [bool] -and $script:St.IsPrivate) { $script:isPrivate = $true }
     if (-not $authKey) {
         $tomlKey = (Get-ConfigValue 'AuthKey').Trim()
-        if ((Get-ServerPrivate) -or $tomlKey -eq '0') {
-            $authKey = '0'
-            $authSource = 'ServerConfig.toml (private server - Keymaster auth skipped)'
-            Write-Log "Private server launch: Keymaster auth skipped (AuthKey 0)"
-        }
+        if ($tomlKey -eq '0') { $authKey = '0'; $authSource = 'ServerConfig.toml (AuthKey 0)' }
     }
-    if ($authKey) {
-        $lines = Get-Content -LiteralPath $cfgPath
-        $lines = $lines | ForEach-Object {
-            if ($_ -match '^\s*AuthKey\s*=') { 'AuthKey = "' + $authKey + '"' } else { $_ }
-        }
-        Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
-        Write-Log "AuthKey injected from $authSource"
-    } else {
+    # Auth Key validation loop (single pass before launch - it must never
+    # boot-loop). HARD BYPASS: private servers and AuthKey "0" skip
+    # Keymaster authentication and break out immediately.
+    $keyValid = $false
+    do {
+        if ($script:isPrivate -eq $true -or $authKey -eq "0") { $keyValid = $true; break }
+        if ($authKey) { $keyValid = $true; break }
+    } while ($false)
+    if (-not $keyValid) {
         Say "No server key found. Set it up in Settings (or Fix Problems), then press Start again."
         Say "Tip: for a private server (Settings -> Server visibility -> Private) no key is needed."
         $script:St.SessionEnded = (Get-Date).ToString('o')
         return
     }
+    if (-not $authKey) {
+        # Private server without a key: fall back to "0" so BeamMP-Server
+        # starts without Keymaster authentication instead of boot-looping.
+        $authKey = '0'
+        $authSource = 'private server default (AuthKey 0)'
+    }
+    $lines = Get-Content -LiteralPath $cfgPath
+    $lines = $lines | ForEach-Object {
+        if ($_ -match '^\s*AuthKey\s*=') { 'AuthKey = "' + $authKey + '"' } else { $_ }
+    }
+    Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
+    Write-Log "AuthKey injected from $authSource"
 
     $fwDeclined = $script:ServerDir + 'Logs\fw.declined'
     if (-not (Test-FirewallRule) -and -not (Test-Path -LiteralPath $fwDeclined)) {
@@ -2652,11 +2697,10 @@ Always use Direct Connect with the correct address above.
     Stop-Job $trackerJob -ErrorAction SilentlyContinue
     if (-not $server.HasExited) { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
     Write-Log "Server stopped"
-    $lines = @(Get-Content -LiteralPath $cfgPath) | ForEach-Object {
-        if ($_ -match '^\s*AuthKey\s*=') { 'AuthKey = ""' } else { $_ }
-    }
-    Set-Content -LiteralPath $cfgPath -Value $lines -Encoding UTF8
-    Write-Log "AuthKey removed from ServerConfig.toml (re-injected on next start)"
+    # The AuthKey/Private pair the user saved via the GUI stays on disk -
+    # nothing here wipes it anymore (a session end must not erase the values
+    # written by Save-AuthConfig, which caused the "change disappears" bug).
+    Write-Log "ServerConfig.toml AuthKey/Private left as saved by the GUI"
     if (Test-StaticIpLocked) {
         Say "Releasing the IP lock for this session..."
         if (Restore-DhcpLanIp) {

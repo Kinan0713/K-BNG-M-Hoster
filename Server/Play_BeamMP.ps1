@@ -1,5 +1,5 @@
 # ========================================================================================
-# K BNG M Hoster v0.7.0.2 - Simplest Edition (GUI)
+# K BNG M Hoster v0.7.1.0 - Simplest Edition (GUI)
 # All logic lives in HosterCore.ps1 (single source of truth). This file is the window.
 # Start_Here.bat / Play_BeamMP.bat only launch this file.
 #
@@ -80,7 +80,7 @@ $script:State = @{
     Frp           = ''
     FrpError      = ''
 }
-$script:AppVersion = '0.7.0.2'
+$script:AppVersion = '0.7.1.0'
 $script:CorePath = Join-Path $PSScriptRoot 'HosterCore.ps1'
 $script:CoreText = "`$script:CorePath = '" + ($script:CorePath -replace "'", "''") + "'`r`n" + (Get-Content -LiteralPath $script:CorePath -Raw)
 $script:PendingAction = $null
@@ -97,6 +97,7 @@ $script:AllowClose = $false
 $script:ClosingAfterStop = $false
 $script:RestartAfterStop = $false
 $script:Starting = $false
+$script:isPrivate = $false
 
 # ---------------------------------------------------------------------------------------
 # COLORS / HELPERS
@@ -442,7 +443,7 @@ function New-PageTop($Page, [string]$Title, [string]$Hint = '') {
 # MAIN FORM
 # ---------------------------------------------------------------------------------------
 $script:Form = New-Object System.Windows.Forms.Form
-$script:Form.Text = 'K BNG M Hoster v0.7.0.2 - by Kinan (@raed713)'
+$script:Form.Text = 'K BNG M Hoster v0.7.1.0 - by Kinan (@raed713)'
 $script:Form.Size = New-Object System.Drawing.Size(1000, 720)
 $script:Form.MinimumSize = New-Object System.Drawing.Size(960, 660)
 $script:Form.StartPosition = 'CenterScreen'
@@ -464,7 +465,7 @@ $title = New-Lbl 'K BNG M Hoster' ([System.Drawing.Color]::White) 19 34 $true
 $title.AutoSize = $false
 $title.Size = New-Object System.Drawing.Size(240, 34)
 $title.Location = New-Object System.Drawing.Point(16, 6)
-$script:LblSubtitle = New-Lbl 'v0.7.0.2  |  Update 7 - FRP tunnel + Playit.gg  |  by Kinan  |  Discord: @raed713' $Theme.dim 9 18
+$script:LblSubtitle = New-Lbl 'v0.7.1.0  |  Update 8 - Private toggle + AuthKey fixes  |  by Kinan  |  Discord: @raed713' $Theme.dim 9 18
 $script:LblSubtitle.Location = New-Object System.Drawing.Point(17, 44)
 $script:LblVersionChip = New-Object System.Windows.Forms.Panel
 $script:LblVersionChip.BackColor = [System.Drawing.Color]::FromArgb(52, 52, 58)
@@ -472,7 +473,7 @@ $script:LblVersionChip.Size = New-Object System.Drawing.Size(112, 34)
 $script:LblVersionChip.Anchor = 'Top,Right'
 $script:LblVersionChip.Location = New-Object System.Drawing.Point(0, 16)
 $script:LblVersionChip.Margin = New-Object System.Windows.Forms.Padding(0, 0, 14, 0)
-$chipText = New-Lbl 'v0.7.0.2' $Theme.blue 10 20 $true
+$chipText = New-Lbl 'v0.7.1.0' $Theme.blue 10 20 $true
 $chipText.AutoSize = $false
 $chipText.Width = 112
 $chipText.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
@@ -931,10 +932,18 @@ function Show-SettingsPage {
     $script:RadioPrivate.Height = 24
     Add-RowFull $card $script:RadioPrivate
     $script:RadioPublic.Add_CheckedChanged({
-        if (-not $script:SuppressSettingEvents) { Save-VisibilitySelection }
+        if ($script:SuppressSettingEvents) { return }
+        if (-not [bool]$this.Checked) { return }
+        $script:isPrivate = $false
+        $this.ForeColor = $Theme.green
+        $script:RadioPrivate.ForeColor = [System.Drawing.Color]::White
     })
     $script:RadioPrivate.Add_CheckedChanged({
-        if (-not $script:SuppressSettingEvents) { Save-VisibilitySelection }
+        if ($script:SuppressSettingEvents) { return }
+        if (-not [bool]$this.Checked) { return }
+        $script:isPrivate = $true
+        $this.ForeColor = $Theme.green
+        $script:RadioPublic.ForeColor = [System.Drawing.Color]::White
     })
     $script:BtnApplyVis = New-Btn 'Apply visibility' 'Save the public/private choice. If the server is running it restarts to apply it.' { Apply-Visibility }
     $script:BtnApplyVis.Size = New-Object System.Drawing.Size(150, 32)
@@ -1095,6 +1104,7 @@ function Refresh-SettingsFields {
             $script:ChkDebug.Checked = ((Get-ConfigValue 'Debug') -match 'true|1')
             $script:ChkInfoPacket.Checked = ((Get-ConfigValue 'InformationPacket') -match 'true|1')
             $isPriv = Get-ServerPrivate
+            $script:isPrivate = [bool]$isPriv
             $script:RadioPublic.Checked = -not $isPriv
             $script:RadioPrivate.Checked = $isPriv
         } finally {
@@ -1190,18 +1200,20 @@ function Apply-MapSelection {
     Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Set-ServerMap -LevelName $(QStr $map.Name)$zipArg)`n`$State.MapRefresh = (Get-Date).ToString('o')" 'setmap'
 }
 
-function Save-VisibilitySelection {
-    if (-not $script:RadioPrivate) { return }
-    $priv = [bool]$script:RadioPrivate.Checked
-    if ((Get-ServerPrivate) -eq $priv) { return }
-    Apply-Visibility
-}
-
 function Apply-Visibility {
     if (-not $script:RadioPrivate) { return }
-    $priv = [bool]$script:RadioPrivate.Checked
-    Add-Log "[INFO] Applying visibility: $(if ($priv) { 'private' } else { 'public' })..."
-    Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Set-ServerVisibility -Private $($priv.ToString().ToLower()))`n`$State.VisRefresh = (Get-Date).ToString('o')" 'setvis'
+    $script:isPrivate = [bool]$script:RadioPrivate.Checked
+    $script:State.IsPrivate = $script:isPrivate
+    $priv = $script:isPrivate
+    if ($script:LblSettingsResult) {
+        $script:LblSettingsResult.Text = $(if ($priv) { 'Saving: PRIVATE server...' } else { 'Saving: PUBLIC server...' })
+        $script:LblSettingsResult.ForeColor = $Theme.yellow
+    }
+    if ($script:BtnApplyVis) { $script:BtnApplyVis.Text = $(if ($priv) { 'Apply visibility (PRIVATE)' } else { 'Apply visibility (public)' }) }
+    Add-Log "[INFO] Writing visibility to ServerConfig.toml: $(if ($priv) { 'private' } else { 'public' })..."
+    # Evaluates $script:isPrivate at click time; the current AuthKey value is
+    # preserved. No TOML read feeds back into the toggle - only this write.
+    Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$State.IsPrivate = $(if ($priv) { '$true' } else { '$false' })`nSay (Save-AuthConfig -Private $(if ($priv) { '$true' } else { '$false' }) -AuthKey (Get-ConfigValue 'AuthKey'))`n`$State.VisRefresh = (Get-Date).ToString('o')" 'setvis'
 }
 
 function Save-Settings {
@@ -1229,6 +1241,9 @@ function Save-Settings {
     $vals['LogChat'] = $script:ChkLogChat.Checked.ToString().ToLower()
     $vals['Debug'] = $script:ChkDebug.Checked.ToString().ToLower()
     $vals['InformationPacket'] = $script:ChkInfoPacket.Checked.ToString().ToLower()
+    # The Public/Private toggle is evaluated from $script:isPrivate right here,
+    # so "Save settings" commits Private = true/false to the TOML on this click.
+    $vals['Private'] = $(if ($script:isPrivate) { 'true' } else { 'false' })
 
     # FRP tunnel settings (persisted to the [FRP] section of ServerConfig.toml) -
     # the fields live on the Network page; keep them when that page was opened.
@@ -3050,13 +3065,13 @@ function Show-KeySetupDialog($owner) {
     $lbl.Location = New-Object System.Drawing.Point(14, 96)
     $dlg.Controls.Add($lbl)
 
-    $txt = New-Object System.Windows.Forms.TextBox
-    $txt.Location = New-Object System.Drawing.Point(14, 118)
-    $txt.Size = New-Object System.Drawing.Size(570, 26)
-    $txt.BackColor = $Theme.panel
-    $txt.ForeColor = [System.Drawing.Color]::White
-    $txt.BorderStyle = 'FixedSingle'
-    $dlg.Controls.Add($txt)
+    $txtAuthKey = New-Object System.Windows.Forms.TextBox
+    $txtAuthKey.Location = New-Object System.Drawing.Point(14, 118)
+    $txtAuthKey.Size = New-Object System.Drawing.Size(570, 26)
+    $txtAuthKey.BackColor = $Theme.panel
+    $txtAuthKey.ForeColor = [System.Drawing.Color]::White
+    $txtAuthKey.BorderStyle = 'FixedSingle'
+    $dlg.Controls.Add($txtAuthKey)
 
     $chk = New-Object System.Windows.Forms.CheckBox
     $chk.Text = 'Also apply recommended server settings (backup first: port, name, max players)'
@@ -3072,8 +3087,17 @@ function Show-KeySetupDialog($owner) {
     $dlg.Controls.Add($lblResult)
 
     $save = New-Btn 'Save Key' 'Validate and save the key.' {
-        $r = Save-AuthKey -Key $txt.Text
-        if ($r.Ok) {
+        $entered = $txtAuthKey.Text.Trim().Trim('"', "'")
+        $private = [bool]$script:isPrivate -or (Get-ServerPrivate)
+        # "0" is always a valid server key (Keymaster auth skipped). A blank
+        # key is valid for private servers too. Neither may be rejected, so no
+        # red error is shown and the field is never cleared.
+        if ($entered -eq '0' -or ($private -and -not $entered) -or ($entered -and $entered -match '^[A-Za-z0-9\-]{8,64}$')) {
+            $txtAuthKey.Text = $entered
+            $txtAuthKey.BackColor = [System.Drawing.Color]::FromArgb(34, 92, 44)
+            # Explicitly commits the textbox value + the current Private toggle
+            # state to ServerConfig.toml on THIS Save click.
+            $r = Save-AuthConfig -AuthKey $txtAuthKey.Text -Private $private
             if ($chk.Checked) {
                 $port = New-SetupConfig
                 $lblResult.Text = "$($r.Message)  Server settings applied (port $port)."
@@ -3082,10 +3106,11 @@ function Show-KeySetupDialog($owner) {
             }
             $lblResult.ForeColor = $Theme.green
             $dlg.DialogResult = 'OK'
-        } else {
-            $lblResult.Text = $r.Message
-            $lblResult.ForeColor = $Theme.red
+            return
         }
+        $txtAuthKey.BackColor = $Theme.panel
+        $lblResult.Text = "That doesn't look like a valid key. Use letters, numbers and dashes (8-64 characters), or type 0 for a private server."
+        $lblResult.ForeColor = $Theme.red
     }
     $save.Size = New-Object System.Drawing.Size(110, 36)
     $save.Location = New-Object System.Drawing.Point(14, 250)
@@ -3098,7 +3123,7 @@ function Show-KeySetupDialog($owner) {
     $skip.Location = New-Object System.Drawing.Point(130, 250)
     $dlg.Controls.Add($skip)
 
-    $note = New-Lbl 'A valid key contains only letters, numbers and dashes (8-64 characters).' $Theme.dim 8.5 20  $false 570
+    $note = New-Lbl 'A valid key contains only letters, numbers and dashes (8-64 characters). For a private server, type 0 (or leave empty) - Keymaster authentication is skipped.' $Theme.dim 8.5 20  $false 570
     $note.Location = New-Object System.Drawing.Point(14, 300)
     $dlg.Controls.Add($note)
 
@@ -3166,6 +3191,10 @@ function Start-ServerFlow {
             return
         }
     }
+
+    # Launch click commits the toggle state from $script:isPrivate straight to
+    # ServerConfig.toml (one-way write - nothing reads back into the toggle).
+    $null = Save-AuthConfig -Private ([bool]$script:isPrivate) -AuthKey (Get-ConfigValue 'AuthKey')
 
     if (-not (Test-Path -LiteralPath $script:LauncherPath)) {
         $r = [System.Windows.Forms.MessageBox]::Show(
@@ -3477,9 +3506,19 @@ $timerMain.Add_Tick({
             }
             'setvis' {
                 if ($script:LblSettingsResult) { $script:LblSettingsResult.Text = 'Visibility saved.'; $script:LblSettingsResult.ForeColor = $Theme.green }
+                if ($script:BtnApplyVis) { $script:BtnApplyVis.Text = 'Apply visibility' }
                 if ($script:RadioPrivate) {
-                    $script:RadioPrivate.Checked = Get-ServerPrivate
-                    $script:RadioPublic.Checked = -not (Get-ServerPrivate)
+                    # Suppressed refresh: re-reading ServerConfig.toml here must
+                    # only update the GUI, never re-fire the toggle handlers.
+                    $script:SuppressSettingEvents = $true
+                    try {
+                        $cur = Get-ServerPrivate
+                        $script:isPrivate = [bool]$cur
+                        $script:RadioPrivate.Checked = $cur
+                        $script:RadioPublic.Checked = -not $cur
+                    } finally {
+                        $script:SuppressSettingEvents = $false
+                    }
                 }
                 if ($script:State.Running) {
                     $r = [System.Windows.Forms.MessageBox]::Show(

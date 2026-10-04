@@ -1,4 +1,21 @@
-﻿## v0.7.0.2 - Update 7, Fix 2: first-run license/internet check no longer locks out new users
+﻿## v0.7.1.0 - Update 8: Public/Private toggle fix & AuthKey "0" support
+
+- **Public/Private toggle fixed:** clicking Private or Public now updates the interface
+  instantly and stores the choice in ServerConfig.toml (`Private = true/false`). The
+  toggle handlers no longer re-read the config file, so the selection can never bounce
+  back or revert on its own.
+- **Settings now save to ServerConfig.toml:** the new Save-AuthConfig pipeline writes the
+  server key and the visibility state to disk on every Save Key / Apply visibility /
+  Save settings / Start Server click - previously key entries could fail to persist.
+- **AuthKey "0" support:** the key field accepts "0" (and blank for private servers) as a
+  valid value with no red error or clearing - private servers use it to skip Keymaster
+  authentication.
+- **Boot-loop fix:** the startup key validation now breaks out immediately when
+  Private = true or the AuthKey is "0", so a keyless private server launches cleanly.
+- **Session end keeps your settings:** a server session no longer wipes the saved
+  AuthKey from ServerConfig.toml.
+
+## v0.7.0.2 - Update 7, Fix 2: first-run license/internet check no longer locks out new users
 
 - **First-run license fix:** brand-new users who start the tool without internet (or
   whose firewall blocks the license check) were shown a hard error and the app closed
