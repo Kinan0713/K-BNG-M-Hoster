@@ -1,5 +1,5 @@
 # ========================================================================================
-# K BNG M Hoster v0.7.0 - Simplest Edition (GUI)
+# K BNG M Hoster v0.7.0.2 - Simplest Edition (GUI)
 # All logic lives in HosterCore.ps1 (single source of truth). This file is the window.
 # Start_Here.bat / Play_BeamMP.bat only launch this file.
 #
@@ -80,7 +80,7 @@ $script:State = @{
     Frp           = ''
     FrpError      = ''
 }
-$script:AppVersion = '0.7.0'
+$script:AppVersion = '0.7.0.2'
 $script:CorePath = Join-Path $PSScriptRoot 'HosterCore.ps1'
 $script:CoreText = "`$script:CorePath = '" + ($script:CorePath -replace "'", "''") + "'`r`n" + (Get-Content -LiteralPath $script:CorePath -Raw)
 $script:PendingAction = $null
@@ -442,7 +442,7 @@ function New-PageTop($Page, [string]$Title, [string]$Hint = '') {
 # MAIN FORM
 # ---------------------------------------------------------------------------------------
 $script:Form = New-Object System.Windows.Forms.Form
-$script:Form.Text = 'K BNG M Hoster v0.7.0 - by Kinan (@raed713)'
+$script:Form.Text = 'K BNG M Hoster v0.7.0.2 - by Kinan (@raed713)'
 $script:Form.Size = New-Object System.Drawing.Size(1000, 720)
 $script:Form.MinimumSize = New-Object System.Drawing.Size(960, 660)
 $script:Form.StartPosition = 'CenterScreen'
@@ -464,7 +464,7 @@ $title = New-Lbl 'K BNG M Hoster' ([System.Drawing.Color]::White) 19 34 $true
 $title.AutoSize = $false
 $title.Size = New-Object System.Drawing.Size(240, 34)
 $title.Location = New-Object System.Drawing.Point(16, 6)
-$script:LblSubtitle = New-Lbl 'v0.7.0  |  Update 7 - FRP tunnel + Playit.gg  |  by Kinan  |  Discord: @raed713' $Theme.dim 9 18
+$script:LblSubtitle = New-Lbl 'v0.7.0.2  |  Update 7 - FRP tunnel + Playit.gg  |  by Kinan  |  Discord: @raed713' $Theme.dim 9 18
 $script:LblSubtitle.Location = New-Object System.Drawing.Point(17, 44)
 $script:LblVersionChip = New-Object System.Windows.Forms.Panel
 $script:LblVersionChip.BackColor = [System.Drawing.Color]::FromArgb(52, 52, 58)
@@ -472,7 +472,7 @@ $script:LblVersionChip.Size = New-Object System.Drawing.Size(112, 34)
 $script:LblVersionChip.Anchor = 'Top,Right'
 $script:LblVersionChip.Location = New-Object System.Drawing.Point(0, 16)
 $script:LblVersionChip.Margin = New-Object System.Windows.Forms.Padding(0, 0, 14, 0)
-$chipText = New-Lbl 'v0.7.0' $Theme.blue 10 20 $true
+$chipText = New-Lbl 'v0.7.0.2' $Theme.blue 10 20 $true
 $chipText.AutoSize = $false
 $chipText.Width = 112
 $chipText.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
@@ -930,6 +930,12 @@ function Show-SettingsPage {
     $script:RadioPrivate.Font = New-Object System.Drawing.Font('Segoe UI', 9.5)
     $script:RadioPrivate.Height = 24
     Add-RowFull $card $script:RadioPrivate
+    $script:RadioPublic.Add_CheckedChanged({
+        if (-not $script:SuppressSettingEvents) { Save-VisibilitySelection }
+    })
+    $script:RadioPrivate.Add_CheckedChanged({
+        if (-not $script:SuppressSettingEvents) { Save-VisibilitySelection }
+    })
     $script:BtnApplyVis = New-Btn 'Apply visibility' 'Save the public/private choice. If the server is running it restarts to apply it.' { Apply-Visibility }
     $script:BtnApplyVis.Size = New-Object System.Drawing.Size(150, 32)
     Add-RowFull $card $script:BtnApplyVis
@@ -1184,9 +1190,16 @@ function Apply-MapSelection {
     Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Set-ServerMap -LevelName $(QStr $map.Name)$zipArg)`n`$State.MapRefresh = (Get-Date).ToString('o')" 'setmap'
 }
 
+function Save-VisibilitySelection {
+    if (-not $script:RadioPrivate) { return }
+    $priv = [bool]$script:RadioPrivate.Checked
+    if ((Get-ServerPrivate) -eq $priv) { return }
+    Apply-Visibility
+}
+
 function Apply-Visibility {
     if (-not $script:RadioPrivate) { return }
-    $priv = if ($script:RadioPrivate.Checked) { $true } else { $false }
+    $priv = [bool]$script:RadioPrivate.Checked
     Add-Log "[INFO] Applying visibility: $(if ($priv) { 'private' } else { 'public' })..."
     Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Set-ServerVisibility -Private $($priv.ToString().ToLower()))`n`$State.VisRefresh = (Get-Date).ToString('o')" 'setvis'
 }
@@ -2949,30 +2962,56 @@ function Start-FrpInitAsync {
 
 function Finish-LicenseGate {
     $script:LicenseCheckDone = $true
-    $remote = [string]$script:LicenseRemoteVersion
-    $local = [string]$script:LicenseLocalVersion
-    if (-not $local -and -not $remote) {
-        [System.Windows.Forms.MessageBox]::Show(
-            'K BNG M Hoster could not reach the internet, and no accepted license was found on this computer.' + [Environment]::NewLine + [Environment]::NewLine +
-            'An internet connection is required for first-time license verification. Connect to the internet and start the app again.',
-            'K BNG M Hoster - License', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
-        [System.Windows.Forms.Application]::Exit()
-        return
-    }
-    if (Test-LicenseNeedsAccept $local $remote) {
-        Add-Log "[INFO] License version $remote required (accepted: $(if ($local) { $local } else { 'none' }))."
-        if (Show-EulaDialog) {
-            Save-LocalLicenseVersion $remote
-            $script:LicenseLocalVersion = $remote
-            Set-LicenseLock $false
-            Add-Log '[INFO] License accepted - all controls unlocked.'
-        } else {
-            [System.Windows.Forms.Application]::Exit()
+    try {
+        $remote = [string]$script:LicenseRemoteVersion
+        $local = [string]$script:LicenseLocalVersion
+
+        # First run (no accepted license on this computer): always present the
+        # interactive license prompt. A missing remote version (offline / blocked
+        # / transient network failure) must never hard-lock a brand-new user out.
+        if (-not $local) {
+            if (-not $remote) {
+                Add-Log '[INFO] Offline first run - remote license version unavailable, presenting agreement for local acceptance.'
+            } else {
+                Add-Log "[INFO] License version $remote required (accepted: none)."
+            }
+            if (Show-EulaDialog) {
+                # Record a version even when offline ('0' = accepted, unverified)
+                # so the user stays unlocked on subsequent offline launches.
+                $stored = if ($remote) { $remote } else { '0' }
+                Save-LocalLicenseVersion $stored
+                $script:LicenseLocalVersion = $stored
+                Set-LicenseLock $false
+                Add-Log '[INFO] License accepted - all controls unlocked.'
+            } else {
+                [System.Windows.Forms.Application]::Exit()
+            }
             return
         }
-    } else {
+
+        # Returning user: only re-prompt when the remote version is newer.
+        if (Test-LicenseNeedsAccept $local $remote) {
+            Add-Log "[INFO] License version $remote required (accepted: $local)."
+            if (Show-EulaDialog) {
+                Save-LocalLicenseVersion $remote
+                $script:LicenseLocalVersion = $remote
+                Set-LicenseLock $false
+                Add-Log '[INFO] License accepted - all controls unlocked.'
+            } else {
+                [System.Windows.Forms.Application]::Exit()
+            }
+            return
+        }
+
+        # Previously accepted and no newer remote version (including offline):
+        # pass straight through.
         Set-LicenseLock $false
         Add-Log "[INFO] License check passed (version $local)."
+    } catch {
+        # Never let a transient network/state problem crash initialization.
+        # Fail open so the UI always comes up.
+        try { Add-Log "[WARN] License check failed: $($_.Exception.Message)" } catch { }
+        try { Set-LicenseLock $false } catch { }
     }
 }
 

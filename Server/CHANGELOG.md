@@ -1,4 +1,18 @@
-﻿## v0.7.0 - Update 7: Transfer tab, FRP tunneling & GitHub-verified license
+﻿## v0.7.0.2 - Update 7, Fix 2: first-run license/internet check no longer locks out new users
+
+- **First-run license fix:** brand-new users who start the tool without internet (or
+  whose firewall blocks the license check) were shown a hard error and the app closed
+  before they could ever accept the license. The startup gate now always presents the
+  interactive license dialog on the very first run - even when the remote license
+  version cannot be fetched - records the acceptance locally, and lets the user in.
+- **Non-blocking internet check:** the reachability probe already ran on a background
+  thread with a short timeout and a try/catch fallback; the gate logic now wraps the
+  whole version decision in try/catch so a transient offline state, a firewall block or
+  a DNS hiccup can never abort initialization or crash the launcher.
+- **Self-update version matching:** the update checker now accepts four-part version
+  tags (e.g. 0.7.0.2) so hotfix releases are detected and offered correctly.
+
+## v0.7.0 - Update 7: Transfer tab, FRP tunneling & GitHub-verified license
 
 ### ðŸš€ Added (New features)
 
