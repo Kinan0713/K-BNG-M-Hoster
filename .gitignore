@@ -39,4 +39,24 @@ K.BNG.M.Hoster.v*.zip
 
 # Mod export output (user-generated, often hundreds of MB - never commit)
 Server/Export/
+Export/
 
+# User-saved presets (personal server setups & mod lists)
+Server/Presets/
+Presets/
+
+# AI Agent, IDE & Editor local folders
+.agents/
+.agent/
+.gemini/
+.claude/
+.cursor/
+.vscode/
+.idea/
+
+# OS & temporary files
+*.tmp
+*.bak
+Thumbs.db
+Desktop.ini
+.DS_Store

@@ -1,6 +1,6 @@
 # 🚗 K BNG M HOSTER
 
-### *(Kinan BeamNG Multiplayer Hoster)* — **v0.7.0** *(Update 7 - FRP + Playit.gg)*
+### *(Kinan BeamNG Multiplayer Hoster)* — **v0.7.1** *(Update 7.1 - Command Center UI & Performance Overhaul)*
 
 **The All-In-One Automated BeamMP Hosting & Joining Tool**
 
@@ -237,12 +237,18 @@ To load custom vehicles, maps, or physics mods onto your server:
 
 ## 👑 Credits & Ownership
 
-- **Sole Developer & Creator:** **Kinan** (`@raed713`)
+- **Sole Developer & Creator:** **Kinan** (`@kinan_sx240`)
 - *All original code, tools, scripts, and rights belong strictly and exclusively to the original author.*
 - **Official Discord:** https://discord.gg/2FxsJvKr4a (Innocent BeamMP Server Community)
 
 ### 🤝 Contributions
 
+- **`@bomberrie`** - v0.7.1 Command Center UI/UX Redesign & Performance Engineering:
+  - Frameless dark Command Center layout with custom Win32/DWM window chrome and left sidebar navigation
+  - BeamNG Carbon & Racing Orange (`#FF731D`) 5-tier surface hierarchy and custom owner-drawn controls
+  - 4-Pill Telemetry KPI Strip, AuthKey readiness banner, Recommended Friend Route badge, and 5-row Connection Matrix
+  - Rebuilt Guide & Walkthrough (`Ctrl+G`) with structured typography, callout badges, and quick-jump buttons
+  - Zero-allocation GDI+ resource caching, hardware double-buffering, cached page trees (`< 1ms` switching), dirty-checked telemetry updates, and batched log rendering
 - **Ali Alldoboni** (`@alialldoboni`) - early co-development of the launcher:
   - v0.2: initial launcher, README, server config, port fixes
   - v0.3: launcher bug fixes and improvements
@@ -269,7 +275,7 @@ This project is distributed under a proprietary EULA. By using this software you
 - Reuploading, mirroring, forking, redistributing, or selling the software
 - Sharing the ZIP or the tool itself outside the official GitHub Releases page
 - Using the software for paid hosting or commercial services without written permission
-- Removing, altering, or obscuring author attribution (Kinan / @raed713)
+- Removing, altering, or obscuring author attribution (Kinan / @kinan_sx240)
 - Accessing internal scripts or proprietary files not explicitly permitted
 
 **For permissions, DMCA, or legal inquiries:** open an issue on GitHub: https://github.com/Kinan0713/K-BNG-M-Hoster/issues
