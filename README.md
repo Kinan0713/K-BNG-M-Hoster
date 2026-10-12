@@ -10,7 +10,7 @@
 
 > âš ï¸ **Official download only:** Get K BNG M Hoster exclusively from the GitHub Releases page above. Please do **not** share, reupload, or forward this tool â€” everyone should download it from here so they always get the latest version.
 
-*Solely created and developed by **Kinan** (`@raed713`)*
+*Solely created and developed by **Kinan** (`@kinan_sx240`)*
 
 </div>
 
