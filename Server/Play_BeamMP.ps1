@@ -1,5 +1,5 @@
-# ========================================================================================
-# K BNG M Hoster v0.7.1.0 - Simplest Edition (GUI)
+﻿# ========================================================================================
+# K BNG M Hoster v0.7.1.1 - Simplest Edition (GUI)
 # All logic lives in HosterCore.ps1 (single source of truth). This file is the window.
 # Start_Here.bat / Play_BeamMP.bat only launch this file.
 #
@@ -80,7 +80,7 @@ $script:State = @{
     Frp           = ''
     FrpError      = ''
 }
-$script:AppVersion = '0.7.1.0'
+$script:AppVersion = '0.7.1.1'
 $script:CorePath = Join-Path $PSScriptRoot 'HosterCore.ps1'
 $script:CoreText = "`$script:CorePath = '" + ($script:CorePath -replace "'", "''") + "'`r`n" + (Get-Content -LiteralPath $script:CorePath -Raw)
 $script:PendingAction = $null
@@ -443,7 +443,7 @@ function New-PageTop($Page, [string]$Title, [string]$Hint = '') {
 # MAIN FORM
 # ---------------------------------------------------------------------------------------
 $script:Form = New-Object System.Windows.Forms.Form
-$script:Form.Text = 'K BNG M Hoster v0.7.1.0 - by Kinan (@raed713)'
+$script:Form.Text = 'K BNG M Hoster v0.7.1.1 - by Kinan (@raed713)'
 $script:Form.Size = New-Object System.Drawing.Size(1000, 720)
 $script:Form.MinimumSize = New-Object System.Drawing.Size(960, 660)
 $script:Form.StartPosition = 'CenterScreen'
@@ -465,7 +465,7 @@ $title = New-Lbl 'K BNG M Hoster' ([System.Drawing.Color]::White) 19 34 $true
 $title.AutoSize = $false
 $title.Size = New-Object System.Drawing.Size(240, 34)
 $title.Location = New-Object System.Drawing.Point(16, 6)
-$script:LblSubtitle = New-Lbl 'v0.7.1.0  |  Update 8 - Private toggle + AuthKey fixes  |  by Kinan  |  Discord: @raed713' $Theme.dim 9 18
+$script:LblSubtitle = New-Lbl 'v0.7.1.1  |  Update 9 - Validation & input fixes  |  by Kinan  |  Discord: @raed713' $Theme.dim 9 18
 $script:LblSubtitle.Location = New-Object System.Drawing.Point(17, 44)
 $script:LblVersionChip = New-Object System.Windows.Forms.Panel
 $script:LblVersionChip.BackColor = [System.Drawing.Color]::FromArgb(52, 52, 58)
@@ -473,7 +473,7 @@ $script:LblVersionChip.Size = New-Object System.Drawing.Size(112, 34)
 $script:LblVersionChip.Anchor = 'Top,Right'
 $script:LblVersionChip.Location = New-Object System.Drawing.Point(0, 16)
 $script:LblVersionChip.Margin = New-Object System.Windows.Forms.Padding(0, 0, 14, 0)
-$chipText = New-Lbl 'v0.7.1.0' $Theme.blue 10 20 $true
+$chipText = New-Lbl 'v0.7.1.1' $Theme.blue 10 20 $true
 $chipText.AutoSize = $false
 $chipText.Width = 112
 $chipText.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
@@ -1220,22 +1220,34 @@ function Save-Settings {
     $vals = @{}
     $name = $script:TxtName.Text.Trim()
     if ($name) {
-        if ($name -notmatch '^[^"]{1,60}$') {
-            Add-Log "[ERROR] Server name must be 60 characters or fewer and cannot contain double quotes."
-            return
-        }
+        # Edge-case friendly: quotes and line breaks are sanitized instead of
+        # rejecting the whole save; overlong names are trimmed to 60 chars.
+        $origName = $name
+        $name = $name.Replace('"', "'") -replace '[\x00-\x1F]', ' '
+        if ($name.Length -gt 60) { $name = $name.Substring(0, 60).TrimEnd() }
+        if ($name -ne $origName) { Add-Log "[INFO] Server name adjusted for compatibility (quotes/line breaks removed, 60 char limit)." }
         $vals['Name'] = '"' + $name + '"'
     }
     foreach ($pair in @(@{ Key = 'MaxPlayers'; Txt = $script:TxtPlayers }, @{ Key = 'MaxCars'; Txt = $script:TxtCars })) {
         $v = $pair.Txt.Text.Trim()
         if ($v) {
-            if ($v -notmatch '^\d+$') { Add-Log "[ERROR] $($pair.Key) must be a number."; return }
-            $vals[$pair.Key] = [int]$v
+            # Non-numeric text (or "0" and odd formats) never blocks the save:
+            # digits are extracted when possible, otherwise the current config
+            # value is kept untouched.
+            $num = 0
+            try { $num = [int]([regex]::Match([string]$v, '\d+').Value) } catch { $num = 0 }
+            if ($num -le 0) {
+                Add-Log "[INFO] $($pair.Key) input was not a positive number - leaving the existing value unchanged."
+            } else {
+                if ($pair.Key -eq 'MaxPlayers' -and $num -gt 500) { $num = 500; Add-Log '[INFO] MaxPlayers capped at 500.' }
+                if ($pair.Key -eq 'MaxCars' -and $num -gt 100) { $num = 100; Add-Log '[INFO] MaxCars capped at 100.' }
+                $vals[$pair.Key] = [int]$num
+            }
         }
     }
-    $desc = $script:TxtDescription.Text.Trim().Replace('"', "'")
+    $desc = $script:TxtDescription.Text.Trim().Replace('"', "'") -replace '[\x00-\x1F]', ' '
     if ($desc) { $vals['Description'] = '"' + $desc + '"' } else { $vals['Description'] = '""' }
-    $tags = $script:TxtTags.Text.Trim().Replace('"', "'")
+    $tags = $script:TxtTags.Text.Trim().Replace('"', "'") -replace '[\x00-\x1F]', ' '
     if ($tags) { $vals['Tags'] = '"' + $tags + '"' } else { $vals['Tags'] = '""' }
     $vals['AllowGuests'] = $script:ChkAllowGuests.Checked.ToString().ToLower()
     $vals['LogChat'] = $script:ChkLogChat.Checked.ToString().ToLower()
@@ -1251,22 +1263,35 @@ function Save-Settings {
         $vals['FRPEnabled'] = $script:ChkFrp.Checked.ToString().ToLower()
         $frpServer = $script:TxtFrpServer.Text.Trim()
         if ($frpServer) {
-            if ($frpServer -notmatch '^[A-Za-z0-9.\-]+$') {
-                Add-Log "[ERROR] FRP server address may only contain letters, numbers, dots and dashes (hostname or IP - the port goes in its own box)."
-                return
+            # Pasted URLs / host:port strings are accepted: everything that is
+            # not part of a hostname or IP is stripped, so no input can fail
+            # the save.
+            $cleanServer = ($frpServer -replace '^\s*(https?://)?', '') -replace '[:/,\s]+$', ''
+            $cleanServer = $cleanServer -replace '[^A-Za-z0-9.\-]', ''
+            if ($cleanServer -and $cleanServer -ne $frpServer) { Add-Log "[INFO] FRP server address adjusted to: $cleanServer" }
+            if (-not $cleanServer) {
+                Add-Log '[INFO] FRP server address could not be used as-is - leaving the existing value unchanged.'
+            } else {
+                $vals['FRPServerAddress'] = '"' + $cleanServer + '"'
             }
-            $vals['FRPServerAddress'] = '"' + $frpServer + '"'
         }
         $frpPort = $script:TxtFrpPort.Text.Trim()
-        if (-not $frpPort) { $frpPort = '7000' }
-        if ($frpPort -notmatch '^\d+$' -or [int]$frpPort -lt 1 -or [int]$frpPort -gt 65535) {
-            Add-Log "[ERROR] FRP server port must be a number between 1 and 65535."
-            return
+        if ($frpPort -match '^\d+$') {
+            $p = [int]$frpPort
+            if ($p -lt 1 -or $p -gt 65535) { $p = 7000; Add-Log '[INFO] FRP server port was out of range - using the default 7000.' }
+            $vals['FRPServerPort'] = $p
+        } elseif (-not $frpPort) {
+            $vals['FRPServerPort'] = 7000
+        } else {
+            $p = 0
+            try { $p = [int]([regex]::Match([string]$frpPort, '\d+').Value) } catch { $p = 0 }
+            if ($p -lt 1 -or $p -gt 65535) { $p = 7000 }
+            Add-Log "[INFO] FRP server port adjusted to $p."
+            $vals['FRPServerPort'] = $p
         }
-        $vals['FRPServerPort'] = [int]$frpPort
         $frpToken = $script:TxtFrpToken.Text
         if ($frpToken) {
-            $vals['FRPToken'] = '"' + ($frpToken.Replace('"', '')) + '"'
+            $vals['FRPToken'] = '"' + (($frpToken.Replace('"', '') -replace '[\x00-\x1F]', '')) + '"'
         }
     }
 
@@ -2667,7 +2692,7 @@ Product: K BNG M Hoster
 Licensor / Copyright Holder: Kinan (@raed713)
 Copyright (c) 2026 Kinan. All Rights Reserved.
 
-IMPORTANT — READ CAREFULLY: BY DOWNLOADING, INSTALLING, ACCESSING, OR USING THE
+IMPORTANT â€” READ CAREFULLY: BY DOWNLOADING, INSTALLING, ACCESSING, OR USING THE
 SOFTWARE, YOU ACCEPT AND AGREE TO THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
 DOWNLOAD, INSTALL, OR USE THE SOFTWARE.
 
@@ -2684,7 +2709,7 @@ DOWNLOAD, INSTALL, OR USE THE SOFTWARE.
     "Licensee" means any person or entity that downloads, installs, accesses,
     or uses the Software.
 
-2. LICENSE GRANT — LIMITED USE
+2. LICENSE GRANT â€” LIMITED USE
 2.1 Subject to strict compliance with this Agreement, the Licensor grants the
     Licensee a limited, revocable, non-exclusive, non-transferable,
     non-sublicensable license to:
@@ -3090,9 +3115,11 @@ function Show-KeySetupDialog($owner) {
         $entered = $txtAuthKey.Text.Trim().Trim('"', "'")
         $private = [bool]$script:isPrivate -or (Get-ServerPrivate)
         # "0" is always a valid server key (Keymaster auth skipped). A blank
-        # key is valid for private servers too. Neither may be rejected, so no
-        # red error is shown and the field is never cleared.
-        if ($entered -eq '0' -or ($private -and -not $entered) -or ($entered -and $entered -match '^[A-Za-z0-9\-]{8,64}$')) {
+        # key is valid for private servers too. Any other non-empty string is
+        # accepted as-is (custom keys must never be rejected) - only line
+        # breaks / control characters are refused because they would corrupt
+        # the config file.
+        if ($entered -eq '0' -or ($private -and -not $entered) -or ($entered -and $entered -notmatch '[\x00-\x1F]')) {
             $txtAuthKey.Text = $entered
             $txtAuthKey.BackColor = [System.Drawing.Color]::FromArgb(34, 92, 44)
             # Explicitly commits the textbox value + the current Private toggle
@@ -3109,7 +3136,7 @@ function Show-KeySetupDialog($owner) {
             return
         }
         $txtAuthKey.BackColor = $Theme.panel
-        $lblResult.Text = "That doesn't look like a valid key. Use letters, numbers and dashes (8-64 characters), or type 0 for a private server."
+        $lblResult.Text = "The key cannot contain line breaks or control characters. Any other key text is accepted - or type 0 for a private server."
         $lblResult.ForeColor = $Theme.red
     }
     $save.Size = New-Object System.Drawing.Size(110, 36)
@@ -3123,7 +3150,7 @@ function Show-KeySetupDialog($owner) {
     $skip.Location = New-Object System.Drawing.Point(130, 250)
     $dlg.Controls.Add($skip)
 
-    $note = New-Lbl 'A valid key contains only letters, numbers and dashes (8-64 characters). For a private server, type 0 (or leave empty) - Keymaster authentication is skipped.' $Theme.dim 8.5 20  $false 570
+    $note = New-Lbl 'Any non-empty key text is accepted (letters, numbers, dashes, custom strings). For a private server, type 0 (or leave empty) - Keymaster authentication is skipped.' $Theme.dim 8.5 20  $false 570
     $note.Location = New-Object System.Drawing.Point(14, 300)
     $dlg.Controls.Add($note)
 

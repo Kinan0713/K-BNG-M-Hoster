@@ -1,4 +1,20 @@
-﻿## v0.7.1.0 - Update 8: Public/Private toggle fix & AuthKey "0" support
+﻿## v0.7.1.1 - Update 9: Validation & input fixes
+
+- **No more false-positive validation errors:** the server key check no longer rejects
+  custom or unusual key strings. Any non-empty key text is accepted (only line breaks /
+  control characters are refused because they would corrupt the config file). "0" and a
+  blank key for private servers stay valid.
+- **Graceful settings save:** the server name, MaxPlayers/MaxCars, description and tags
+  now sanitize edge-case input (quotes, line breaks, overlong names, non-numeric text)
+  instead of aborting the whole save with an error. Non-numeric player/car values fall
+  back to the existing config; out-of-range values are capped safely.
+- **FRP fields never block the save:** pasted URLs / host:port strings are cleaned into a
+  valid server address, and a bad or empty port falls back to the default 7000.
+- **Config writer fallbacks:** ServerConfig.toml writes are wrapped so unexpected input
+  formats degrade to safe, valid TOML instead of blocking server execution, and a failed
+  write keeps the previous config.
+
+## v0.7.1.0 - Update 8: Public/Private toggle fix & AuthKey "0" support
 
 - **Public/Private toggle fixed:** clicking Private or Public now updates the interface
   instantly and stores the choice in ServerConfig.toml (`Private = true/false`). The
