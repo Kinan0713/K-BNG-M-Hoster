@@ -99,7 +99,7 @@ This software is distributed under a proprietary EULA. By using this software yo
 - Reuploading, mirroring, forking, redistributing, or selling the software
 - Sharing the ZIP or the tool itself outside the official GitHub Releases page
 - Using the software for paid hosting or commercial services without written permission
-- Removing, altering, or obscuring author attribution (Kinan / @raed713)
+- Removing, altering, or obscuring author attribution (Kinan / @kinan_sx240)
 
 **For permissions, DMCA, or legal inquiries:** open an issue on GitHub: https://github.com/Kinan0713/K-BNG-M-Hoster/issues
 
