@@ -1373,29 +1373,43 @@ $script:Form.Add_Resize({
 function Layout-HomePage {
     if (-not $script:HomePagePanel -or $script:HomePagePanel.IsDisposed) { return }
     try {
-        if ($script:StatusCard -and $script:StatusTlp -and $script:StatusCard.ClientSize.Width -gt 60) {
+        $hpPadH = if ($script:HomePagePanel -and $script:HomePagePanel.Padding) {
+            ($script:HomePagePanel.Padding.Left + $script:HomePagePanel.Padding.Right)
+        } else { 32 }
+        $cardW = if ($script:HomePagePanel -and $script:HomePagePanel.ClientSize.Width -gt 200) {
+            ($script:HomePagePanel.ClientSize.Width - $hpPadH)
+        } elseif ($script:Content -and $script:Content.ClientSize.Width -gt 200) {
+            ($script:Content.ClientSize.Width - 32)
+        } elseif ($script:Form -and $script:Form.ClientSize.Width -gt 200) {
+            ($script:Form.ClientSize.Width - 224 - 32)
+        } else {
+            844
+        }
+        $cardW = [int][math]::Max(320, $cardW)
+
+        if ($script:StatusCard -and $script:StatusTlp) {
             $stPadH = $script:StatusCard.Padding.Left + $script:StatusCard.Padding.Right
             $stPadV = $script:StatusCard.Padding.Top + $script:StatusCard.Padding.Bottom
-            $stInnerW = [int][math]::Max(260, ($script:StatusCard.ClientSize.Width - $stPadH))
+            $stInnerW = [int][math]::Max(260, ($cardW - $stPadH))
             if ($script:LblStatusHint) { $script:LblStatusHint.MaximumSize = New-Object System.Drawing.Size($stInnerW, 0) }
             if ($script:LblCgnatBadge) { $script:LblCgnatBadge.MaximumSize = New-Object System.Drawing.Size($stInnerW, 0) }
             $script:StatusTlp.Location = New-Object System.Drawing.Point($script:StatusCard.Padding.Left, $script:StatusCard.Padding.Top)
-            $script:StatusTlp.MinimumSize = New-Object System.Drawing.Size($stInnerW, 0)
-            $script:StatusTlp.MaximumSize = New-Object System.Drawing.Size($stInnerW, 0)
             $script:StatusTlp.Width = $stInnerW
             $script:StatusTlp.PerformLayout()
-            $stMaxBot = $script:StatusTlp.PreferredSize.Height
-            foreach ($c in $script:StatusTlp.Controls) {
-                if ($c.Visible) {
-                    $b = $c.Bottom + $c.Margin.Bottom
-                    if ($b -gt $stMaxBot) { $stMaxBot = $b }
-                }
-            }
-            $wantStH = $stMaxBot + $stPadV + 2
+            $stPrefH = $script:StatusTlp.GetPreferredSize((New-Object System.Drawing.Size($stInnerW, 0))).Height
+            $wantStH = [int]($stPrefH + $stPadV + 2)
             if ($script:StatusCard.Height -ne $wantStH) { $script:StatusCard.Height = $wantStH }
         }
-        if ($script:ConnCard -and $script:ConnContent -and $script:ConnTlp -and $script:ConnCard.ClientSize.Width -gt 60) {
-            $connW = [int][math]::Max(300, ($script:ConnCard.ClientSize.Width - 2))
+        if ($script:ConnCard -and $script:ConnContent -and $script:ConnTlp) {
+            $vBarW = [System.Windows.Forms.SystemInformation]::VerticalScrollBarWidth
+            if ($vBarW -lt 16) { $vBarW = 18 }
+            $availW = if ($script:ConnCard.ClientSize.Width -gt 50) {
+                $script:ConnCard.ClientSize.Width
+            } else {
+                $cardW
+            }
+            # Initial probe for width:
+            $connW = [int][math]::Max(280, ($availW - 1))
             $connPadH = $script:ConnContent.Padding.Left + $script:ConnContent.Padding.Right
             $connPadV = $script:ConnContent.Padding.Top + $script:ConnContent.Padding.Bottom
             $connInnerW = [int][math]::Max(240, ($connW - $connPadH))
@@ -1410,20 +1424,35 @@ function Layout-HomePage {
                 $script:ConnVpnFlow.MinimumSize = New-Object System.Drawing.Size($connInnerW, 36)
             }
             $script:ConnTlp.Location = New-Object System.Drawing.Point($script:ConnContent.Padding.Left, $script:ConnContent.Padding.Top)
-            $script:ConnTlp.MinimumSize = New-Object System.Drawing.Size($connInnerW, 0)
-            $script:ConnTlp.MaximumSize = New-Object System.Drawing.Size($connInnerW, 0)
             $script:ConnTlp.Width = $connInnerW
             $script:ConnTlp.PerformLayout()
-            $connMaxBot = $script:ConnTlp.PreferredSize.Height
-            foreach ($c in $script:ConnTlp.Controls) {
-                if ($c.Visible) {
-                    $b = $c.Bottom + $c.Margin.Bottom
-                    if ($b -gt $connMaxBot) { $connMaxBot = $b }
+            $connPrefH = $script:ConnTlp.GetPreferredSize((New-Object System.Drawing.Size($connInnerW, 0))).Height
+            $connH = [int]($connPrefH + $connPadV + 4)
+
+            # If connH exceeds ConnCard client height, vertical scrollbar will appear if not already visible.
+            # If vertical scrollbar was not visible, subtract scrollbar width so content never overflows horizontally:
+            if (-not $script:ConnCard.VerticalScroll.Visible -and $connH -gt $script:ConnCard.ClientSize.Height) {
+                $connW = [int][math]::Max(280, ($availW - $vBarW - 1))
+                $connInnerW = [int][math]::Max(240, ($connW - $connPadH))
+                if ($script:LblConnNote -and $script:ConnNoteBox) {
+                    $noteInnerW = [int][math]::Max(180, ($connInnerW - 26))
+                    $script:LblConnNote.MaximumSize = New-Object System.Drawing.Size($noteInnerW, 0)
+                    $script:ConnNoteBox.Width = $connInnerW
+                    $script:ConnNoteBox.Height = [int][math]::Max(30, ($script:LblConnNote.PreferredSize.Height + 14))
                 }
+                if ($script:ConnVpnFlow) {
+                    $script:ConnVpnFlow.MaximumSize = New-Object System.Drawing.Size($connInnerW, 0)
+                    $script:ConnVpnFlow.MinimumSize = New-Object System.Drawing.Size($connInnerW, 36)
+                }
+                $script:ConnTlp.Width = $connInnerW
+                $script:ConnTlp.PerformLayout()
+                $connPrefH = $script:ConnTlp.GetPreferredSize((New-Object System.Drawing.Size($connInnerW, 0))).Height
+                $connH = [int]($connPrefH + $connPadV + 4)
             }
+
             $scrollPos = $script:ConnCard.AutoScrollPosition
+            $script:ConnContent.Size = New-Object System.Drawing.Size($connW, $connH)
             $script:ConnContent.Location = New-Object System.Drawing.Point($scrollPos.X, $scrollPos.Y)
-            $script:ConnContent.Size = New-Object System.Drawing.Size($connW, ($connMaxBot + $connPadV + 4))
         }
     } catch { Write-Log "[LAYOUT-ERROR] HOME $($_.Exception.Message)" }
 }
@@ -1596,6 +1625,7 @@ function Show-HomePage {
     $script:ConnCard.Dock = 'Fill'
     $script:ConnCard.BackColor = $Theme.bg
     $script:ConnCard.AutoScroll = $true
+    $script:ConnCard.AutoScrollMargin = New-Object System.Drawing.Size(0, 8)
     $script:ConnContent = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $script:ConnContent
     $script:ConnContent.Location = New-Object System.Drawing.Point(0, 0)
@@ -1752,6 +1782,7 @@ function Show-HomePage {
     $p.Controls.Add($script:StatusCard)
     $p.ResumeLayout($true)
     $script:HomePagePanel = $p
+    $p.Add_Resize({ Layout-HomePage })
     Switch-ContentPage $p
     Refresh-Dashboard
     Layout-HomePage
@@ -4126,12 +4157,12 @@ function Show-EulaDialog {
 # LICENSE GATE (mandatory EULA check against the official GitHub repository)
 # Set $script:EnableLicenseGate = $true to re-enable the startup license check.
 # ---------------------------------------------------------------------------------------
-$script:EnableLicenseGate = $false
-$script:LicenseLocked = $false
+$script:EnableLicenseGate = $true
+$script:LicenseLocked = $true
 $script:LicenseSavedStates = @{}
 $script:LicenseLocalVersion = ''
 $script:LicenseRemoteVersion = $null
-$script:LicenseCheckDone = $true
+$script:LicenseCheckDone = $false
 $script:LicensePs = $null
 $script:LicenseHandle = $null
 $script:FrpInitPs = $null
