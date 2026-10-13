@@ -2,11 +2,11 @@
 
 # K BNG M Hoster
 
-### *(Kinan BeamNG Multiplayer Hoster)* — **v0.7.1** *(Update 7.1 - Command Center UI & Performance Overhaul)*
+### *(Kinan BeamNG Multiplayer Hoster)* — **v0.7.1.1** *(Command Centre UI, Performance & Validation Overhaul)*
 
 **The All-In-One Automated BeamMP Hosting & Joining Tool**
 
-> 🔽 **Download the latest release:** [K BNG M Hoster v0.7.1 ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
+> 🔽 **Download the latest release:** [K BNG M Hoster v0.7.1.1 ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
 
 > ⚠️ **Official download only:** Get K BNG M Hoster exclusively from the GitHub Releases page above. Please do **not** share, reupload, or forward this tool — everyone should download it from here so they always get the latest version.
 
@@ -16,18 +16,18 @@
 
 ---
 
-## 🚀 Quick Start (30 seconds)
+## ðŸš€ Quick Start (30 seconds)
 
 1. **Extract** the ZIP to any folder.
-2. **Double-click `Start_Here.bat`** — a window opens. That's it.
-3. First time: accept the license, then paste your **BeamMP key** — your server starts automatically.
+2. **Double-click `Start_Here.bat`** â€” a window opens. That's it.
+3. First time: accept the license, then paste your **BeamMP key** â€” your server starts automatically.
 4. Send your friends the address shown on the window (press **Ctrl+C** or the **Copy IP** button).
 
 That's everything. The tool handles the key, settings, ports and problems for you.
 
 ---
 
-## 🧰 What it does
+## 🧭 What it does
 
 - **Starts and runs your BeamMP server** with one click — no config files, no console commands.
 - **Dashboard (`Ctrl+H`)** features a 4-Pill Telemetry KPI Strip (Server State, Port & Protocol, Visibility Mode, Network Reachability), live AuthKey readiness banner, Recommended Friend Route badge, and a 5-row Connection Matrix with one-click Copy buttons (Loopback, LAN, FRP Tunnel, VPN/Playit.gg, and WAN).
@@ -53,35 +53,35 @@ Pick **one** method:
 | **Port forwarding** (Public) | You want anyone to find your server in the BeamMP list | They search your server name in the BeamMP browser, or Direct Connect to your public IP |
 | **P2P VPN** (Radmin / Hamachi / ZeroTier) | Your ISP blocks port forwarding (CGNAT) | They install the same VPN app, join your network, then Direct Connect to your VPN IP |
 
-> Stuck? Open **Scan & Fix** (`Ctrl+F`) or press **Diagnose** (`Ctrl+D`) — the tool checks everything for you and explains the fix.
+> Stuck? Open **Fix Problems** (`Ctrl+F`) or press **Diagnose** (`Ctrl+D`) — the tool checks everything for you and explains the fix.
 
 ---
 
-## 🛠️ Requirements
+## ðŸ› ï¸ Requirements
 
 | Requirement | What it's for | Download |
 |---|---|---|
 | **BeamMP Keymaster** | Your free server key | [keymaster.beammp.com](https://keymaster.beammp.com) |
 | **BeamMP Client** | Play multiplayer in BeamNG | [beammp.com](https://beammp.com) |
 | **Tailscale** (optional) | Private hosting without router setup | [tailscale.com](https://tailscale.com) |
-| **Radmin VPN / Hamachi / ZeroTier** (optional) | VPN hosting when port forwarding can't work | [radmin-vpn.com](https://www.radmin-vpn.com/) · [vpn.net](https://www.vpn.net/) · [zerotier.com](https://www.zerotier.com/download/) |
+| **Radmin VPN / Hamachi / ZeroTier** (optional) | VPN hosting when port forwarding can't work | [radmin-vpn.com](https://www.radmin-vpn.com/) Â· [vpn.net](https://www.vpn.net/) Â· [zerotier.com](https://www.zerotier.com/download/) |
 
 ---
 
-## ❓ Common questions
+## â“ Common questions
 
 **"My server closes instantly."**
-Your key is probably missing or wrong. The tool walks you through it on first run — or open the key setup from Scan & Fix.
+Your key is probably missing or wrong. The tool walks you through it on first run — or open the key setup from Fix Problems.
 
 **"Friends can't connect."**
-Usually one of three things: your ISP blocks port forwarding (CGNAT) — use a VPN instead; only TCP is forwarded (BeamMP needs TCP **and** UDP); or Windows Firewall blocks the server. **Scan & Fix** checks all of these.
+Usually one of three things: your ISP blocks port forwarding (CGNAT) — use a VPN instead; only TCP is forwarded (BeamMP needs TCP **and** UDP); or Windows Firewall blocks the server. **Fix Problems** checks all of these.
 
 **"Is it safe?"**
 Yes. No data collection, no phoning home. Your key is used only while hosting and is wiped when you stop. Mods are scanned for executables before being served.
 
 ---
 
-## 📜 License
+## ðŸ“œ License
 
 This software is distributed under a proprietary EULA. By using this software you agree to its terms.
 
@@ -104,7 +104,7 @@ This software is distributed under a proprietary EULA. By using this software yo
 
 ## 📄 Credits & Contributions
 
-- **Lead Creator & Core Developer:** **Kinan** (`@kinan_sx240`)
+- **Sole Developer & Creator:** **Kinan** (`@kinan_sx240`)
 - **`@bomberrie`** — v0.7.1 Complete Command Center UI/UX Redesign
 - **Ali Alldoboni** (`@alialldoboni`) — early co-development for v0.2–v0.5.2
 - **Discord:** [Innocent BeamMP Server Community](https://discord.gg/2FxsJvKr4a)

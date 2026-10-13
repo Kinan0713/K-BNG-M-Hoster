@@ -1,5 +1,5 @@
 # ========================================================================================
-# K BNG M Hoster v0.7.1 - Simplest Edition (GUI)
+# K BNG M Hoster v0.7.1.1 - Simplest Edition (GUI)
 # All logic lives in HosterCore.ps1 (single source of truth). This file is the window.
 # Start_Here.bat / Play_BeamMP.bat only launch this file.
 #
@@ -95,7 +95,7 @@ $script:State = @{
     Frp           = ''
     FrpError      = ''
 }
-$script:AppVersion = '0.7.1'
+$script:AppVersion = '0.7.1.1'
 $script:CorePath = Join-Path $PSScriptRoot 'HosterCore.ps1'
 $script:CoreText = "`$script:CorePath = '" + ($script:CorePath -replace "'", "''") + "'`r`n" + (Get-Content -LiteralPath $script:CorePath -Raw)
 $script:PendingAction = $null
@@ -112,6 +112,7 @@ $script:AllowClose = $false
 $script:ClosingAfterStop = $false
 $script:RestartAfterStop = $false
 $script:Starting = $false
+$script:isPrivate = $false
 
 # ---------------------------------------------------------------------------------------
 # COLORS / HELPERS (BeamNG Carbon & Racing Orange Design System)
@@ -861,7 +862,7 @@ function New-PageTop($Page, [string]$Title, [string]$Hint = '') {
 # ---------------------------------------------------------------------------------------
 $script:Form = New-Object System.Windows.Forms.Form
 Enable-DoubleBuffer $script:Form
-$script:Form.Text = 'K BNG M Hoster v0.7.1 - by Kinan (@kinan_sx240) & @bomberrie'
+$script:Form.Text = 'K BNG M Hoster v0.7.1.1 - by Kinan (@raed713) & @bomberrie'
 $script:Form.FormBorderStyle = 'None'
 $script:Form.Size = New-Object System.Drawing.Size(1100, 760)
 $script:Form.MinimumSize = New-Object System.Drawing.Size(980, 680)
@@ -2078,6 +2079,20 @@ function Show-SettingsPage {
     $script:RadioPrivate.Font = $rFont95
     $script:RadioPrivate.Height = 24
     Add-RowFull $card $script:RadioPrivate
+    $script:RadioPublic.Add_CheckedChanged({
+        if ($script:SuppressSettingEvents) { return }
+        if (-not [bool]$this.Checked) { return }
+        $script:isPrivate = $false
+        $this.ForeColor = $Theme.green
+        $script:RadioPrivate.ForeColor = [System.Drawing.Color]::White
+    })
+    $script:RadioPrivate.Add_CheckedChanged({
+        if ($script:SuppressSettingEvents) { return }
+        if (-not [bool]$this.Checked) { return }
+        $script:isPrivate = $true
+        $this.ForeColor = $Theme.green
+        $script:RadioPublic.ForeColor = [System.Drawing.Color]::White
+    })
     $script:BtnApplyVis = New-Btn 'Apply visibility' 'Save the public/private choice. If the server is running it restarts to apply it.' { Apply-Visibility }
     $script:BtnApplyVis.Size = New-Object System.Drawing.Size(150, 32)
     Add-RowFull $card $script:BtnApplyVis
@@ -2236,6 +2251,7 @@ function Refresh-SettingsFields {
             $script:ChkDebug.Checked = ((Get-ConfigValue 'Debug') -match 'true|1')
             $script:ChkInfoPacket.Checked = ((Get-ConfigValue 'InformationPacket') -match 'true|1')
             $isPriv = Get-ServerPrivate
+            $script:isPrivate = [bool]$isPriv
             $script:RadioPublic.Checked = -not $isPriv
             $script:RadioPrivate.Checked = $isPriv
         } finally {
@@ -2340,36 +2356,60 @@ function Apply-MapSelection {
 
 function Apply-Visibility {
     if (-not $script:RadioPrivate) { return }
-    $priv = if ($script:RadioPrivate.Checked) { $true } else { $false }
-    Add-Log "[INFO] Applying visibility: $(if ($priv) { 'private' } else { 'public' })..."
-    Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Set-ServerVisibility -Private $($priv.ToString().ToLower()))`n`$State.VisRefresh = (Get-Date).ToString('o')" 'setvis'
+    $script:isPrivate = [bool]$script:RadioPrivate.Checked
+    $script:State.IsPrivate = $script:isPrivate
+    $priv = $script:isPrivate
+    if ($script:LblSettingsResult) {
+        $script:LblSettingsResult.Text = $(if ($priv) { 'Saving: PRIVATE server...' } else { 'Saving: PUBLIC server...' })
+        $script:LblSettingsResult.ForeColor = $Theme.yellow
+    }
+    if ($script:BtnApplyVis) { $script:BtnApplyVis.Text = $(if ($priv) { 'Apply visibility (PRIVATE)' } else { 'Apply visibility (public)' }) }
+    Add-Log "[INFO] Writing visibility to ServerConfig.toml: $(if ($priv) { 'private' } else { 'public' })..."
+    # Evaluates $script:isPrivate at click time; the current AuthKey value is
+    # preserved. No TOML read feeds back into the toggle - only this write.
+    Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$State.IsPrivate = $(if ($priv) { '$true' } else { '$false' })`nSay (Save-AuthConfig -Private $(if ($priv) { '$true' } else { '$false' }) -AuthKey (Get-ConfigValue 'AuthKey'))`n`$State.VisRefresh = (Get-Date).ToString('o')" 'setvis'
 }
 
 function Save-Settings {
     $vals = @{}
     $name = $script:TxtName.Text.Trim()
     if ($name) {
-        if ($name -notmatch '^[^"]{1,60}$') {
-            Add-Log "[ERROR] Server name must be 60 characters or fewer and cannot contain double quotes."
-            return
-        }
+        # Edge-case friendly: quotes and line breaks are sanitized instead of
+        # rejecting the whole save; overlong names are trimmed to 60 chars.
+        $origName = $name
+        $name = $name.Replace('"', "'") -replace '[\x00-\x1F]', ' '
+        if ($name.Length -gt 60) { $name = $name.Substring(0, 60).TrimEnd() }
+        if ($name -ne $origName) { Add-Log "[INFO] Server name adjusted for compatibility (quotes/line breaks removed, 60 char limit)." }
         $vals['Name'] = '"' + $name + '"'
     }
     foreach ($pair in @(@{ Key = 'MaxPlayers'; Txt = $script:TxtPlayers }, @{ Key = 'MaxCars'; Txt = $script:TxtCars })) {
         $v = $pair.Txt.Text.Trim()
         if ($v) {
-            if ($v -notmatch '^\d+$') { Add-Log "[ERROR] $($pair.Key) must be a number."; return }
-            $vals[$pair.Key] = [int]$v
+            # Non-numeric text (or "0" and odd formats) never blocks the save:
+            # digits are extracted when possible, otherwise the current config
+            # value is kept untouched.
+            $num = 0
+            try { $num = [int]([regex]::Match([string]$v, '\d+').Value) } catch { $num = 0 }
+            if ($num -le 0) {
+                Add-Log "[INFO] $($pair.Key) input was not a positive number - leaving the existing value unchanged."
+            } else {
+                if ($pair.Key -eq 'MaxPlayers' -and $num -gt 500) { $num = 500; Add-Log '[INFO] MaxPlayers capped at 500.' }
+                if ($pair.Key -eq 'MaxCars' -and $num -gt 100) { $num = 100; Add-Log '[INFO] MaxCars capped at 100.' }
+                $vals[$pair.Key] = [int]$num
+            }
         }
     }
-    $desc = $script:TxtDescription.Text.Trim().Replace('"', "'")
+    $desc = $script:TxtDescription.Text.Trim().Replace('"', "'") -replace '[\x00-\x1F]', ' '
     if ($desc) { $vals['Description'] = '"' + $desc + '"' } else { $vals['Description'] = '""' }
-    $tags = $script:TxtTags.Text.Trim().Replace('"', "'")
+    $tags = $script:TxtTags.Text.Trim().Replace('"', "'") -replace '[\x00-\x1F]', ' '
     if ($tags) { $vals['Tags'] = '"' + $tags + '"' } else { $vals['Tags'] = '""' }
     $vals['AllowGuests'] = $script:ChkAllowGuests.Checked.ToString().ToLower()
     $vals['LogChat'] = $script:ChkLogChat.Checked.ToString().ToLower()
     $vals['Debug'] = $script:ChkDebug.Checked.ToString().ToLower()
     $vals['InformationPacket'] = $script:ChkInfoPacket.Checked.ToString().ToLower()
+    # The Public/Private toggle is evaluated from $script:isPrivate right here,
+    # so "Save settings" commits Private = true/false to the TOML on this click.
+    $vals['Private'] = $(if ($script:isPrivate) { 'true' } else { 'false' })
 
     # FRP tunnel settings (persisted to the [FRP] section of ServerConfig.toml) -
     # the fields live on the Network page; keep them when that page was opened.
@@ -2377,22 +2417,35 @@ function Save-Settings {
         $vals['FRPEnabled'] = $script:ChkFrp.Checked.ToString().ToLower()
         $frpServer = $script:TxtFrpServer.Text.Trim()
         if ($frpServer) {
-            if ($frpServer -notmatch '^[A-Za-z0-9.\-]+$') {
-                Add-Log "[ERROR] FRP server address may only contain letters, numbers, dots and dashes (hostname or IP - the port goes in its own box)."
-                return
+            # Pasted URLs / host:port strings are accepted: everything that is
+            # not part of a hostname or IP is stripped, so no input can fail
+            # the save.
+            $cleanServer = ($frpServer -replace '^\s*(https?://)?', '') -replace '[:/,\s]+$', ''
+            $cleanServer = $cleanServer -replace '[^A-Za-z0-9.\-]', ''
+            if ($cleanServer -and $cleanServer -ne $frpServer) { Add-Log "[INFO] FRP server address adjusted to: $cleanServer" }
+            if (-not $cleanServer) {
+                Add-Log '[INFO] FRP server address could not be used as-is - leaving the existing value unchanged.'
+            } else {
+                $vals['FRPServerAddress'] = '"' + $cleanServer + '"'
             }
-            $vals['FRPServerAddress'] = '"' + $frpServer + '"'
         }
         $frpPort = $script:TxtFrpPort.Text.Trim()
-        if (-not $frpPort) { $frpPort = '7000' }
-        if ($frpPort -notmatch '^\d+$' -or [int]$frpPort -lt 1 -or [int]$frpPort -gt 65535) {
-            Add-Log "[ERROR] FRP server port must be a number between 1 and 65535."
-            return
+        if ($frpPort -match '^\d+$') {
+            $p = [int]$frpPort
+            if ($p -lt 1 -or $p -gt 65535) { $p = 7000; Add-Log '[INFO] FRP server port was out of range - using the default 7000.' }
+            $vals['FRPServerPort'] = $p
+        } elseif (-not $frpPort) {
+            $vals['FRPServerPort'] = 7000
+        } else {
+            $p = 0
+            try { $p = [int]([regex]::Match([string]$frpPort, '\d+').Value) } catch { $p = 0 }
+            if ($p -lt 1 -or $p -gt 65535) { $p = 7000 }
+            Add-Log "[INFO] FRP server port adjusted to $p."
+            $vals['FRPServerPort'] = $p
         }
-        $vals['FRPServerPort'] = [int]$frpPort
         $frpToken = $script:TxtFrpToken.Text
         if ($frpToken) {
-            $vals['FRPToken'] = '"' + ($frpToken.Replace('"', '')) + '"'
+            $vals['FRPToken'] = '"' + (($frpToken.Replace('"', '') -replace '[\x00-\x1F]', '')) + '"'
         }
     }
 
@@ -3951,7 +4004,7 @@ Product: K BNG M Hoster
 Licensor / Copyright Holder: Kinan (@kinan_sx240)
 Copyright (c) 2026 Kinan. All Rights Reserved.
 
-IMPORTANT — READ CAREFULLY: BY DOWNLOADING, INSTALLING, ACCESSING, OR USING THE
+IMPORTANT â€” READ CAREFULLY: BY DOWNLOADING, INSTALLING, ACCESSING, OR USING THE
 SOFTWARE, YOU ACCEPT AND AGREE TO THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
 DOWNLOAD, INSTALL, OR USE THE SOFTWARE.
 
@@ -3968,7 +4021,7 @@ DOWNLOAD, INSTALL, OR USE THE SOFTWARE.
     "Licensee" means any person or entity that downloads, installs, accesses,
     or uses the Software.
 
-2. LICENSE GRANT — LIMITED USE
+2. LICENSE GRANT â€” LIMITED USE
 2.1 Subject to strict compliance with this Agreement, the Licensor grants the
     Licensee a limited, revocable, non-exclusive, non-transferable,
     non-sublicensable license to:
@@ -4268,30 +4321,56 @@ function Start-FrpInitAsync {
 
 function Finish-LicenseGate {
     $script:LicenseCheckDone = $true
-    $remote = [string]$script:LicenseRemoteVersion
-    $local = [string]$script:LicenseLocalVersion
-    if (-not $local -and -not $remote) {
-        [System.Windows.Forms.MessageBox]::Show(
-            'K BNG M Hoster could not reach the internet, and no accepted license was found on this computer.' + [Environment]::NewLine + [Environment]::NewLine +
-            'An internet connection is required for first-time license verification. Connect to the internet and start the app again.',
-            'K BNG M Hoster - License', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
-        [System.Windows.Forms.Application]::Exit()
-        return
-    }
-    if (Test-LicenseNeedsAccept $local $remote) {
-        Add-Log "[INFO] License version $remote required (accepted: $(if ($local) { $local } else { 'none' }))."
-        if (Show-EulaDialog) {
-            Save-LocalLicenseVersion $remote
-            $script:LicenseLocalVersion = $remote
-            Set-LicenseLock $false
-            Add-Log '[INFO] License accepted - all controls unlocked.'
-        } else {
-            [System.Windows.Forms.Application]::Exit()
+    try {
+        $remote = [string]$script:LicenseRemoteVersion
+        $local = [string]$script:LicenseLocalVersion
+
+        # First run (no accepted license on this computer): always present the
+        # interactive license prompt. A missing remote version (offline / blocked
+        # / transient network failure) must never hard-lock a brand-new user out.
+        if (-not $local) {
+            if (-not $remote) {
+                Add-Log '[INFO] Offline first run - remote license version unavailable, presenting agreement for local acceptance.'
+            } else {
+                Add-Log "[INFO] License version $remote required (accepted: none)."
+            }
+            if (Show-EulaDialog) {
+                # Record a version even when offline ('0' = accepted, unverified)
+                # so the user stays unlocked on subsequent offline launches.
+                $stored = if ($remote) { $remote } else { '0' }
+                Save-LocalLicenseVersion $stored
+                $script:LicenseLocalVersion = $stored
+                Set-LicenseLock $false
+                Add-Log '[INFO] License accepted - all controls unlocked.'
+            } else {
+                [System.Windows.Forms.Application]::Exit()
+            }
             return
         }
-    } else {
+
+        # Returning user: only re-prompt when the remote version is newer.
+        if (Test-LicenseNeedsAccept $local $remote) {
+            Add-Log "[INFO] License version $remote required (accepted: $local)."
+            if (Show-EulaDialog) {
+                Save-LocalLicenseVersion $remote
+                $script:LicenseLocalVersion = $remote
+                Set-LicenseLock $false
+                Add-Log '[INFO] License accepted - all controls unlocked.'
+            } else {
+                [System.Windows.Forms.Application]::Exit()
+            }
+            return
+        }
+
+        # Previously accepted and no newer remote version (including offline):
+        # pass straight through.
         Set-LicenseLock $false
         Add-Log "[INFO] License check passed (version $local)."
+    } catch {
+        # Never let a transient network/state problem crash initialization.
+        # Fail open so the UI always comes up.
+        try { Add-Log "[WARN] License check failed: $($_.Exception.Message)" } catch { }
+        try { Set-LicenseLock $false } catch { }
     }
 }
 
@@ -4336,13 +4415,13 @@ function Show-KeySetupDialog($owner) {
     $lbl.Location = New-Object System.Drawing.Point(14, 96)
     $dlg.Controls.Add($lbl)
 
-    $txt = New-Object System.Windows.Forms.TextBox
-    $txt.Location = New-Object System.Drawing.Point(14, 118)
-    $txt.Size = New-Object System.Drawing.Size(570, 26)
-    $txt.BackColor = $Theme.panel
-    $txt.ForeColor = [System.Drawing.Color]::White
-    $txt.BorderStyle = 'FixedSingle'
-    $dlg.Controls.Add($txt)
+    $txtAuthKey = New-Object System.Windows.Forms.TextBox
+    $txtAuthKey.Location = New-Object System.Drawing.Point(14, 118)
+    $txtAuthKey.Size = New-Object System.Drawing.Size(570, 26)
+    $txtAuthKey.BackColor = $Theme.panel
+    $txtAuthKey.ForeColor = [System.Drawing.Color]::White
+    $txtAuthKey.BorderStyle = 'FixedSingle'
+    $dlg.Controls.Add($txtAuthKey)
 
     $chk = New-Object System.Windows.Forms.CheckBox
     $chk.Text = 'Also apply recommended server settings (backup first: port, name, max players)'
@@ -4358,8 +4437,19 @@ function Show-KeySetupDialog($owner) {
     $dlg.Controls.Add($lblResult)
 
     $save = New-Btn 'Save Key' 'Validate and save the key.' {
-        $r = Save-AuthKey -Key $txt.Text
-        if ($r.Ok) {
+        $entered = $txtAuthKey.Text.Trim().Trim('"', "'")
+        $private = [bool]$script:isPrivate -or (Get-ServerPrivate)
+        # "0" is always a valid server key (Keymaster auth skipped). A blank
+        # key is valid for private servers too. Any other non-empty string is
+        # accepted as-is (custom keys must never be rejected) - only line
+        # breaks / control characters are refused because they would corrupt
+        # the config file.
+        if ($entered -eq '0' -or ($private -and -not $entered) -or ($entered -and $entered -notmatch '[\x00-\x1F]')) {
+            $txtAuthKey.Text = $entered
+            $txtAuthKey.BackColor = [System.Drawing.Color]::FromArgb(34, 92, 44)
+            # Explicitly commits the textbox value + the current Private toggle
+            # state to ServerConfig.toml on THIS Save click.
+            $r = Save-AuthConfig -AuthKey $txtAuthKey.Text -Private $private
             if ($chk.Checked) {
                 $port = New-SetupConfig
                 $lblResult.Text = "$($r.Message)  Server settings applied (port $port)."
@@ -4368,10 +4458,11 @@ function Show-KeySetupDialog($owner) {
             }
             $lblResult.ForeColor = $Theme.green
             $dlg.DialogResult = 'OK'
-        } else {
-            $lblResult.Text = $r.Message
-            $lblResult.ForeColor = $Theme.red
+            return
         }
+        $txtAuthKey.BackColor = $Theme.panel
+        $lblResult.Text = "The key cannot contain line breaks or control characters. Any other key text is accepted - or type 0 for a private server."
+        $lblResult.ForeColor = $Theme.red
     }
     $save.Size = New-Object System.Drawing.Size(110, 36)
     $save.Location = New-Object System.Drawing.Point(14, 250)
@@ -4385,7 +4476,7 @@ function Show-KeySetupDialog($owner) {
     $skip.Location = New-Object System.Drawing.Point(130, 250)
     $dlg.Controls.Add($skip)
 
-    $note = New-Lbl 'A valid key contains only letters, numbers and dashes (8-64 characters).' $Theme.dim 8.5 20  $false 570
+    $note = New-Lbl 'Any non-empty key text is accepted (letters, numbers, dashes, custom strings). For a private server, type 0 (or leave empty) - Keymaster authentication is skipped.' $Theme.dim 8.5 20  $false 570
     $note.Location = New-Object System.Drawing.Point(14, 300)
     $dlg.Controls.Add($note)
 
@@ -4453,6 +4544,10 @@ function Start-ServerFlow {
             return
         }
     }
+
+    # Launch click commits the toggle state from $script:isPrivate straight to
+    # ServerConfig.toml (one-way write - nothing reads back into the toggle).
+    $null = Save-AuthConfig -Private ([bool]$script:isPrivate) -AuthKey (Get-ConfigValue 'AuthKey')
 
     if (-not (Test-Path -LiteralPath $script:LauncherPath)) {
         $r = [System.Windows.Forms.MessageBox]::Show(
@@ -4775,9 +4870,19 @@ $timerMain.Add_Tick({
             }
             'setvis' {
                 if ($script:LblSettingsResult) { $script:LblSettingsResult.Text = 'Visibility saved.'; $script:LblSettingsResult.ForeColor = $Theme.green }
+                if ($script:BtnApplyVis) { $script:BtnApplyVis.Text = 'Apply visibility' }
                 if ($script:RadioPrivate) {
-                    $script:RadioPrivate.Checked = Get-ServerPrivate
-                    $script:RadioPublic.Checked = -not (Get-ServerPrivate)
+                    # Suppressed refresh: re-reading ServerConfig.toml here must
+                    # only update the GUI, never re-fire the toggle handlers.
+                    $script:SuppressSettingEvents = $true
+                    try {
+                        $cur = Get-ServerPrivate
+                        $script:isPrivate = [bool]$cur
+                        $script:RadioPrivate.Checked = $cur
+                        $script:RadioPublic.Checked = -not $cur
+                    } finally {
+                        $script:SuppressSettingEvents = $false
+                    }
                 }
                 if ($script:State.Running) {
                     $r = [System.Windows.Forms.MessageBox]::Show(

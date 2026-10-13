@@ -1,4 +1,54 @@
+## v0.7.1.1 - Update 9: Validation & input fixes
+
+- **No more false-positive validation errors:** the server key check no longer rejects
+  custom or unusual key strings. Any non-empty key text is accepted (only line breaks /
+  control characters are refused because they would corrupt the config file). "0" and a
+  blank key for private servers stay valid.
+- **Graceful settings save:** the server name, MaxPlayers/MaxCars, description and tags
+  now sanitize edge-case input (quotes, line breaks, overlong names, non-numeric text)
+  instead of aborting the whole save with an error. Non-numeric player/car values fall
+  back to the existing config; out-of-range values are capped safely.
+- **FRP fields never block the save:** pasted URLs / host:port strings are cleaned into a
+  valid server address, and a bad or empty port falls back to the default 7000.
+- **Config writer fallbacks:** ServerConfig.toml writes are wrapped so unexpected input
+  formats degrade to safe, valid TOML instead of blocking server execution, and a failed
+  write keeps the previous config.
+
 ## v0.7.1 - Update 7.1: Command Center UI Overhaul & Zero-Allocation Performance (by `@bomberrie`)
+
+- **Responsive Layout & Visual Overhaul:** Completely redesigned the dashboard and command center with high-contrast carbon styling, telemetry KPI chips, clean direct connect cards, and dynamic layout scaling across all window sizes.
+- **Eliminated Horizontal Scrollbars & Layout Gaps:** Sized cards dynamically to container client bounds and vertical scrollbar states, eliminating unwanted spacing and scrollbars on launch and resizing.
+
+## v0.7.1.0 - Update 8: Public/Private toggle fix & AuthKey "0" support
+
+- **Public/Private toggle fixed:** clicking Private or Public now updates the interface
+  instantly and stores the choice in ServerConfig.toml (`Private = true/false`). The
+  toggle handlers no longer re-read the config file, so the selection can never bounce
+  back or revert on its own.
+- **Settings now save to ServerConfig.toml:** the new Save-AuthConfig pipeline writes the
+  server key and the visibility state to disk on every Save Key / Apply visibility /
+  Save settings / Start Server click - previously key entries could fail to persist.
+- **AuthKey "0" support:** the key field accepts "0" (and blank for private servers) as a
+  valid value with no red error or clearing - private servers use it to skip Keymaster
+  authentication.
+- **Boot-loop fix:** the startup key validation now breaks out immediately when
+  Private = true or the AuthKey is "0", so a keyless private server launches cleanly.
+- **Session end keeps your settings:** a server session no longer wipes the saved
+  AuthKey from ServerConfig.toml.
+
+## v0.7.0.2 - Update 7, Fix 2: first-run license/internet check no longer locks out new users
+
+- **First-run license fix:** brand-new users who start the tool without internet (or
+  whose firewall blocks the license check) were shown a hard error and the app closed
+  before they could ever accept the license. The startup gate now always presents the
+  interactive license dialog on the very first run - even when the remote license
+  version cannot be fetched - records the acceptance locally, and lets the user in.
+- **Non-blocking internet check:** the reachability probe already ran on a background
+  thread with a short timeout and a try/catch fallback; the gate logic now wraps the
+  whole version decision in try/catch so a transient offline state, a firewall block or
+  a DNS hiccup can never abort initialization or crash the launcher.
+- **Self-update version matching:** the update checker now accepts four-part version
+  tags (e.g. 0.7.0.2) so hotfix releases are detected and offered correctly.
 
 ### 🎨 Command Center UI & UX Redesign (`@bomberrie`)
 

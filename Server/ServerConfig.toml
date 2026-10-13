@@ -18,7 +18,7 @@ InformationPacket = true
 Name = "K BNG M Server"
 # Add custom identifying tags to your server to make it easier to find. Format should be TagA,TagB,TagC. Note the comma seperation.
 Tags = "Freeroam,KBnG,BeamMP"
-MaxCars = 50
+MaxCars = 40
 MaxPlayers = 10
 Map = "/levels/2k_sadamine/info.json"
 Description = "Welcome to K BNG M Server! Enjoy a smooth, secure multiplayer session!"
