@@ -236,9 +236,27 @@ function New-Btn([string]$Text, [string]$Tip, [scriptblock]$OnClick) {
     $b.ForeColor = $Theme.text
     $b.Font = $script:DefaultBtnFont
     $b.AutoSize = $false
-    $b.Width = 96
+    $b.Width = [int][math]::Max(96, ([System.Windows.Forms.TextRenderer]::MeasureText($Text, $b.Font).Width + 24))
     $b.Height = 34
     $b.Cursor = [System.Windows.Forms.Cursors]::Hand
+    $b.Add_SizeChanged({
+        if ($this.AccessibleRole -ne [System.Windows.Forms.AccessibleRole]::MenuItem -and $this.AccessibleRole -ne [System.Windows.Forms.AccessibleRole]::PushButton -and $this.Text) {
+            $needW = [System.Windows.Forms.TextRenderer]::MeasureText($this.Text, $this.Font).Width + 22
+            if ($needW -gt 420) { $needW = 420 }
+            if ($this.Width -gt 48 -and $this.Width -lt $needW) {
+                $this.Width = $needW
+            }
+        }
+    })
+    $b.Add_TextChanged({
+        if ($this.AccessibleRole -ne [System.Windows.Forms.AccessibleRole]::MenuItem -and $this.AccessibleRole -ne [System.Windows.Forms.AccessibleRole]::PushButton -and $this.Text) {
+            $needW = [System.Windows.Forms.TextRenderer]::MeasureText($this.Text, $this.Font).Width + 22
+            if ($needW -gt 420) { $needW = 420 }
+            if ($this.Width -gt 48 -and $this.Width -lt $needW) {
+                $this.Width = $needW
+            }
+        }
+    })
     $b.Add_MouseEnter({ if ($this.AccessibleDescription -ne 'hover') { $this.AccessibleDescription = 'hover'; $this.Invalidate() } })
     $b.Add_MouseLeave({ if ($this.AccessibleDescription -ne '') { $this.AccessibleDescription = ''; $this.Invalidate() } })
     $b.Add_MouseDown({ if ($this.AccessibleDescription -ne 'down') { $this.AccessibleDescription = 'down'; $this.Invalidate() } })
@@ -529,21 +547,22 @@ function SY([double]$V) {
 
 # How many lines does $Text need inside $MaxWidth with $Font?
 function Measure-Text([string]$Text, [System.Drawing.Font]$Font, [int]$MaxWidth) {
-    $g = $script:Form.CreateGraphics()
-    try {
-        $s = $g.MeasureString($Text, $Font, $MaxWidth)
-        return [pscustomobject]@{
-            Lines  = [int][math]::Max(1, [math]::Ceiling(($s.Height / [math]::Max(1, $Font.Height)) - 0.1))
-            Height = [int][math]::Ceiling($s.Height)
-        }
-    } finally { $g.Dispose() }
+    if (-not $Text) { return [pscustomobject]@{ Lines = 1; Height = 18 } }
+    $w = [int][math]::Max(60, $MaxWidth)
+    $sz = [System.Windows.Forms.TextRenderer]::MeasureText($Text, $Font, (New-Object System.Drawing.Size($w, 0)), [System.Windows.Forms.TextFormatFlags]::WordBreak)
+    $lineH = [math]::Max(14, $Font.Height)
+    return [pscustomobject]@{
+        Lines  = [int][math]::Max(1, [math]::Ceiling([double]$sz.Height / [double]$lineH))
+        Height = [int]$sz.Height
+    }
 }
 
 # ---------------------------------------------------------------------------------------
 # RESPONSIVE LAYOUT HELPERS
 # Every page = docked chrome + scrollable stack of rounded cards. Cards are
-# TableLayoutPanels (fixed label column + stretching content column) inside
-# auto-sizing panels; everything scales through Dock/Anchor - no pixel math.
+# TableLayoutPanels (fixed label column + stretching content column) measured
+# deterministically at the exact viewport width so wrapped text and buttons
+# never clip at any window size.
 # ---------------------------------------------------------------------------------------
 
 # A rounded section card. Returns the card (its .Tag holds the inner TLP).
@@ -551,9 +570,7 @@ function New-Card([string]$Title, [string]$Subtitle = '') {
     $card = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $card
     $card.BackColor = $Theme.card
-    $card.Dock = 'Top'
-    $card.AutoSize = $true
-    $card.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
+    $card.AutoSize = $false
     $card.Padding = New-Object System.Windows.Forms.Padding(20, 14, 20, 16)
     $card.Add_SizeChanged({ $this.Invalidate() })
     $card.Add_Paint({
@@ -566,11 +583,11 @@ function New-Card([string]$Title, [string]$Subtitle = '') {
     })
     $t = New-Object System.Windows.Forms.TableLayoutPanel
     Enable-DoubleBuffer $t
-    $t.Dock = 'Fill'
+    $t.Location = New-Object System.Drawing.Point(20, 14)
     $t.AutoSize = $true
     $t.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
     $t.ColumnCount = 2
-    $null = $t.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 260)))
+    $null = $t.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 220)))
     $null = $t.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100)))
     $card.Controls.Add($t)
     $lblT = New-Object System.Windows.Forms.Label
@@ -579,16 +596,20 @@ function New-Card([string]$Title, [string]$Subtitle = '') {
     $lblT.Anchor = 'Left'
     $lblT.Font = Get-CachedFont 'Segoe UI Semibold' 10.75 ([System.Drawing.FontStyle]::Bold)
     $lblT.ForeColor = [System.Drawing.Color]::White
+    $lblT.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 2)
     $r = $t.RowCount; $t.RowCount = $r + 1
+    $null = $t.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
     $t.Controls.Add($lblT, 0, $r); $t.SetColumnSpan($lblT, 2)
     if ($Subtitle) {
         $lblS = New-Object System.Windows.Forms.Label
         $lblS.Text = $Subtitle
-        $lblS.AutoSize = $true; $lblS.Anchor = 'Left'
+        $lblS.AutoSize = $true
+        $lblS.Anchor = 'Left'
         $lblS.ForeColor = $Theme.dim
         $lblS.Font = Get-CachedFont 'Segoe UI' 8.75
         $lblS.Margin = New-Object System.Windows.Forms.Padding(0, 1, 0, 8)
         $r = $t.RowCount; $t.RowCount = $r + 1
+        $null = $t.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
         $t.Controls.Add($lblS, 0, $r); $t.SetColumnSpan($lblS, 2)
     }
     $card.Tag = $t
@@ -600,13 +621,15 @@ function Add-Row($Card, [string]$Label, $Control) {
     $t = $Card.Tag
     $lbl = New-Object System.Windows.Forms.Label
     $lbl.Text = $Label
-    $lbl.AutoSize = $true; $lbl.Anchor = 'Left'
+    $lbl.AutoSize = $true
+    $lbl.Anchor = 'Left'
     $lbl.ForeColor = $Theme.dim
     $lbl.Font = Get-CachedFont 'Segoe UI' 9.25
-    $lbl.Margin = New-Object System.Windows.Forms.Padding(0, 6, 8, 2)
+    $lbl.Margin = New-Object System.Windows.Forms.Padding(0, 6, 8, 4)
     $Control.Anchor = 'Left,Right'
     $Control.Margin = New-Object System.Windows.Forms.Padding(0, 3, 0, 3)
     $r = $t.RowCount; $t.RowCount = $r + 1
+    $null = $t.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
     $t.Controls.Add($lbl, 0, $r)
     $t.Controls.Add($Control, 1, $r)
 }
@@ -616,9 +639,14 @@ function Add-Row($Card, [string]$Label, $Control) {
 # the stretch of every following content column.
 function Add-RowFull($Card, $Control) {
     $t = $Card.Tag
-    $Control.Anchor = 'Left,Right'
+    if ($Control -is [System.Windows.Forms.Button]) {
+        $Control.Anchor = 'Left'
+    } else {
+        $Control.Anchor = 'Left,Right'
+    }
     $Control.Margin = New-Object System.Windows.Forms.Padding(0, 3, 0, 3)
     $r = $t.RowCount; $t.RowCount = $r + 1
+    $null = $t.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
     $t.Controls.Add($Control, 0, $r)
     $t.SetColumnSpan($Control, 2)
 }
@@ -627,24 +655,29 @@ function Add-RowFull($Card, $Control) {
 function Add-RowNote($Card, [string]$Text, [System.Drawing.Color]$Color) {
     $w = New-Object System.Windows.Forms.Label
     $w.Text = $Text
-    $w.Dock = 'Fill'
     $w.AutoSize = $true
+    $w.Anchor = 'Left'
     $w.ForeColor = $Color
     $w.Font = Get-CachedFont 'Segoe UI' 8.75
-    $w.Margin = New-Object System.Windows.Forms.Padding(0, 6, 0, 6)
-    Add-RowFull $Card $w
+    $w.Margin = New-Object System.Windows.Forms.Padding(0, 6, 0, 4)
+    $t = $Card.Tag
+    $r = $t.RowCount; $t.RowCount = $r + 1
+    $null = $t.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
+    $t.Controls.Add($w, 0, $r)
+    $t.SetColumnSpan($w, 2)
     return $w
 }
 
-# Horizontal bar of buttons (or any small controls).
+# Horizontal bar of buttons (or any small controls). Wraps cleanly if window is narrow.
 function New-ButtonBar {
     $fl = New-Object System.Windows.Forms.FlowLayoutPanel
     Enable-DoubleBuffer $fl
-    $fl.AutoSize = $false
-    $fl.Height = 44
-    $fl.WrapContents = $false
+    $fl.AutoSize = $true
+    $fl.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
+    $fl.MinimumSize = New-Object System.Drawing.Size(0, 38)
+    $fl.WrapContents = $true
     $fl.FlowDirection = [System.Windows.Forms.FlowDirection]::LeftToRight
-    $fl.Padding = New-Object System.Windows.Forms.Padding(0, 4, 0, 4)
+    $fl.Padding = New-Object System.Windows.Forms.Padding(0, 2, 0, 2)
     return $fl
 }
 
@@ -660,53 +693,132 @@ function New-SettingsInput {
     return $t
 }
 
-# The scrollable card stack used by every page: body (AutoScroll) > content
-# (auto-size, width clamped) > cards (Dock Top). Cards mount in REVERSE order
-# because Dock Top stacks bottom-up.
+# Deterministically measures and positions every card in the active card stack
+# so wrapped labels, checkboxes, and button bars never clip at any window size.
+function Update-CardStackLayout {
+    if (-not $script:StackRefs -or -not $script:StackRefs.Body -or $script:StackRefs.Body.IsDisposed) { return }
+    $body = $script:StackRefs.Body
+    $content = $script:StackRefs.Content
+    if (-not $content -or $content.IsDisposed) { return }
+    $cards = $content.Tag
+    if (-not $cards -or -not $cards.Count) { return }
+    if ($body.ClientSize.Width -le 50) { return }
+
+    $stackW = [int][math]::Max(340, ($body.ClientSize.Width - 34))
+    $content.SuspendLayout()
+    try {
+        $curY = 0
+        foreach ($card in $cards) {
+            if (-not $card -or $card.IsDisposed) { continue }
+            $t = $card.Tag
+            if (-not ($t -is [System.Windows.Forms.TableLayoutPanel])) { continue }
+            $t.SuspendLayout()
+            try {
+                $padH = $card.Padding.Left + $card.Padding.Right
+                $padV = $card.Padding.Top + $card.Padding.Bottom
+                $innerW = [int][math]::Max(240, ($stackW - $padH))
+                $col0W = [int][math]::Min(220, [math]::Max(140, [int]($innerW * 0.34)))
+                $col1W = [int][math]::Max(100, ($innerW - $col0W))
+                if ($t.ColumnStyles.Count -ge 1) { $t.ColumnStyles[0].Width = $col0W }
+
+                foreach ($c in $t.Controls) {
+                    $span = $t.GetColumnSpan($c)
+                    $col = $t.GetColumn($c)
+                    $cellW = if ($span -ge 2) { $innerW } elseif ($col -eq 0) { $col0W } else { $col1W }
+                    $availW = [int][math]::Max(80, ($cellW - $c.Margin.Left - $c.Margin.Right - 2))
+
+                    if ($c -is [System.Windows.Forms.Label]) {
+                        $c.AutoSize = $true
+                        $c.MaximumSize = New-Object System.Drawing.Size($availW, 0)
+                    } elseif ($c -is [System.Windows.Forms.CheckBox] -or $c -is [System.Windows.Forms.RadioButton]) {
+                        $c.AutoSize = $true
+                        $c.MaximumSize = New-Object System.Drawing.Size($availW, 0)
+                    } elseif ($c -is [System.Windows.Forms.FlowLayoutPanel]) {
+                        $c.AutoSize = $true
+                        $c.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
+                        $c.WrapContents = $true
+                        $c.MaximumSize = New-Object System.Drawing.Size($availW, 0)
+                        $c.MinimumSize = New-Object System.Drawing.Size($availW, 36)
+                        foreach ($sub in $c.Controls) {
+                            if ($sub -is [System.Windows.Forms.Label] -and $sub.AutoSize) {
+                                $sub.MaximumSize = New-Object System.Drawing.Size([int][math]::Max(60, ($availW - 12)), 0)
+                            }
+                        }
+                    } elseif ($c -is [System.Windows.Forms.Panel]) {
+                        $c.Width = $availW
+                        $pH = 0
+                        foreach ($sub in $c.Controls) {
+                            if ($sub.Dock -eq 'Top') { $pH += $sub.Height }
+                            else { $b = $sub.Bottom + 4; if ($b -gt $pH) { $pH = $b } }
+                        }
+                        if ($pH -gt 0) { $c.Height = $pH }
+                    } elseif ($c -is [System.Windows.Forms.Button]) {
+                        $needW = [System.Windows.Forms.TextRenderer]::MeasureText($c.Text, $c.Font).Width + 24
+                        $btnW = [int][math]::Min($availW, [math]::Max($c.Width, $needW))
+                        if ($c.Width -ne $btnW) { $c.Width = $btnW }
+                    } else {
+                        $c.Width = $availW
+                    }
+                }
+                $t.Location = New-Object System.Drawing.Point($card.Padding.Left, $card.Padding.Top)
+                $t.MinimumSize = New-Object System.Drawing.Size($innerW, 0)
+                $t.MaximumSize = New-Object System.Drawing.Size($innerW, 0)
+                $t.Width = $innerW
+            } finally {
+                $t.ResumeLayout($true)
+            }
+            $t.PerformLayout()
+            $maxBot = $t.PreferredSize.Height
+            foreach ($c in $t.Controls) {
+                if ($c.Visible) {
+                    $b = $c.Bottom + $c.Margin.Bottom
+                    if ($b -gt $maxBot) { $maxBot = $b }
+                }
+            }
+            $cardH = $maxBot + $padV + 4
+            $card.Bounds = New-Object System.Drawing.Rectangle(0, $curY, $stackW, $cardH)
+            $curY += $cardH + 12
+        }
+        $scrollPos = $body.AutoScrollPosition
+        $content.Location = New-Object System.Drawing.Point((16 + $scrollPos.X), (10 + $scrollPos.Y))
+        $content.Size = New-Object System.Drawing.Size($stackW, [int][math]::Max(10, ($curY + 8)))
+    } finally {
+        $content.ResumeLayout($true)
+    }
+}
+
 function New-CardStack($Page) {
     $body = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $body
     $body.Dock = 'Fill'
     $body.BackColor = $Theme.bg
     $body.AutoScroll = $true
+    $body.AutoScrollMargin = New-Object System.Drawing.Size(0, 12)
     $content = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $content
     $content.Location = New-Object System.Drawing.Point(16, 10)
-    $content.Anchor = 'Top,Left,Right'
-    $content.AutoSize = $true
-    $content.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
-    $content.MinimumSize = New-Object System.Drawing.Size([int][math]::Max(($Page.ClientSize.Width - 32), 200), 0)
+    $content.AutoSize = $false
+    $content.BackColor = $Theme.bg
     $body.Controls.Add($content)
     $body.Tag = $content
     $script:StackRefs = @{ Body = $body; Content = $content }
-    $body.Add_Resize({
-        $c = $this.Tag
-        if (-not $c) { return }
-        $newMinW = [int][math]::Max(($this.ClientSize.Width - 32), 200)
-        if ($c.MinimumSize.Width -ne $newMinW) {
-            $c.MinimumSize = New-Object System.Drawing.Size($newMinW, 0)
-        }
-    })
+    $script:PageLayout = { Update-CardStackLayout }
+    $body.Add_Resize({ Update-CardStackLayout })
     $Page.Controls.Add($body)
     $body.BringToFront()
     $script:MountCards = {
         param($CardList, $Content)
+        $Content.Tag = @($CardList)
         $Content.SuspendLayout()
         try {
             $Content.Controls.Clear()
-            for ($i = $CardList.Count - 1; $i -ge 0; $i--) {
-                if ($i -lt ($CardList.Count - 1)) {
-                    $sp = New-Object System.Windows.Forms.Panel
-                    $sp.Dock = 'Top'
-                    $sp.Height = 12
-                    $sp.BackColor = $Theme.bg
-                    $Content.Controls.Add($sp)
-                }
-                $Content.Controls.Add($CardList[$i])
+            foreach ($card in $CardList) {
+                $Content.Controls.Add($card)
             }
         } finally {
-            $Content.ResumeLayout($true)
+            $Content.ResumeLayout($false)
         }
+        Update-CardStackLayout
     }
     return $script:StackRefs
 }
@@ -728,10 +840,10 @@ function New-PageTop($Page, [string]$Title, [string]$Hint = '') {
     $lbl = New-Lbl $Title ([System.Drawing.Color]::White) 14.5 34 $true
     $lbl.Font = Get-CachedFont 'Segoe UI Semibold' 14.5 ([System.Drawing.FontStyle]::Bold)
     $lbl.Dock = 'Left'
-    $lbl.Width = 260
+    $lbl.AutoSize = $true
+    $lbl.Padding = New-Object System.Windows.Forms.Padding(0, 6, 16, 0)
     $lbl.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
     if ($Hint) { $script:Tip.SetToolTip($lbl, $Hint) }
-    $top.Controls.Add($lbl)
     $flow = New-Object System.Windows.Forms.FlowLayoutPanel
     Enable-DoubleBuffer $flow
     $flow.Dock = 'Fill'
@@ -740,6 +852,7 @@ function New-PageTop($Page, [string]$Title, [string]$Hint = '') {
     $flow.WrapContents = $false
     $flow.Padding = New-Object System.Windows.Forms.Padding(0, 2, 0, 2)
     $top.Controls.Add($flow)
+    $top.Controls.Add($lbl)
     return @{ Bar = $top; Flow = $flow; Title = $lbl }
 }
 
@@ -854,9 +967,18 @@ $chipText.Add_MouseDown($script:DragWindowHandler)
 $script:LblVersionChip.Controls.Add($chipText)
 
 $script:LblSubtitle = New-Lbl "BeamMP Server Command Center  $dot  FRP Tunnel + Playit.gg  $dot  by Kinan (@kinan_sx240)  $dot  UI by @bomberrie" $Theme.dim 8.5 20
-$script:LblSubtitle.Location = New-Object System.Drawing.Point(220, 11)
+$script:LblSubtitle.AutoSize = $false
+$script:LblSubtitle.AutoEllipsis = $true
+$script:LblSubtitle.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+$script:LblSubtitle.Location = New-Object System.Drawing.Point(220, 9)
+$script:LblSubtitle.Size = New-Object System.Drawing.Size(600, 20)
 $script:LblSubtitle.Add_MouseDown($script:DragWindowHandler)
 $script:LblSubtitle.Add_DoubleClick({ Toggle-MaximizeWindow })
+$titleBar.Add_Resize({
+    if ($script:LblSubtitle) {
+        $script:LblSubtitle.Width = [int][math]::Max(60, ($this.ClientSize.Width - 220 - 146))
+    }
+})
 
 # Custom Window Control Buttons (Panel-based so Set-LicenseLock never disables them)
 function New-WindowCtrlBtn([string]$Kind, [string]$TipText, [scriptblock]$OnClick) {
@@ -1111,6 +1233,7 @@ $script:LblPlayers.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
 $script:LblPlayers.Padding = New-Object System.Windows.Forms.Padding(6, 5, 6, 0)
 
 $script:LblShortcuts = New-Lbl "Ctrl+S Start  $dot  Ctrl+X Stop  $dot  Ctrl+C Copy IP  $dot  Ctrl+D Diagnose  $dot  F11 Fullscreen" $Theme.muted 8 24
+$script:LblShortcuts.AutoSize = $false
 $script:LblShortcuts.Dock = 'Fill'
 $script:LblShortcuts.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
 $script:LblShortcuts.AutoEllipsis = $true
@@ -1140,6 +1263,8 @@ $logHead.Add_Paint({
     } catch { }
 })
 $logTitle = New-Lbl "ACTIVITY CONSOLE  $dot  Live session & diagnostic output" $Theme.dim 8.25 22 $true
+$logTitle.AutoSize = $false
+$logTitle.AutoEllipsis = $true
 $logTitle.Dock = 'Fill'
 $logTitle.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
 $btnClearLog = New-Btn 'Clear' 'Clear the activity log (does not affect the server).' { $script:LogBox.Clear() }
@@ -1216,6 +1341,9 @@ function Switch-ContentPage($NewPage) {
     } finally {
         $script:Content.ResumeLayout($true)
     }
+    if ($script:PageLayout) {
+        try { & $script:PageLayout } catch { }
+    }
 }
 
 $script:Form.Controls.Add($script:Content)
@@ -1242,12 +1370,71 @@ $script:Form.Add_Resize({
 # ---------------------------------------------------------------------------------------
 # HOME PAGE (Command Center Dashboard: Hero Status Card + KPI Chips + Endpoint Rows)
 # ---------------------------------------------------------------------------------------
+function Layout-HomePage {
+    if (-not $script:HomePagePanel -or $script:HomePagePanel.IsDisposed) { return }
+    try {
+        if ($script:StatusCard -and $script:StatusTlp -and $script:StatusCard.ClientSize.Width -gt 60) {
+            $stPadH = $script:StatusCard.Padding.Left + $script:StatusCard.Padding.Right
+            $stPadV = $script:StatusCard.Padding.Top + $script:StatusCard.Padding.Bottom
+            $stInnerW = [int][math]::Max(260, ($script:StatusCard.ClientSize.Width - $stPadH))
+            if ($script:LblStatusHint) { $script:LblStatusHint.MaximumSize = New-Object System.Drawing.Size($stInnerW, 0) }
+            if ($script:LblCgnatBadge) { $script:LblCgnatBadge.MaximumSize = New-Object System.Drawing.Size($stInnerW, 0) }
+            $script:StatusTlp.Location = New-Object System.Drawing.Point($script:StatusCard.Padding.Left, $script:StatusCard.Padding.Top)
+            $script:StatusTlp.MinimumSize = New-Object System.Drawing.Size($stInnerW, 0)
+            $script:StatusTlp.MaximumSize = New-Object System.Drawing.Size($stInnerW, 0)
+            $script:StatusTlp.Width = $stInnerW
+            $script:StatusTlp.PerformLayout()
+            $stMaxBot = $script:StatusTlp.PreferredSize.Height
+            foreach ($c in $script:StatusTlp.Controls) {
+                if ($c.Visible) {
+                    $b = $c.Bottom + $c.Margin.Bottom
+                    if ($b -gt $stMaxBot) { $stMaxBot = $b }
+                }
+            }
+            $wantStH = $stMaxBot + $stPadV + 2
+            if ($script:StatusCard.Height -ne $wantStH) { $script:StatusCard.Height = $wantStH }
+        }
+        if ($script:ConnCard -and $script:ConnContent -and $script:ConnTlp -and $script:ConnCard.ClientSize.Width -gt 60) {
+            $connW = [int][math]::Max(300, ($script:ConnCard.ClientSize.Width - 2))
+            $connPadH = $script:ConnContent.Padding.Left + $script:ConnContent.Padding.Right
+            $connPadV = $script:ConnContent.Padding.Top + $script:ConnContent.Padding.Bottom
+            $connInnerW = [int][math]::Max(240, ($connW - $connPadH))
+            if ($script:LblConnNote -and $script:ConnNoteBox) {
+                $noteInnerW = [int][math]::Max(180, ($connInnerW - 26))
+                $script:LblConnNote.MaximumSize = New-Object System.Drawing.Size($noteInnerW, 0)
+                $script:ConnNoteBox.Width = $connInnerW
+                $script:ConnNoteBox.Height = [int][math]::Max(30, ($script:LblConnNote.PreferredSize.Height + 14))
+            }
+            if ($script:ConnVpnFlow) {
+                $script:ConnVpnFlow.MaximumSize = New-Object System.Drawing.Size($connInnerW, 0)
+                $script:ConnVpnFlow.MinimumSize = New-Object System.Drawing.Size($connInnerW, 36)
+            }
+            $script:ConnTlp.Location = New-Object System.Drawing.Point($script:ConnContent.Padding.Left, $script:ConnContent.Padding.Top)
+            $script:ConnTlp.MinimumSize = New-Object System.Drawing.Size($connInnerW, 0)
+            $script:ConnTlp.MaximumSize = New-Object System.Drawing.Size($connInnerW, 0)
+            $script:ConnTlp.Width = $connInnerW
+            $script:ConnTlp.PerformLayout()
+            $connMaxBot = $script:ConnTlp.PreferredSize.Height
+            foreach ($c in $script:ConnTlp.Controls) {
+                if ($c.Visible) {
+                    $b = $c.Bottom + $c.Margin.Bottom
+                    if ($b -gt $connMaxBot) { $connMaxBot = $b }
+                }
+            }
+            $scrollPos = $script:ConnCard.AutoScrollPosition
+            $script:ConnContent.Location = New-Object System.Drawing.Point($scrollPos.X, $scrollPos.Y)
+            $script:ConnContent.Size = New-Object System.Drawing.Size($connW, ($connMaxBot + $connPadV + 4))
+        }
+    } catch { Write-Log "[LAYOUT-ERROR] HOME $($_.Exception.Message)" }
+}
+
 function Show-HomePage {
     Set-ActiveNav $script:BtnHome
-    $script:PageLayout = $null
+    $script:PageLayout = { Layout-HomePage }
     if ($script:HomePagePanel -and -not $script:HomePagePanel.IsDisposed) {
         Switch-ContentPage $script:HomePagePanel
         Refresh-Dashboard
+        Layout-HomePage
         return
     }
     $p = New-Object System.Windows.Forms.Panel
@@ -1261,8 +1448,8 @@ function Show-HomePage {
     $script:StatusCard = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $script:StatusCard
     $script:StatusCard.Dock = 'Top'
-    $script:StatusCard.AutoSize = $true
-    $script:StatusCard.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
+    $script:StatusCard.AutoSize = $false
+    $script:StatusCard.Height = 128
     $script:StatusCard.BackColor = $Theme.card
     $script:StatusCard.Padding = New-Object System.Windows.Forms.Padding(18, 10, 16, 10)
     $script:StatusCard.Add_SizeChanged({ $this.Invalidate() })
@@ -1278,18 +1465,20 @@ function Show-HomePage {
     $stTlp = New-Object System.Windows.Forms.TableLayoutPanel
     Enable-DoubleBuffer $stTlp
     $stTlp.SuspendLayout()
-    $stTlp.Dock = 'Top'
+    $stTlp.Location = New-Object System.Drawing.Point(18, 10)
     $stTlp.AutoSize = $true
     $stTlp.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
     $stTlp.ColumnCount = 2
-    $null = $stTlp.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 36)))
-    $null = $stTlp.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 64)))
+    $null = $stTlp.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::AutoSize)))
+    $null = $stTlp.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100)))
+    $script:StatusTlp = $stTlp
     $script:StatusCard.Controls.Add($stTlp)
 
-    $script:LblStatusBig = New-Lbl "$([char]0x25CF)  SERVER STANDBY" $Theme.yellow 15 28 $true
+    $script:LblStatusBig = New-Lbl "$([char]0x25CF)  SERVER STANDBY" $Theme.yellow 13.5 28 $true
     $script:LblStatusBig.AutoSize = $true
     $script:LblStatusBig.Anchor = 'Left'
-    $script:LblStatusBig.Font = Get-CachedFont 'Segoe UI Semibold' 15 ([System.Drawing.FontStyle]::Bold)
+    $script:LblStatusBig.Margin = New-Object System.Windows.Forms.Padding(0, 2, 12, 2)
+    $script:LblStatusBig.Font = Get-CachedFont 'Segoe UI Semibold' 13.5 ([System.Drawing.FontStyle]::Bold)
     $r = $stTlp.RowCount; $stTlp.RowCount = $r + 1
     $null = $stTlp.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
     $stTlp.Controls.Add($script:LblStatusBig, 0, $r)
@@ -1298,7 +1487,7 @@ function Show-HomePage {
     Enable-DoubleBuffer $btnBar
     $btnBar.AutoSize = $true
     $btnBar.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
-    $btnBar.WrapContents = $false
+    $btnBar.WrapContents = $true
     $btnBar.FlowDirection = [System.Windows.Forms.FlowDirection]::LeftToRight
     $btnBar.Anchor = 'Right'
     $btnBar.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 0)
@@ -1322,7 +1511,7 @@ function Show-HomePage {
     $kpiGrid = New-Object System.Windows.Forms.TableLayoutPanel
     Enable-DoubleBuffer $kpiGrid
     $kpiGrid.SuspendLayout()
-    $kpiGrid.Dock = 'Top'
+    $kpiGrid.Anchor = 'Left,Right'
     $kpiGrid.Height = 44
     $kpiGrid.Margin = New-Object System.Windows.Forms.Padding(0, 6, 0, 4)
     $kpiGrid.ColumnCount = 4
@@ -1336,6 +1525,7 @@ function Show-HomePage {
     function New-KpiChip([int]$ColIdx, [string]$Caption, [string]$VarName, [bool]$IsLast = $false) {
         $chip = New-Object System.Windows.Forms.Panel
         Enable-DoubleBuffer $chip
+        $chip.Size = New-Object System.Drawing.Size(200, 44)
         $chip.Dock = 'Fill'
         $chip.BackColor = $Theme.panel
         $rightPad = if ($IsLast) { 0 } else { 8 }
@@ -1349,12 +1539,15 @@ function Show-HomePage {
             } catch { }
         })
         $lCap = New-Lbl $Caption $Theme.muted 7.25 13 $true
-        $lCap.AutoSize = $true
+        $lCap.AutoSize = $false
         $lCap.Location = New-Object System.Drawing.Point(10, 5)
+        $lCap.Size = New-Object System.Drawing.Size(180, 13)
+        $lCap.Anchor = 'Top,Left,Right'
+        $lCap.AutoEllipsis = $true
         $lVal = New-Lbl '-' $Theme.text 9.25 18 $true
         $lVal.AutoSize = $false
         $lVal.Location = New-Object System.Drawing.Point(10, 19)
-        $lVal.Size = New-Object System.Drawing.Size(220, 18)
+        $lVal.Size = New-Object System.Drawing.Size(180, 18)
         $lVal.Anchor = 'Top,Left,Right'
         $lVal.AutoEllipsis = $true
         $chip.Controls.Add($lCap)
@@ -1375,7 +1568,7 @@ function Show-HomePage {
     $stTlp.Controls.Add($kpiGrid, 0, $r); $stTlp.SetColumnSpan($kpiGrid, 2)
 
     $script:LblStatusHint = New-Lbl 'Press Start Server (or Ctrl+S). Everything is automatic: key check, safety scan, firewall, port, then it opens the BeamMP Launcher.' $Theme.dim 8.75 18
-    $script:LblStatusHint.Dock = 'Top'
+    $script:LblStatusHint.Anchor = 'Left'
     $script:LblStatusHint.AutoSize = $true
     $script:LblStatusHint.Margin = New-Object System.Windows.Forms.Padding(0, 2, 0, 0)
     $r = $stTlp.RowCount; $stTlp.RowCount = $r + 1
@@ -1383,7 +1576,7 @@ function Show-HomePage {
     $stTlp.Controls.Add($script:LblStatusHint, 0, $r); $stTlp.SetColumnSpan($script:LblStatusHint, 2)
 
     $script:LblCgnatBadge = New-Lbl '' $Theme.yellow 8.75 18
-    $script:LblCgnatBadge.Dock = 'Top'
+    $script:LblCgnatBadge.Anchor = 'Left'
     $script:LblCgnatBadge.AutoSize = $true
     $script:LblCgnatBadge.Visible = $false
     $script:LblCgnatBadge.Margin = New-Object System.Windows.Forms.Padding(0, 4, 0, 0)
@@ -1406,12 +1599,9 @@ function Show-HomePage {
     $script:ConnContent = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $script:ConnContent
     $script:ConnContent.Location = New-Object System.Drawing.Point(0, 0)
-    $script:ConnContent.Anchor = 'Top,Left,Right'
-    $script:ConnContent.AutoSize = $true
-    $script:ConnContent.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
+    $script:ConnContent.AutoSize = $false
     $script:ConnContent.BackColor = $Theme.card
     $script:ConnContent.Padding = New-Object System.Windows.Forms.Padding(18, 12, 16, 12)
-    $script:ConnContent.MinimumSize = New-Object System.Drawing.Size([int][math]::Max(($script:ConnCard.ClientSize.Width - 2), 200), 0)
     $script:ConnContent.Add_SizeChanged({ $this.Invalidate() })
     $script:ConnContent.Add_Paint({
         param($s, $e)
@@ -1422,18 +1612,17 @@ function Show-HomePage {
         } catch { }
     })
     $script:ConnCard.Controls.Add($script:ConnContent)
-    $script:ConnCard.Add_Resize({
-        $script:ConnContent.MinimumSize = New-Object System.Drawing.Size([int][math]::Max(($script:ConnCard.ClientSize.Width - 2), 200), 0)
-    })
+    $script:ConnCard.Add_Resize({ Layout-HomePage })
 
     $connTlp = New-Object System.Windows.Forms.TableLayoutPanel
     Enable-DoubleBuffer $connTlp
     $connTlp.SuspendLayout()
-    $connTlp.Dock = 'Top'
+    $connTlp.Location = New-Object System.Drawing.Point(18, 12)
     $connTlp.AutoSize = $true
     $connTlp.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
     $connTlp.ColumnCount = 1
     $null = $connTlp.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100)))
+    $script:ConnTlp = $connTlp
     $script:ConnContent.Controls.Add($connTlp)
 
     $connTitle = New-Lbl "Direct Connect Endpoints   $dot   BeamNG $([char]0x2192) Multiplayer $([char]0x2192) Direct Connect" $Theme.text 10.5 22 $true
@@ -1442,19 +1631,20 @@ function Show-HomePage {
     $connTitle.Anchor = 'Left'
     $connTitle.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 6)
     $r = $connTlp.RowCount; $connTlp.RowCount = $r + 1
+    $null = $connTlp.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
     $connTlp.Controls.Add($connTitle, 0, $r)
 
     function Add-EndpointRow([string]$TitleText, [string]$TipText, [string]$VarName, [string]$RowVarName, [string]$BtnVarName, [System.Drawing.Color]$Color, [bool]$Bold = $false) {
         $rowP = New-Object System.Windows.Forms.TableLayoutPanel
         Enable-DoubleBuffer $rowP
         $rowP.SuspendLayout()
-        $rowP.Dock = 'Fill'
+        $rowP.Anchor = 'Left,Right'
         $rowP.Height = 34
         $rowP.BackColor = $Theme.panel
         $rowP.Margin = New-Object System.Windows.Forms.Padding(0, 2, 0, 2)
         $rowP.Padding = New-Object System.Windows.Forms.Padding(10, 2, 6, 2)
         $rowP.ColumnCount = 3
-        $null = $rowP.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 196)))
+        $null = $rowP.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 176)))
         $null = $rowP.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100)))
         $null = $rowP.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 96)))
         $rowP.RowCount = 1
@@ -1467,12 +1657,15 @@ function Show-HomePage {
         })
 
         $lTitle = New-Lbl $TitleText $Theme.textSec 8.5 26 $true
+        $lTitle.AutoSize = $false
+        $lTitle.AutoEllipsis = $true
         $lTitle.Dock = 'Fill'
         $lTitle.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
         if ($TipText) { $script:Tip.SetToolTip($lTitle, $TipText) }
         $rowP.Controls.Add($lTitle, 0, 0)
 
         $lbl = New-Lbl '' $Color 9 26 $Bold
+        $lbl.AutoSize = $false
         $lbl.Dock = 'Fill'
         $lbl.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
         $lbl.AutoEllipsis = $true
@@ -1505,6 +1698,7 @@ function Show-HomePage {
         $rowP.ResumeLayout($false)
 
         $r = $connTlp.RowCount; $connTlp.RowCount = $r + 1
+        $null = $connTlp.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
         $connTlp.Controls.Add($rowP, 0, $r)
         Set-Variable -Name $VarName -Value $lbl -Scope Script
         Set-Variable -Name $RowVarName -Value $rowP -Scope Script
@@ -1522,9 +1716,9 @@ function Show-HomePage {
     # Styled Amber Callout Banner for TIP / Warning
     $noteBox = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $noteBox
-    $noteBox.Dock = 'Fill'
-    $noteBox.AutoSize = $true
-    $noteBox.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
+    $noteBox.Anchor = 'Left,Right'
+    $noteBox.AutoSize = $false
+    $noteBox.Height = 34
     $noteBox.BackColor = [System.Drawing.Color]::FromArgb(30, 24, 14)
     $noteBox.Padding = New-Object System.Windows.Forms.Padding(14, 7, 12, 7)
     $noteBox.Margin = New-Object System.Windows.Forms.Padding(0, 6, 0, 2)
@@ -1536,17 +1730,20 @@ function Show-HomePage {
             $e.Graphics.FillRectangle((Get-CachedBrush $Theme.yellow), 0, 0, 4, $s.Height)
         } catch { }
     })
+    $script:ConnNoteBox = $noteBox
     $script:LblConnNote = New-Lbl '' $Theme.yellow 8.5 18 $false
-    $script:LblConnNote.Dock = 'Fill'
+    $script:LblConnNote.Location = New-Object System.Drawing.Point(14, 7)
     $script:LblConnNote.AutoSize = $true
     $noteBox.Controls.Add($script:LblConnNote)
     $r = $connTlp.RowCount; $connTlp.RowCount = $r + 1
+    $null = $connTlp.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
     $connTlp.Controls.Add($noteBox, 0, $r)
 
     $script:ConnVpnFlow = New-ButtonBar
     $script:ConnVpnFlow.AutoSize = $true
     $script:ConnVpnFlow.WrapContents = $true
     $r = $connTlp.RowCount; $connTlp.RowCount = $r + 1
+    $null = $connTlp.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
     $connTlp.Controls.Add($script:ConnVpnFlow, 0, $r)
     $connTlp.ResumeLayout($false)
 
@@ -1557,6 +1754,7 @@ function Show-HomePage {
     $script:HomePagePanel = $p
     Switch-ContentPage $p
     Refresh-Dashboard
+    Layout-HomePage
 }
 
 function Set-RowBtn($Btn, [string]$Text, [string]$TagVal) {
@@ -1645,10 +1843,11 @@ function Refresh-Dashboard {
     }
 
     if ($running) {
-        [void](Set-CtrlText $script:LblStatusHint 'Server is online! Open BeamNG via BeamMP Launcher and Direct Connect using one of the endpoints below.' $Theme.green)
+        $hintChanged = Set-CtrlText $script:LblStatusHint 'Server is online! Open BeamNG via BeamMP Launcher and Direct Connect using one of the endpoints below.' $Theme.green
     } else {
-        [void](Set-CtrlText $script:LblStatusHint 'Ready to launch. Click Start Server in the sidebar (or press Ctrl+S) to run automatic key, mod, firewall, and UPnP checks.' $Theme.dim)
+        $hintChanged = Set-CtrlText $script:LblStatusHint 'Ready to launch. Click Start Server in the sidebar (or press Ctrl+S) to run automatic key, mod, firewall, and UPnP checks.' $Theme.dim
     }
+    if ($hintChanged) { $layoutChanged = $true }
     if ($cgnat) {
         if (-not $script:LblCgnatBadge.Visible) { $script:LblCgnatBadge.Visible = $true; $layoutChanged = $true }
         [void](Set-CtrlText $script:LblCgnatBadge '[CGNAT detected] Your ISP shares one public IP - port forwarding can never work. Friends must use FRP, a VPN (Network tab) or your ISP must give you a real public IP.')
@@ -1770,7 +1969,7 @@ function Refresh-Dashboard {
         $noteChanged = Set-CtrlText $script:LblConnNote "TIP: Do not click your own server in the public BeamMP list from this PC $em always use Direct Connect (127.0.0.1:$port)."
     }
     if ($layoutChanged -or $noteChanged) {
-        try { $script:Form.PerformLayout() } catch { }
+        Layout-HomePage
     }
 }
 
@@ -1806,7 +2005,6 @@ function Show-SettingsPage {
     $script:TxtName.Height = 26
     Add-Row $card 'Server name:' $script:TxtName
     $flRow = New-ButtonBar
-    $flRow.WrapContents = $false
     $script:TxtPlayers = New-SettingsInput
     $script:TxtPlayers.Width = 90
     $script:TxtPlayers.Height = 26
@@ -1895,7 +2093,6 @@ function Show-SettingsPage {
     # ---- Port & connection ----
     $card = New-Card 'Port & connection' 'The door friends use to join your server.'
     $portBar = New-ButtonBar
-    $portBar.WrapContents = $false
     $script:LblSettings3 = New-Lbl ("Port: $((Get-ServerPort))  (change it automatically if it is ever busy)") $Theme.dim 9.5 22
     $portBar.Controls.Add($script:LblSettings3)
     $script:BtnPort = New-Btn 'Use a free port' 'Pick a free port and save it. Remember: the router must forward the NEW port (TCP+UDP).' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`nSay (Set-FreePort -Port (Get-FreePort))" 'setport' }
@@ -1951,7 +2148,6 @@ function Show-SettingsPage {
     # ---- Presets ----
     $card = New-Card 'Presets' 'Save a whole setup (settings + enabled mods) under a name, load it back later. Great for different game nights.'
     $preRow = New-ButtonBar
-    $preRow.WrapContents = $false
     $script:TxtPresetName = New-SettingsInput
     $script:TxtPresetName.Width = 200
     $script:TxtPresetName.Height = 26
@@ -2251,7 +2447,6 @@ function Show-NetworkPage {
     $script:TxtFrpServer.Height = 26
     Add-Row $card 'FRP server address (hostname or IP):' $script:TxtFrpServer
     $frpRow = New-ButtonBar
-    $frpRow.WrapContents = $false
     $script:TxtFrpPort = New-SettingsInput
     $script:TxtFrpPort.Width = 90
     $script:TxtFrpPort.Height = 26
@@ -2278,8 +2473,8 @@ function Show-NetworkPage {
     Add-RowNote $card 'SAFETY: a VPN puts friends on a virtual LAN with your PC - they can reach file sharing / Remote Desktop etc. Only invite people you TRUST. Never invite random players into your VPN network.' $Theme.yellow | Out-Null
     $script:VpnRowsWrap = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $script:VpnRowsWrap
-    $script:VpnRowsWrap.AutoSize = $true
-    $script:VpnRowsWrap.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
+    $script:VpnRowsWrap.AutoSize = $false
+    $script:VpnRowsWrap.Height = 252
     $script:VpnRowsWrap.BackColor = $Theme.card
     Add-RowFull $card $script:VpnRowsWrap
     $cards += $card
@@ -2392,6 +2587,7 @@ function Refresh-VpnRows {
             }
 
             $lbl = New-Lbl "$($app.Name)   $em   $state" $color 9.75 32
+            $lbl.AutoSize = $false
             $lbl.Dock = 'Fill'
             $lbl.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
             $lbl.AutoEllipsis = $true
@@ -2402,6 +2598,7 @@ function Refresh-VpnRows {
             Enable-DoubleBuffer $btnFlow
             $btnFlow.Dock = 'Right'
             $btnFlow.AutoSize = $true
+            $btnFlow.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
             $btnFlow.WrapContents = $false
             $btnFlow.FlowDirection = [System.Windows.Forms.FlowDirection]::RightToLeft
             $rowPanel.Controls.Add($btnFlow)
@@ -2444,9 +2641,11 @@ function Refresh-VpnRows {
         $btnAllRow.Controls.Add($btnAll)
         $rows += $btnAllRow
         for ($i = $rows.Count - 1; $i -ge 0; $i--) { $script:VpnRowsWrap.Controls.Add($rows[$i]) }
+        $script:VpnRowsWrap.Height = ($rows.Count * 42)
     } finally {
         $script:VpnRowsWrap.ResumeLayout($true)
     }
+    Update-CardStackLayout
     Add-Log "[INFO] VPN tools refreshed."
 }
 
@@ -2595,66 +2794,84 @@ function Add-FixRow($row) {
     $rowPanel.Controls.Add($lbl2)
 
     $btn = $null
+    $idealBtnW = 0
     if ($row.Action) {
         $prefix = if ($row.NeedsAction) { 'Fix: ' } else { 'Info: ' }
         $btn = New-Btn ("$prefix$($row.Action)") $row.Action { FixRowAction $row.Key }
+        $btn.AccessibleRole = [System.Windows.Forms.AccessibleRole]::PushButton
         $btn.Font = Get-CachedFont 'Segoe UI Semibold' 8.5 ([System.Drawing.FontStyle]::Regular)
         $tw = [System.Windows.Forms.TextRenderer]::MeasureText($btn.Text, $btn.Font).Width
-        $btnW = [int][math]::Max(140, [math]::Min(430, ($tw + 30)))
-        $btn.Size = New-Object System.Drawing.Size($btnW, 30)
+        $idealBtnW = [int][math]::Max(130, [math]::Min(430, ($tw + 26)))
+        $btn.Size = New-Object System.Drawing.Size($idealBtnW, 30)
         $btn.AutoEllipsis = $true
         $btn.Location = New-Object System.Drawing.Point(690, 7)
         $rowPanel.Controls.Add($btn)
     }
-    $script:FixRowRefs += @{ Row = $rowPanel; Lbl = $lbl2; Btn = $btn }
+    $script:FixRowRefs += @{ Row = $rowPanel; Badge = $lbl; Lbl = $lbl2; Btn = $btn; IdealBtnW = $idealBtnW }
     $script:FixRowsPanel.Controls.Add($rowPanel)
 }
 
 function Layout-FixRows {
     if (-not $script:FixRowsPanel) { return }
     try {
-        $w = $script:FixRowsPanel.ClientSize.Width - 22
+        $w = [int][math]::Max(320, ($script:FixRowsPanel.ClientSize.Width - 22))
         if ($script:LblFixSummary) {
             $script:LblFixSummary.Width = $w
             $m = Measure-Text $script:LblFixSummary.Text $script:LblFixSummary.Font $w
-            $script:LblFixSummary.Height = [int][math]::Max(22, $m.Lines * 22)
+            $script:LblFixSummary.Height = [int][math]::Max(22, ($m.Height + 6))
         }
         if ($script:FixTop) {
-            $maxBottom = SY(96)
-            $btnY = SY(54)
+            $topW = [int][math]::Max(320, ($script:FixTop.ClientSize.Width - 8))
+            $btnY = 54
             foreach ($c in $script:FixTop.Controls) {
-                if ($c -is [System.Windows.Forms.Label] -and $c.Width -gt 400) {
-                    $c.Width = $script:FixTop.ClientSize.Width - 8
+                if ($c -is [System.Windows.Forms.Label] -and $c.Top -ge 24) {
+                    $c.Width = $topW
                     $m = Measure-Text $c.Text $c.Font $c.Width
-                    $c.Height = [int][math]::Max(20, $m.Lines * 20)
+                    $c.Height = [int][math]::Max(20, ($m.Height + 4))
                     $btnY = $c.Top + $c.Height + 8
-                    $maxBottom = [int][math]::Max($maxBottom, ($c.Top + $c.Height + 4))
                 }
             }
+            $curX = 4
+            $curY = $btnY
+            $rowH = 34
             foreach ($c in $script:FixTop.Controls) {
-                if ($c -is [System.Windows.Forms.Button] -and $c.Tag -is [hashtable] -and $c.Tag.ContainsKey('X')) {
-                    $c.Size = New-Object System.Drawing.Size((SX $c.Tag.W), (SY $c.Tag.H))
-                    $c.Location = New-Object System.Drawing.Point((SX $c.Tag.X), $btnY)
-                    $maxBottom = [int][math]::Max($maxBottom, ($btnY + (SY $c.Tag.H) + 6))
+                if ($c -is [System.Windows.Forms.Button] -and $c.Tag -is [hashtable] -and $c.Tag.ContainsKey('W')) {
+                    $btnW = [int][math]::Max($c.Width, $c.Tag.W)
+                    $btnH = [int]$c.Tag.H
+                    if ($curX -gt 4 -and ($curX + $btnW) -gt $topW) {
+                        $curX = 4
+                        $curY += $rowH + 6
+                    }
+                    $c.Size = New-Object System.Drawing.Size($btnW, $btnH)
+                    $c.Location = New-Object System.Drawing.Point($curX, $curY)
+                    $curX += $btnW + 8
                 }
             }
-            $script:FixTop.Height = $maxBottom
+            $script:FixTop.Height = [int]($curY + $rowH + 8)
         }
         foreach ($r in $script:FixRowRefs) {
             $r.Row.Width = $w
-            $btnW = if ($r.Btn) { $r.Btn.Width } else { 0 }
-            $bxp = $w - $btnW - 12
-            $lblW = [int][math]::Max(200, $bxp - 70)
+            $btnW = 0
+            if ($r.Btn) {
+                $maxBtnW = [int][math]::Max(130, [math]::Floor($w * 0.42))
+                $btnW = [int][math]::Min($r.IdealBtnW, $maxBtnW)
+                $r.Btn.Size = New-Object System.Drawing.Size($btnW, 30)
+            }
+            $bxp = if ($r.Btn) { $w - $btnW - 12 } else { $w - 12 }
+            $lblW = [int][math]::Max(160, ($bxp - 68))
             $r.Lbl.Width = $lblW
             $m = Measure-Text $r.Lbl.Text $r.Lbl.Font $lblW
-            $lh = [int]($m.Lines * 20 + 12)
-            $rh = [int][math]::Max(44, $lh + 10)
+            $lh = [int][math]::Max(24, ($m.Height + 6))
+            $rh = [int][math]::Max(44, ($lh + 14))
             $r.Row.Height = $rh
             $r.Lbl.Height = $lh
-            $ly = [int](($rh - $lh) / 2)
-            $r.Lbl.Location = New-Object System.Drawing.Point(56, $ly)
+            $ly = [int][math]::Max(6, (($rh - $lh) / 2))
+            $r.Lbl.Location = New-Object System.Drawing.Point(64, $ly)
+            if ($r.Badge) {
+                $r.Badge.Location = New-Object System.Drawing.Point(12, [int][math]::Max(8, (($rh - 22) / 2)))
+            }
             if ($r.Btn) {
-                $byp = [int](($rh - 30) / 2)
+                $byp = [int][math]::Max(6, (($rh - 30) / 2))
                 $r.Btn.Location = New-Object System.Drawing.Point($bxp, $byp)
             }
             $r.Row.Invalidate()
@@ -3021,35 +3238,43 @@ function Refresh-ModListsAsync {
 function Layout-Mods {
     if (-not $script:ModsListPanel) { return }
     try {
-        $script:ModsTop.Height = SY(96)
-        $btnY = SY(54)
+        $topW = [int][math]::Max(320, ($script:ModsTop.ClientSize.Width - 8))
+        $btnY = 54
         foreach ($c in $script:ModsTop.Controls) {
-            if ($c -is [System.Windows.Forms.Label] -and $c.Width -gt 400) {
-                $c.Width = $script:ModsTop.ClientSize.Width - 8
+            if ($c -is [System.Windows.Forms.Label] -and $c.Location.Y -ge 24) {
+                $c.Width = $topW
                 $m = Measure-Text $c.Text $c.Font $c.Width
-                $c.Height = [int][math]::Max(20, $m.Lines * 20)
+                $c.Height = [int][math]::Max(20, ($m.Height + 4))
                 $btnY = $c.Location.Y + $c.Height + 8
             }
         }
-        $btnBottom = $btnY
+        $curX = 4
+        $curY = $btnY
+        $rowH = 32
         foreach ($c in $script:ModsTop.Controls) {
-            if ($c -is [System.Windows.Forms.Button] -and $c.Tag -is [hashtable] -and $c.Tag.ContainsKey('X')) {
-                $c.Size = New-Object System.Drawing.Size((SX $c.Tag.W), (SY $c.Tag.H))
-                $c.Location = New-Object System.Drawing.Point((SX $c.Tag.X), $btnY)
-                $btnBottom = [math]::Max($btnBottom, $btnY + (SY $c.Tag.H))
+            if ($c -is [System.Windows.Forms.Button] -and $c.Tag -is [hashtable] -and $c.Tag.ContainsKey('W')) {
+                $btnW = [int][math]::Max($c.Width, $c.Tag.W)
+                $btnH = [int]$c.Tag.H
+                if ($curX -gt 4 -and ($curX + $btnW) -gt $topW) {
+                    $curX = 4
+                    $curY += $rowH + 6
+                }
+                $c.Size = New-Object System.Drawing.Size($btnW, $btnH)
+                $c.Location = New-Object System.Drawing.Point($curX, $curY)
+                $curX += $btnW + 6
             }
         }
-        $script:ModsTop.Height = [int][math]::Max($script:ModsTop.Height, $btnBottom + 6)
-        $w = $script:ModsListPanel.ClientSize.Width
+        $script:ModsTop.Height = [int]($curY + $rowH + 8)
+        $w = [int][math]::Max(320, $script:ModsListPanel.ClientSize.Width)
         $h = $script:ModsListPanel.ClientSize.Height
         $tipH = 24
         if ($script:ModsTip) {
             $tm = Measure-Text $script:ModsTip.Text $script:ModsTip.Font $w
-            $tipH = [int][math]::Max(24, $tm.Lines * 18 + 4)
+            $tipH = [int][math]::Max(24, ($tm.Height + 6))
             $script:ModsTip.Height = $tipH
         }
-        $colW = [int](($w - 10) / 2)
-        $listH = [int][math]::Max(60, $h - 32 - $tipH)
+        $colW = [int][math]::Max(140, (($w - 10) / 2))
+        $listH = [int][math]::Max(60, ($h - 32 - $tipH))
         $x2 = $colW + 10
         $script:ListEnabled.Size = New-Object System.Drawing.Size($colW, $listH)
         $script:ListDisabled.Size = New-Object System.Drawing.Size($colW, $listH)
@@ -3135,10 +3360,10 @@ function Show-TransferPage {
 
     $bar2 = New-ButtonBar
     $btnDrive = New-Btn 'Upload to Google Drive (15GB)' 'Opens Google Drive in your browser - drag the Export parts that fit 15GB into it.' { Start-Process 'https://drive.google.com/drive/my-drive' }
-    $btnDrive.Size = New-Object System.Drawing.Size(200, 34)
+    $btnDrive.Size = New-Object System.Drawing.Size(215, 34)
     $bar2.Controls.Add($btnDrive)
     $btnMega = New-Btn 'Upload to Mega.io (20GB Free)' 'Opens Mega.io in your browser - drag the Export parts that fit 20GB into it.' { Start-Process 'https://mega.io/' }
-    $btnMega.Size = New-Object System.Drawing.Size(190, 34)
+    $btnMega.Size = New-Object System.Drawing.Size(215, 34)
     $bar2.Controls.Add($btnMega)
     Add-RowFull $card $bar2
 
@@ -3147,6 +3372,7 @@ function Show-TransferPage {
 
     $card = New-Card 'Player tools - install downloaded mods' 'Moves every .zip from a folder you pick into the BeamMP client mods folder. All other file types are ignored.'
     $script:LblClientDir = New-Lbl 'Client mods folder: (scan to find it)' $Theme.dim 9 20
+    $script:LblClientDir.AutoSize = $true
     Add-RowFull $card $script:LblClientDir
     $bar = New-ButtonBar
     $btnInstall = New-Btn 'Install Downloaded Mods' 'Pick a folder: every .zip inside it is MOVED into the client mods folder (BeamMP Launcher Resources, or BeamNG.drive multiplayer mods).' { Start-TransferInstall }
@@ -3201,6 +3427,7 @@ function Update-TransferScanUi {
     $gb = '{0:N1} GB' -f ($s.TotalBytes / 1GB)
     $script:LblTransferScan.Text = "Ready to Export: $($s.Count) mods | Total Size: $gb"
     $script:LblTransferScan.ForeColor = $(if ($s.Count) { $Theme.green } else { $Theme.yellow })
+    Update-CardStackLayout
 }
 
 function Select-TransferDest {
@@ -3212,6 +3439,7 @@ function Select-TransferDest {
         $script:LblExportDest.Text = "Export Path: $($script:TransferDest)"
         $script:LblExportDest.ForeColor = $Theme.green
     }
+    Update-CardStackLayout
     Add-Log "[INFO] Export destination: $($script:TransferDest)"
 }
 
@@ -3290,6 +3518,7 @@ function Populate-ClientModList {
     } finally {
         $script:ClbClientMods.EndUpdate()
     }
+    Update-CardStackLayout
     Add-Log "[INFO] Client mods: $(@($info.Mods).Count) .zip file(s) installed."
 }
 
@@ -3388,6 +3617,7 @@ function Add-GuideCallout([string]$Badge, [string]$Body, [string]$Color = 'yello
 
 function Show-GuidePage {
     Set-ActiveNav $script:BtnMore
+    $script:PageLayout = $null
     if ($script:GuidePagePanel -and -not $script:GuidePagePanel.IsDisposed) {
         Switch-ContentPage $script:GuidePagePanel
         return
@@ -3557,22 +3787,24 @@ function Show-ExtraPage {
 
     $card = New-Card 'Windows opened by the tool' 'The server console opens minimized on purpose - restore it from this list anytime.'
     $script:WinRows = New-Object System.Windows.Forms.Panel
-    $script:WinRows.AutoSize = $true
-    $script:WinRows.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
+    $script:WinRows.AutoSize = $false
+    $script:WinRows.Height = 28
+    $script:WinRows.BackColor = $Theme.card
     Enable-DoubleBuffer $script:WinRows
     Add-RowFull $card $script:WinRows
     $cards += $card
 
     $card = New-Card 'Report a problem' 'Copies a ready-made report to your clipboard and opens the GitHub issues page - you review and paste it yourself.'
+    $issueBar = New-ButtonBar
     $btnIssue = New-Btn 'Submit issue (copies report, opens GitHub)' 'One press: copies the diagnostic report to your clipboard and opens the GitHub issues page - you just paste it there.' { Submit-Issue }
     $btnIssue.Size = New-Object System.Drawing.Size(330, 38)
     $btnIssue.BackColor = $Theme.btnDanger
     $btnIssue.FlatAppearance.MouseOverBackColor = $Theme.btnDangerHov
     $btnIssue.FlatAppearance.BorderColor = $Theme.btnDangerBorder
     $btnIssue.ForeColor = [System.Drawing.Color]::White
-    Add-RowFull $card $btnIssue
+    $issueBar.Controls.Add($btnIssue)
+    Add-RowFull $card $issueBar
     $script:IssueLog = New-Lbl '(activity appears here)' $Theme.dim 8.5 30
-    $script:IssueLog.Dock = 'Fill'
     $script:IssueLog.AutoSize = $true
     Add-RowFull $card $script:IssueLog
     $cards += $card
@@ -3584,6 +3816,7 @@ function Show-ExtraPage {
 
 # Rebuilds the window list rows inside the Extra page.
 function Refresh-WinRows {
+    if (-not $script:WinRows) { return }
     $script:WinRows.SuspendLayout()
     try {
         $oldRows = @($script:WinRows.Controls)
@@ -3595,6 +3828,7 @@ function Refresh-WinRows {
             $lbl = New-Lbl 'No tool windows are open right now. (Start the server and the list appears here.)' $Theme.dim 9 20
             $lbl.AutoSize = $true
             $rows += $lbl
+            $script:WinRows.Height = 28
         } else {
             foreach ($w in $wins) {
                 $row = New-Object System.Windows.Forms.Panel
@@ -3604,8 +3838,10 @@ function Refresh-WinRows {
                 $row.Padding = New-Object System.Windows.Forms.Padding(10, 4, 10, 4)
                 Enable-DoubleBuffer $row
                 $lbl = New-Lbl $w.Name $Theme.text 9 20
+                $lbl.AutoSize = $false
                 $lbl.Dock = 'Fill'
                 $lbl.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+                $lbl.AutoEllipsis = $true
                 $row.Controls.Add($lbl)
                 $show = New-Btn 'Show window' 'Restore this window so you can see it. The server console was opened minimized on purpose.' { }
                 $show.Dock = 'Right'
@@ -3624,10 +3860,12 @@ function Refresh-WinRows {
                 $row.Controls.Add($show)
                 $rows += $row
             }
+            $script:WinRows.Height = ($rows.Count * 42)
         }
         for ($i = $rows.Count - 1; $i -ge 0; $i--) { $script:WinRows.Controls.Add($rows[$i]) }
     } catch { Write-Log "[LAYOUT-ERROR] WINROWS $($_.Exception.Message)" }
     finally { $script:WinRows.ResumeLayout($true) }
+    Update-CardStackLayout
 }
 
 # Builds the report text the user pastes into GitHub issues.
@@ -3670,6 +3908,7 @@ function Submit-Issue {
         Add-Log "[ERROR] Could not prepare the report: $_"
         if ($script:IssueLog) { $script:IssueLog.Text = '[ERROR] Could not copy - see the log.' }
     }
+    Update-CardStackLayout
 }
 
 # ---------------------------------------------------------------------------------------
@@ -3883,15 +4122,16 @@ function Show-EulaDialog {
     return ($r -eq 'OK')
 }
 
-# # ---------------------------------------------------------------------------------------
-# LICENSE GATE (mandatory EULA check against the official GitHub repository)
 # ---------------------------------------------------------------------------------------
-$script:EnableLicenseGate = $true
-$script:LicenseLocked = $true
+# LICENSE GATE (mandatory EULA check against the official GitHub repository)
+# Set $script:EnableLicenseGate = $true to re-enable the startup license check.
+# ---------------------------------------------------------------------------------------
+$script:EnableLicenseGate = $false
+$script:LicenseLocked = $false
 $script:LicenseSavedStates = @{}
 $script:LicenseLocalVersion = ''
 $script:LicenseRemoteVersion = $null
-$script:LicenseCheckDone = $false
+$script:LicenseCheckDone = $true
 $script:LicensePs = $null
 $script:LicenseHandle = $null
 $script:FrpInitPs = $null
@@ -4025,6 +4265,12 @@ function Finish-LicenseGate {
 }
 
 function Start-LicenseGate {
+    if (-not $script:EnableLicenseGate) {
+        $script:LicenseLocked = $false
+        $script:LicenseCheckDone = $true
+        Update-BusyUi
+        return
+    }
     Migrate-LegacyEulaMarker
     $script:LicenseLocalVersion = Get-LocalLicenseVersion
     Set-LicenseLock $true
