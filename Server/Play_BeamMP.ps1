@@ -4574,12 +4574,12 @@ function Show-EulaDialog {
 # LICENSE GATE (mandatory EULA check against the official GitHub repository)
 # Set $script:EnableLicenseGate = $true to re-enable the startup license check.
 # ---------------------------------------------------------------------------------------
-$script:EnableLicenseGate = $false
-$script:LicenseLocked = $false
+$script:EnableLicenseGate = $true
+$script:LicenseLocked = $true
 $script:LicenseSavedStates = @{}
 $script:LicenseLocalVersion = ''
 $script:LicenseRemoteVersion = $null
-$script:LicenseCheckDone = $true
+$script:LicenseCheckDone = $false
 $script:LicensePs = $null
 $script:LicenseHandle = $null
 $script:FrpInitPs = $null
