@@ -14,10 +14,10 @@
   formats degrade to safe, valid TOML instead of blocking server execution, and a failed
   write keeps the previous config.
 
-## v0.7.1 - Update 7.1: Command Center UI Overhaul & Zero-Allocation Performance (by `@bomberrie`)
+## v0.7.1 - UI Overhaul & Performance (by @bomberrie)
 
-- **Responsive Layout & Visual Overhaul:** Completely redesigned the dashboard and command center with high-contrast carbon styling, telemetry KPI chips, clean direct connect cards, and dynamic layout scaling across all window sizes.
-- **Eliminated Horizontal Scrollbars & Layout Gaps:** Sized cards dynamically to container client bounds and vertical scrollbar states, eliminating unwanted spacing and scrollbars on launch and resizing.
+- Redesigned the dashboard and command center with a dark theme, sidebar navigation, and cleaner direct connect cards.
+- Optimized window rendering, scrolling, and page switching to reduce lag.
 
 ## v0.7.1.0 - Update 8: Public/Private toggle fix & AuthKey "0" support
 
@@ -49,38 +49,6 @@
   a DNS hiccup can never abort initialization or crash the launcher.
 - **Self-update version matching:** the update checker now accepts four-part version
   tags (e.g. 0.7.0.2) so hotfix releases are detected and offered correctly.
-
-### 🎨 Command Center UI & UX Redesign (`@bomberrie`)
-
-- **Frameless Custom Dark Window Chrome** - replaced the default Windows title bar with a custom 38px dark header (`#09090B`) featuring a 2px Racing Orange top accent bar, glowing `K` emblem badge, `v0.7.1` version pill, window drag/double-click maximise support, and custom owner-drawn Minimise / Maximise / Close controls.
-- **Left Sidebar Navigation & Engine Control Pod** - replaced the top horizontal button bar with a structured 224px left sidebar containing:
-  - Pinned **Engine Control Pod** at the top with a full-width emerald **Start Server** (`▶`) button and a secondary **Stop Server** (`■`) button.
-  - Categorised navigation (`OVERVIEW`, `CONFIGURATION`, `DIAGNOSTICS & TOOLS`) with active Racing Orange indicator bars and inline monospace keyboard shortcut badges (`^H`, `^T`, `^M`, `^V`, `^U`, `^F`).
-  - Pinned **Sidebar Footer** with a live status pill (`● STANDBY · Port 30814 · Public`) and one-click `Open Folder` and `Guide (^G)` buttons.
-- **BeamNG Carbon & Racing Orange Colour System** - introduced a 5-step dark carbon surface hierarchy (`#09090B` void, `#101013` canvas, `#17171B` sidebar/rows, `#1E1E24` cards, `#282830` hover surface) paired with BeamNG Racing Orange (`#FF731D`) accents, specular top card edges, and high-contrast semantic status tokens (`#34D399` emerald, `#FBBF24` amber, `#FB7185` crimson).
-- **Dashboard 4-Pill Telemetry KPI Strip & Connection Matrix** - redesigned the Dashboard (`Ctrl+H`) with:
-  - **4 Telemetry KPI Pills**: `SERVER STATE` (`STANDBY` / `LIVE`), `PORT & PROTOCOL` (`30814 UDP/TCP`), `VISIBILITY MODE` (`PUBLIC` / `PRIVATE`), and `NETWORK REACHABILITY` (`READY` / `CGNAT` / `UPnP OK`).
-  - **Live AuthKey Readiness Banner**: checks whether a BeamMP AuthKey is configured and provides a one-click `Set Up Key` / `Change Key` button.
-  - **Recommended Friend Route Badge**: automatically highlights the best connection method for friends based on live network state (FRP, VPN, UPnP WAN, or LAN).
-  - **5-Row Structured Connection Matrix**: Loopback (`127.0.0.1:30814`), Local WiFi / LAN, FRP Tunnel, VPN / Playit.gg / Tailscale, and Public Internet (WAN) rows with monospace IP badges and instant `✓ Copied` button feedback.
-  - **3-Step Numbered Quick-Start Strip**: scannable `[1] Start Server  →  [2] Test Loopback  →  [3] Invite Friends` guide at the bottom of the Dashboard.
-- **Reformatted Guide & Walkthrough (`Ctrl+G`)** - replaced the plain text wall with structured `STEP 01`–`STEP 09` headers, natural word-wrapping hanging-indent bullets (`▸`), colour-coded callout badges (`IMPORTANT`, `CGNAT NOTICE`, `WARNING`, `SECURITY`), and one-click quick-jump header buttons (`Settings (^T)`, `Mods (^M)`, `Network (^V)`, `Scan & Fix (^F)`).
-- **Upgraded Activity Console & 3-Zone Status Footer** - added `Copy Log` and `Clear` toolbar buttons, colour-coded log tags (`[OK]`, `[READY]`, `[WARN]`, `[ERROR]`, `[INFO]`), a 3-zone bottom telemetry bar (`● ENGINE STANDBY` / live player count / keyboard shortcut legend), and a bottom-right resize grip.
-
-### ⚡ UI Performance Optimisation (`@bomberrie`)
-
-- **Zero-Allocation GDI+ Paint Pipeline** - cached all `Font`, `Pen`, and `SolidBrush` instances in memory pools (`Get-CachedFont`, `Get-CachedPen`, `Get-CachedBrush`), eliminating hundreds of GDI+ object allocations per repaint.
-- **Hardware Double-Buffering** - enabled `DoubleBuffered` across the main form, content host, scroll panels, cards, `TableLayoutPanel`s, and `FlowLayoutPanel`s to eliminate flicker during scrolling and resizing.
-- **Cached Pages & Leak-Free Page Switching** - cached `$script:HomePagePanel` and `$script:GuidePagePanel` for `< 1ms` page switches and wrapped page transitions in `Switch-ContentPage` (`SuspendLayout`/`ResumeLayout` + Win32 `HWND` disposal of transient pages).
-- **Dirty-Checked Telemetry & Batched Console Logging** - added `Set-CtrlText` dirty-checking in `Refresh-Dashboard` and `$timerLive` to prevent redundant `TableLayoutPanel` relayout passes, and `Add-LogBatch` to dequeue and append all pending console log lines in a single layout pass per tick.
-- **Instant Window Startup & Direct Map Refresh** - removed synchronous `Get-ConnectionInfo` from `Form.Add_Shown`, replaced the redundant background runspace in `Refresh-MapCombo` with a direct call, and wrapped all `ListBox` / `CheckedListBox` / `ComboBox` updates in `BeginUpdate()` / `EndUpdate()`.
-
-### 🛠️ Bug Fixes (`@bomberrie`)
-
-- Fixed fullscreen/maximise crash caused by assigning to the protected `Form.MaximizedBounds` property; maximise now cleanly snaps to `Screen.FromControl($Form).WorkingArea`.
-- Fixed `Extra` and `Guide` page header overlap by enforcing proper WinForms `Dock = Top` / `Dock = Fill` z-order (`BringToFront()`).
-- Fixed footer status bar text wrapping and truncation on `LblFooterState` and `LblPlayers`.
-- Fixed dark rectangular corner artefacts on rounded buttons inside transparent `FlowLayoutPanel` containers by walking the parent control chain in `New-Btn` to find the nearest opaque background colour.
 
 ## v0.7.0 - Update 7: Transfer tab, FRP tunneling & GitHub-verified license
 

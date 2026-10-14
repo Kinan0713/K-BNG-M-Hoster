@@ -1092,7 +1092,7 @@ function New-PageTop($Page, [string]$Title, [string]$Hint = '') {
 # ---------------------------------------------------------------------------------------
 $script:Form = New-Object System.Windows.Forms.Form
 Enable-DoubleBuffer $script:Form
-$script:Form.Text = 'K BNG M Hoster v0.7.1.1 - by Kinan (@raed713) & @bomberrie'
+$script:Form.Text = 'K BNG M Hoster v0.7.1.1 - by Kinan (@kinan_sx240) & @bomberrie'
 $script:Form.FormBorderStyle = 'None'
 $script:Form.Size = New-Object System.Drawing.Size(1100, 760)
 $script:Form.MinimumSize = New-Object System.Drawing.Size(980, 680)
