@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 title K BNG M Hoster v0.7.1.1
 :: START HERE - just double-click this file. That's all you ever need to do.
 :: Everything else lives in the "Server" folder - you never need to open it.

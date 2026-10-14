@@ -1,4 +1,4 @@
-﻿## v0.7.1.1 - Update 9: Validation & input fixes
+## v0.7.1.1 - Update 9: Validation & input fixes
 
 - **No more false-positive validation errors:** the server key check no longer rejects
   custom or unusual key strings. Any non-empty key text is accepted (only line breaks /
@@ -13,6 +13,11 @@
 - **Config writer fallbacks:** ServerConfig.toml writes are wrapped so unexpected input
   formats degrade to safe, valid TOML instead of blocking server execution, and a failed
   write keeps the previous config.
+
+## v0.7.1 - UI Overhaul & Performance (by @bomberrie)
+
+- Redesigned the dashboard and command center with a dark theme, sidebar navigation, and cleaner direct connect cards.
+- Optimized window rendering, scrolling, and page switching to reduce lag.
 
 ## v0.7.1.0 - Update 8: Public/Private toggle fix & AuthKey "0" support
 
@@ -47,7 +52,7 @@
 
 ## v0.7.0 - Update 7: Transfer tab, FRP tunneling & GitHub-verified license
 
-### ðŸš€ Added (New features)
+### 🚀 Added (New features)
 
 - **New "Transfer" tab** (toolbar button or Ctrl+U) for automated mod packaging:
   - **Scan Server Mods** - matches the server's mod list (Resources/Client) against the mods actually cached on the host and shows the total count and combined size.
