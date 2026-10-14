@@ -51,19 +51,40 @@ public class Win32Chrome {
 }
 public class WheelFilter : IMessageFilter {
     public static Control TargetViewport;
+    public static Control ScopeControl;
     public static Action<int> ScrollCallback;
 
     public bool PreFilterMessage(ref Message m) {
         if (m.Msg == 0x020A) {
-            if (TargetViewport != null && !TargetViewport.IsDisposed && TargetViewport.Visible) {
-                Point pt = Cursor.Position;
-                Rectangle rect = TargetViewport.RectangleToScreen(TargetViewport.ClientRectangle);
-                if (rect.Contains(pt)) {
-                    int delta = (short)((m.WParam.ToInt64() >> 16) & 0xFFFF);
-                    if (ScrollCallback != null) {
-                        ScrollCallback(delta);
-                        return true;
+            if (TargetViewport != null && !TargetViewport.IsDisposed && TargetViewport.Visible && ScrollCallback != null) {
+                Control check = (ScopeControl != null && !ScopeControl.IsDisposed && ScopeControl.Visible) ? ScopeControl : TargetViewport;
+                
+                Control target = Control.FromHandle(m.HWnd);
+                if (target == null) {
+                    try { target = Control.FromChildHandle(m.HWnd); } catch { }
+                }
+
+                if (target is ListBox || target is RichTextBox) {
+                    if (target != TargetViewport && !TargetViewport.Contains(target)) {
+                        return false;
                     }
+                }
+
+                bool isOver = false;
+                if (target != null && (target == check || check.Contains(target) || TargetViewport.Contains(target))) {
+                    isOver = true;
+                } else {
+                    try {
+                        Point pt = Cursor.Position;
+                        Rectangle rect = check.RectangleToScreen(check.ClientRectangle);
+                        if (rect.Contains(pt)) isOver = true;
+                    } catch { }
+                }
+
+                if (isOver) {
+                    int delta = (short)((m.WParam.ToInt64() >> 16) & 0xFFFF);
+                    ScrollCallback(delta);
+                    return true;
                 }
             }
         }
@@ -414,7 +435,7 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
 
     $sb = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $sb
-    $sb.Width = 10
+    $sb.Width = 12
     $sb.Dock = [System.Windows.Forms.DockStyle]::Right
     $sb.BackColor = $Theme.bg
     $sb.Cursor = [System.Windows.Forms.Cursors]::Hand
@@ -422,6 +443,7 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
     $baseOffsetY = if ($ContentPanel) { $ContentPanel.Location.Y } else { 0 }
     $st = @{
         ScrollY = 0
+        DeltaAccum = 0.0
         IsDragging = $false
         DragStartY = 0
         DragStartScrollY = 0
@@ -463,8 +485,18 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
 
     $onDelta = {
         param([int]$delta)
-        $step = [int](($delta / 120) * 48)
-        & $setScroll ($st.ScrollY - $step)
+        $lines = 3
+        try {
+            $lines = [System.Windows.Forms.SystemInformation]::MouseWheelScrollLines
+            if ($lines -le 0) { $lines = 3 }
+        } catch { $lines = 3 }
+        $pixelsPerDetent = [math]::Max(24, [math]::Min(120, ($lines * 16)))
+        $st.DeltaAccum += (($delta / 120.0) * $pixelsPerDetent)
+        $step = [int]$st.DeltaAccum
+        if ($step -ne 0) {
+            $st.DeltaAccum -= $step
+            & $setScroll ($st.ScrollY - $step)
+        }
     }.GetNewClosure()
 
     $calcThumb = {
@@ -478,7 +510,7 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
         $sRange = $totH - $vH
         $thumbY = if ($sRange -gt 0) { [int]($tag.ScrollY / $sRange * $availH) } else { 0 }
         $thumbY = [int][math]::Max(0, [math]::Min($availH, $thumbY))
-        return (New-Object System.Drawing.Rectangle(2, $thumbY, 6, $thumbH))
+        return (New-Object System.Drawing.Rectangle(2, $thumbY, 8, $thumbH))
     }.GetNewClosure()
     $st.CalcThumb = $calcThumb
 
@@ -510,7 +542,7 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
             $tag = $s.Tag
             if ($e.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
                 $tr = & $tag.CalcThumb $tag $s.Height
-                if ($tr.Height -gt 0 -and $e.Y -ge ($tr.Top - 3) -and $e.Y -le ($tr.Bottom + 3)) {
+                if ($tr.Height -gt 0 -and $e.Y -ge ($tr.Top - 6) -and $e.Y -le ($tr.Bottom + 6)) {
                     $tag.IsDragging = $true
                     $tag.DragStartY = $e.Y
                     $tag.DragStartScrollY = $tag.ScrollY
@@ -588,6 +620,7 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
                 }
             }
             [WheelFilter]::TargetViewport = $Viewport
+            [WheelFilter]::ScopeControl = if ($Parent -and $Parent.Parent) { $Parent.Parent } else { $Parent }
             [WheelFilter]::ScrollCallback = $onDelta
         } catch { }
     }.GetNewClosure()
@@ -599,6 +632,46 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
             if ($sb -and $sb.Tag -and $sb.Tag.Sync) { & $sb.Tag.Sync }
         } catch { }
     }.GetNewClosure())
+
+    # Touch and mouse drag panning for touchscreens & trackpads
+    $panState = @{
+        IsPanning = $false
+        StartY = 0
+        StartScrollY = 0
+    }
+    $onPanDown = {
+        param($s, $e)
+        if ($e.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
+            $panState.IsPanning = $true
+            $panState.StartY = [System.Windows.Forms.Cursor]::Position.Y
+            $panState.StartScrollY = $st.ScrollY
+        }
+    }.GetNewClosure()
+    $onPanMove = {
+        param($s, $e)
+        if ($panState.IsPanning -and ($e.Button -eq [System.Windows.Forms.MouseButtons]::Left)) {
+            $curY = [System.Windows.Forms.Cursor]::Position.Y
+            $diff = $curY - $panState.StartY
+            if ([math]::Abs($diff) -ge 4) {
+                & $setScroll ($panState.StartScrollY - $diff)
+            }
+        }
+    }.GetNewClosure()
+    $onPanUp = {
+        param($s, $e)
+        $panState.IsPanning = $false
+    }.GetNewClosure()
+
+    if ($Viewport) {
+        $Viewport.Add_MouseDown($onPanDown)
+        $Viewport.Add_MouseMove($onPanMove)
+        $Viewport.Add_MouseUp($onPanUp)
+    }
+    if ($ContentPanel) {
+        $ContentPanel.Add_MouseDown($onPanDown)
+        $ContentPanel.Add_MouseMove($onPanMove)
+        $ContentPanel.Add_MouseUp($onPanUp)
+    }
 
     $Parent.Controls.Add($sb)
     $Viewport.BringToFront()
@@ -1028,7 +1101,7 @@ function New-CardStack($Page) {
     $body.Controls.Add($content)
     $body.Tag = $content
 
-    $sbObj = Attach-ModernScrollBar $wrap $body $content { if ($script:StackRefs -and $script:StackRefs.Content) { $script:StackRefs.Content.Height } else { 0 } }
+    $sbObj = Attach-ModernScrollBar $wrap $body $content { if ($content -and -not $content.IsDisposed) { $content.Height } else { 0 } }
     $wrap.Controls.Add($body)
     $body.BringToFront()
 
@@ -1094,8 +1167,11 @@ $script:Form = New-Object System.Windows.Forms.Form
 Enable-DoubleBuffer $script:Form
 $script:Form.Text = 'K BNG M Hoster v0.7.1.1 - by Kinan (@kinan_sx240) & @bomberrie'
 $script:Form.FormBorderStyle = 'None'
-$script:Form.Size = New-Object System.Drawing.Size(1100, 760)
-$script:Form.MinimumSize = New-Object System.Drawing.Size(980, 680)
+$script:Form.MinimumSize = New-Object System.Drawing.Size(900, 540)
+$workArea = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+$initW = [int][math]::Min(1100, [math]::Max(900, ($workArea.Width - 32)))
+$initH = [int][math]::Min(760, [math]::Max(540, ($workArea.Height - 32)))
+$script:Form.Size = New-Object System.Drawing.Size($initW, $initH)
 $script:Form.StartPosition = 'CenterScreen'
 $script:Form.BackColor = $Theme.bg
 $script:Form.ForeColor = $Theme.text
@@ -5420,6 +5496,27 @@ $script:Form.Add_KeyDown({
             'D' { Run-Diagnose; $e.SuppressKeyPress = $true }
             'C' { Copy-ConnectionLine; $e.SuppressKeyPress = $true }
         }
+    } elseif (-not $e.Alt) {
+        $handled = $false
+        switch ($e.KeyCode) {
+            'PageDown' {
+                if ([WheelFilter]::ScrollCallback) { & [WheelFilter]::ScrollCallback -240; $handled = $true }
+            }
+            'PageUp' {
+                if ([WheelFilter]::ScrollCallback) { & [WheelFilter]::ScrollCallback 240; $handled = $true }
+            }
+            'Down' {
+                if ($script:Form.ActiveControl -isnot [System.Windows.Forms.ListBox] -and $script:Form.ActiveControl -isnot [System.Windows.Forms.ComboBox]) {
+                    if ([WheelFilter]::ScrollCallback) { & [WheelFilter]::ScrollCallback -60; $handled = $true }
+                }
+            }
+            'Up' {
+                if ($script:Form.ActiveControl -isnot [System.Windows.Forms.ListBox] -and $script:Form.ActiveControl -isnot [System.Windows.Forms.ComboBox]) {
+                    if ([WheelFilter]::ScrollCallback) { & [WheelFilter]::ScrollCallback 60; $handled = $true }
+                }
+            }
+        }
+        if ($handled) { $e.SuppressKeyPress = $true }
     }
 })
 
