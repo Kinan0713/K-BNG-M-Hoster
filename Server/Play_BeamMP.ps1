@@ -473,6 +473,7 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
             if (-not $Viewport -or $Viewport.IsDisposed -or -not $ContentPanel -or $ContentPanel.IsDisposed) { return }
             $fnH = $st.GetContentHeight
             $totH = if ($fnH -is [scriptblock]) { & $fnH } else { 0 }
+            if ($totH -le 0 -and $ContentPanel -and -not $ContentPanel.IsDisposed) { $totH = $ContentPanel.Height }
             $vH = $Viewport.ClientSize.Height
             $maxS = [math]::Max(0, ($totH - $vH))
             $clamped = [math]::Max(0, [math]::Min($maxS, $newY))
@@ -503,6 +504,7 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
         param($tag, [int]$sbHeight)
         $fnH = $tag.GetContentHeight
         $totH = if ($fnH -is [scriptblock]) { & $fnH } else { 0 }
+        if ($totH -le 0 -and $tag.ContentPanel -and -not $tag.ContentPanel.IsDisposed) { $totH = $tag.ContentPanel.Height }
         $vH = if ($tag.Viewport) { $tag.Viewport.ClientSize.Height } else { 0 }
         if ($totH -le $vH -or $vH -le 0) { return [System.Drawing.Rectangle]::Empty }
         $thumbH = [int][math]::Max(32, [math]::Min($sbHeight, ($vH / $totH * $sbHeight)))
@@ -572,6 +574,7 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
                 }
                 $fnH = $tag.GetContentHeight
                 $totH = if ($fnH -is [scriptblock]) { & $fnH } else { 0 }
+                if ($totH -le 0 -and $tag.ContentPanel -and -not $tag.ContentPanel.IsDisposed) { $totH = $tag.ContentPanel.Height }
                 $vH = if ($tag.Viewport) { $tag.Viewport.ClientSize.Height } else { 0 }
                 $tH = $s.Height
                 $thumbH = [int][math]::Max(32, [math]::Min($tH, ($vH / $totH * $tH)))
@@ -605,6 +608,7 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
         try {
             $fnH = $GetContentHeight
             $totH = if ($fnH -is [scriptblock]) { & $fnH } else { 0 }
+            if ($totH -le 0 -and $ContentPanel -and -not $ContentPanel.IsDisposed) { $totH = $ContentPanel.Height }
             $vH = $Viewport.ClientSize.Height
             $needScroll = ($totH -gt $vH)
             if ($sb.Visible -ne $needScroll) { $sb.Visible = $needScroll }
@@ -1043,7 +1047,10 @@ function Update-CardStackLayout {
                             if ($sub.Dock -eq 'Top') { $pH += $sub.Height }
                             else { $b = $sub.Bottom + 4; if ($b -gt $pH) { $pH = $b } }
                         }
-                        if ($pH -gt 0) { $c.Height = $pH }
+                        if ($pH -gt 0) {
+                            $c.Height = $pH
+                            $c.MinimumSize = New-Object System.Drawing.Size($availW, $pH)
+                        }
                     } elseif ($c -is [System.Windows.Forms.Button]) {
                         $needW = [System.Windows.Forms.TextRenderer]::MeasureText($c.Text, $c.Font).Width + 24
                         $btnW = [int][math]::Min($availW, [math]::Max($c.Width, $needW))
@@ -1067,13 +1074,15 @@ function Update-CardStackLayout {
                     if ($b -gt $maxBot) { $maxBot = $b }
                 }
             }
-            $cardH = $maxBot + $padV + 4
+            if ($maxBot -gt 0) { $t.Height = $maxBot }
+            $neededH = [int]($t.Location.Y + $maxBot + $card.Padding.Bottom + 6)
+            $cardH = [int][math]::Max(($maxBot + $padV + 4), $neededH)
             $card.Bounds = New-Object System.Drawing.Rectangle(0, $curY, $stackW, $cardH)
             $curY += $cardH + 12
         }
         $curScrollY = if ($script:StackRefs -and $script:StackRefs.ScrollBar) { & $script:StackRefs.ScrollBar.GetScrollY } else { 0 }
         $content.Location = New-Object System.Drawing.Point(16, (10 - $curScrollY))
-        $content.Size = New-Object System.Drawing.Size($stackW, [int][math]::Max(10, ($curY + 8)))
+        $content.Size = New-Object System.Drawing.Size($stackW, [int][math]::Max(10, ($curY + 64)))
         if ($script:StackRefs -and $script:StackRefs.ScrollBar) {
             & $script:StackRefs.ScrollBar.Sync
         }
@@ -1101,7 +1110,7 @@ function New-CardStack($Page) {
     $body.Controls.Add($content)
     $body.Tag = $content
 
-    $sbObj = Attach-ModernScrollBar $wrap $body $content { if ($content -and -not $content.IsDisposed) { $content.Height } else { 0 } }
+    $sbObj = Attach-ModernScrollBar $wrap $body $content { if ($content -and -not $content.IsDisposed) { $content.Height } else { 0 } }.GetNewClosure()
     $wrap.Controls.Add($body)
     $body.BringToFront()
 
@@ -2326,6 +2335,7 @@ function Show-SettingsPage {
         Switch-ContentPage $script:SettingsPagePanel
         Refresh-SettingsFields
         Refresh-Dashboard
+        Update-CardStackLayout
         return
     }
     $p = New-Object System.Windows.Forms.Panel
@@ -2872,6 +2882,7 @@ function Show-NetworkPage([bool]$ForceRefresh = $false) {
         $script:StackRefs = $script:NetworkStackRefs
         Switch-ContentPage $script:NetworkPagePanel
         Refresh-FrpFields
+        Update-CardStackLayout
         return
     }
     $p = New-Object System.Windows.Forms.Panel
@@ -2933,6 +2944,7 @@ function Show-NetworkPage([bool]$ForceRefresh = $false) {
     Enable-DoubleBuffer $script:VpnRowsWrap
     $script:VpnRowsWrap.AutoSize = $false
     $script:VpnRowsWrap.Height = 252
+    $script:VpnRowsWrap.MinimumSize = New-Object System.Drawing.Size(0, 252)
     $script:VpnRowsWrap.BackColor = $Theme.card
     Add-RowFull $card $script:VpnRowsWrap
     $cards += $card
@@ -2947,13 +2959,13 @@ function Show-NetworkPage([bool]$ForceRefresh = $false) {
     Add-RowFull $card $cgnatBar
     $cards += $card
 
+    Refresh-VpnRows
+    Refresh-FrpFields
     & $script:MountCards $cards $stack.Content
     $p.ResumeLayout($false)
     $script:NetworkStackRefs = $script:StackRefs
     $script:NetworkPagePanel = $p
     Switch-ContentPage $p
-    Refresh-VpnRows
-    Refresh-FrpFields
     try { $script:Form.PerformLayout() } catch { }
 }
 
@@ -3101,7 +3113,9 @@ function Refresh-VpnRows {
         $btnAllRow.Controls.Add($btnAll)
         $rows += $btnAllRow
         for ($i = $rows.Count - 1; $i -ge 0; $i--) { $script:VpnRowsWrap.Controls.Add($rows[$i]) }
-        $script:VpnRowsWrap.Height = ($rows.Count * 42)
+        $wrapH = ($rows.Count * 42)
+        $script:VpnRowsWrap.Height = $wrapH
+        $script:VpnRowsWrap.MinimumSize = New-Object System.Drawing.Size(0, $wrapH)
     } finally {
         $script:VpnRowsWrap.ResumeLayout($true)
     }
@@ -3366,7 +3380,7 @@ function Layout-FixRows {
             $r.Row.Invalidate()
         }
         $totH = if ($script:FixRowsPanel) { $script:FixRowsPanel.PreferredSize.Height } else { 0 }
-        $script:FixRowsPanel.Size = New-Object System.Drawing.Size($w, [math]::Max(10, $totH))
+        $script:FixRowsPanel.Size = New-Object System.Drawing.Size($w, [math]::Max(10, ($totH + 48)))
         $curScrollY = if ($script:FixScrollBar) { & $script:FixScrollBar.GetScrollY } else { 0 }
         $script:FixRowsPanel.Location = New-Object System.Drawing.Point(0, -$curScrollY)
         if ($script:FixScrollBar) { & $script:FixScrollBar.Sync }
@@ -3816,6 +3830,7 @@ function Show-TransferPage {
     if ($script:TransferPagePanel -and -not $script:TransferPagePanel.IsDisposed) {
         $script:StackRefs = $script:TransferStackRefs
         Switch-ContentPage $script:TransferPagePanel
+        Update-CardStackLayout
         return
     }
     $p = New-Object System.Windows.Forms.Panel
@@ -4292,6 +4307,7 @@ function Show-ExtraPage {
         $script:StackRefs = $script:ExtraStackRefs
         Switch-ContentPage $script:ExtraPagePanel
         Refresh-WinRows
+        Update-CardStackLayout
         return
     }
     $p = New-Object System.Windows.Forms.Panel
