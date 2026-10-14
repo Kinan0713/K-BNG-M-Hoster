@@ -25,8 +25,10 @@ elseif ($Mode -eq 'setup') { $Setup = $true }
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 try {
-    Add-Type @"
+    Add-Type -ReferencedAssemblies 'System.Windows.Forms', 'System.Drawing' @"
 using System;
+using System.Drawing;
+using System.Windows.Forms;
 using System.Runtime.InteropServices;
 public class Win32R {
     [DllImport("user32.dll")] public static extern int SetWindowRgn(IntPtr hWnd, IntPtr hRgn, bool bRedraw);
@@ -34,6 +36,7 @@ public class Win32R {
 public class Win32Chrome {
     [DllImport("user32.dll")] public static extern bool ReleaseCapture();
     [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll")] public static extern bool ShowScrollBar(IntPtr hWnd, int wBar, bool bShow);
     [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
     public static void ApplyModernWindow(IntPtr hWnd) {
         try {
@@ -46,8 +49,30 @@ public class Win32Chrome {
         } catch { }
     }
 }
+public class WheelFilter : IMessageFilter {
+    public static Control TargetViewport;
+    public static Action<int> ScrollCallback;
+
+    public bool PreFilterMessage(ref Message m) {
+        if (m.Msg == 0x020A) {
+            if (TargetViewport != null && !TargetViewport.IsDisposed && TargetViewport.Visible) {
+                Point pt = Cursor.Position;
+                Rectangle rect = TargetViewport.RectangleToScreen(TargetViewport.ClientRectangle);
+                if (rect.Contains(pt)) {
+                    int delta = (short)((m.WParam.ToInt64() >> 16) & 0xFFFF);
+                    if (ScrollCallback != null) {
+                        ScrollCallback(delta);
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+}
 "@
 } catch { }
+try { [System.Windows.Forms.Application]::AddMessageFilter((New-Object WheelFilter)) } catch { }
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
 $ErrorActionPreference = 'SilentlyContinue'
@@ -384,6 +409,203 @@ function Set-ActiveNav($ActiveBtn) {
     }
 }
 
+function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHeight) {
+    if ($Viewport) { $Viewport.AutoScroll = $false }
+
+    $sb = New-Object System.Windows.Forms.Panel
+    Enable-DoubleBuffer $sb
+    $sb.Width = 10
+    $sb.Dock = [System.Windows.Forms.DockStyle]::Right
+    $sb.BackColor = $Theme.bg
+    $sb.Cursor = [System.Windows.Forms.Cursors]::Hand
+
+    $baseOffsetY = if ($ContentPanel) { $ContentPanel.Location.Y } else { 0 }
+    $st = @{
+        ScrollY = 0
+        IsDragging = $false
+        DragStartY = 0
+        DragStartScrollY = 0
+        IsHovered = $false
+        BaseOffsetY = $baseOffsetY
+        Viewport = $Viewport
+        ContentPanel = $ContentPanel
+        GetContentHeight = $GetContentHeight
+        ThumbRect = [System.Drawing.Rectangle]::Empty
+        SetScroll = $null
+        Sync = $null
+    }
+    $sb.Tag = $st
+
+    $sb.Add_MouseEnter({
+        $this.Tag.IsHovered = $true
+        $this.Invalidate()
+    })
+    $sb.Add_MouseLeave({
+        $this.Tag.IsHovered = $false
+        $this.Invalidate()
+    })
+
+    $setScroll = {
+        param([int]$newY)
+        try {
+            if (-not $Viewport -or $Viewport.IsDisposed -or -not $ContentPanel -or $ContentPanel.IsDisposed) { return }
+            $fnH = $st.GetContentHeight
+            $totH = if ($fnH -is [scriptblock]) { & $fnH } else { 0 }
+            $vH = $Viewport.ClientSize.Height
+            $maxS = [math]::Max(0, ($totH - $vH))
+            $clamped = [math]::Max(0, [math]::Min($maxS, $newY))
+            $st.ScrollY = $clamped
+            $ContentPanel.Location = New-Object System.Drawing.Point($ContentPanel.Location.X, ($st.BaseOffsetY - $clamped))
+            $sb.Invalidate()
+        } catch { }
+    }.GetNewClosure()
+    $st.SetScroll = $setScroll
+
+    $onDelta = {
+        param([int]$delta)
+        $step = [int](($delta / 120) * 48)
+        & $setScroll ($st.ScrollY - $step)
+    }.GetNewClosure()
+
+    $calcThumb = {
+        param($tag, [int]$sbHeight)
+        $fnH = $tag.GetContentHeight
+        $totH = if ($fnH -is [scriptblock]) { & $fnH } else { 0 }
+        $vH = if ($tag.Viewport) { $tag.Viewport.ClientSize.Height } else { 0 }
+        if ($totH -le $vH -or $vH -le 0) { return [System.Drawing.Rectangle]::Empty }
+        $thumbH = [int][math]::Max(32, [math]::Min($sbHeight, ($vH / $totH * $sbHeight)))
+        $availH = $sbHeight - $thumbH
+        $sRange = $totH - $vH
+        $thumbY = if ($sRange -gt 0) { [int]($tag.ScrollY / $sRange * $availH) } else { 0 }
+        $thumbY = [int][math]::Max(0, [math]::Min($availH, $thumbY))
+        return (New-Object System.Drawing.Rectangle(2, $thumbY, 6, $thumbH))
+    }.GetNewClosure()
+    $st.CalcThumb = $calcThumb
+
+    $sb.Add_Paint({
+        param($s, $e)
+        try {
+            $tag = $s.Tag
+            $tr = & $tag.CalcThumb $tag $s.Height
+            if ($tr.IsEmpty -or $tr.Height -le 0) { return }
+
+            $g = $e.Graphics
+            $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+            $col = if ($tag.IsDragging) {
+                [System.Drawing.Color]::FromArgb(255, 145, 60)
+            } elseif ($tag.IsHovered) {
+                $Theme.blue
+            } else {
+                [System.Drawing.Color]::FromArgb(90, 90, 108)
+            }
+            $brush = Get-CachedBrush $col
+            $path = Get-RoundedRectPath $tr.X $tr.Y $tr.Width $tr.Height 3
+            try { $g.FillPath($brush, $path) } finally { $path.Dispose() }
+        } catch { }
+    }.GetNewClosure())
+
+    $sb.Add_MouseDown({
+        param($s, $e)
+        try {
+            $tag = $s.Tag
+            if ($e.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
+                $tr = & $tag.CalcThumb $tag $s.Height
+                if ($tr.Height -gt 0 -and $e.Y -ge ($tr.Top - 3) -and $e.Y -le ($tr.Bottom + 3)) {
+                    $tag.IsDragging = $true
+                    $tag.DragStartY = $e.Y
+                    $tag.DragStartScrollY = $tag.ScrollY
+                    $s.Capture = $true
+                    $s.Invalidate()
+                } else {
+                    $vH = if ($tag.Viewport) { $tag.Viewport.ClientSize.Height } else { 0 }
+                    $targetY = if ($tr.Height -gt 0 -and $e.Y -lt $tr.Top) { [math]::Max(0, ($tag.ScrollY - $vH)) } else { ($tag.ScrollY + $vH) }
+                    if ($tag.SetScroll -is [scriptblock]) {
+                        & $tag.SetScroll $targetY
+                    }
+                }
+            }
+        } catch { }
+    }.GetNewClosure())
+
+    $sb.Add_MouseMove({
+        param($s, $e)
+        try {
+            $tag = $s.Tag
+            if ($tag.IsDragging) {
+                if ($e.Button -ne [System.Windows.Forms.MouseButtons]::Left) {
+                    $tag.IsDragging = $false
+                    $s.Capture = $false
+                    $s.Invalidate()
+                    return
+                }
+                $fnH = $tag.GetContentHeight
+                $totH = if ($fnH -is [scriptblock]) { & $fnH } else { 0 }
+                $vH = if ($tag.Viewport) { $tag.Viewport.ClientSize.Height } else { 0 }
+                $tH = $s.Height
+                $thumbH = [int][math]::Max(32, [math]::Min($tH, ($vH / $totH * $tH)))
+                $availH = $tH - $thumbH
+                $sRange = $totH - $vH
+                if ($availH -gt 0 -and $sRange -gt 0) {
+                    $dY = $e.Y - $tag.DragStartY
+                    $dScroll = ($dY / $availH) * $sRange
+                    $newScroll = [int]($tag.DragStartScrollY + $dScroll)
+                    if ($tag.SetScroll -is [scriptblock]) {
+                        & $tag.SetScroll $newScroll
+                    }
+                }
+            }
+        } catch { }
+    }.GetNewClosure())
+
+    $sb.Add_MouseUp({
+        param($s, $e)
+        $s.Tag.IsDragging = $false
+        $s.Capture = $false
+        $s.Invalidate()
+    }.GetNewClosure())
+
+    $sb.Add_MouseWheel({
+        param($s, $e)
+        & $onDelta $e.Delta
+    })
+
+    $sync = {
+        try {
+            $fnH = $GetContentHeight
+            $totH = if ($fnH -is [scriptblock]) { & $fnH } else { 0 }
+            $vH = $Viewport.ClientSize.Height
+            $needScroll = ($totH -gt $vH)
+            if ($sb.Visible -ne $needScroll) { $sb.Visible = $needScroll }
+            if ($sb.Visible) {
+                $maxS = [math]::Max(0, ($totH - $vH))
+                if ($st.ScrollY -gt $maxS) {
+                    & $setScroll $maxS
+                }
+                $sb.Invalidate()
+            } else {
+                if ($st.ScrollY -ne 0) {
+                    & $setScroll 0
+                }
+            }
+            [WheelFilter]::TargetViewport = $Viewport
+            [WheelFilter]::ScrollCallback = $onDelta
+        } catch { }
+    }.GetNewClosure()
+
+    $st.Sync = $sync
+
+    $Viewport.Add_Resize({
+        try {
+            if ($sb -and $sb.Tag -and $sb.Tag.Sync) { & $sb.Tag.Sync }
+        } catch { }
+    }.GetNewClosure())
+
+    $Parent.Controls.Add($sb)
+    $Viewport.BringToFront()
+
+    return @{ Bar = $sb; Sync = $sync; SetScroll = $setScroll; GetScrollY = { $st.ScrollY }; OnDelta = $onDelta }
+}
+
 function New-Lbl([string]$Text, [System.Drawing.Color]$Color, [float]$Size = 9.5, [int]$Height = 20, [bool]$Bold = $false, [int]$Width = 0) {
     $l = New-Object System.Windows.Forms.Label
     $l.Text = $Text
@@ -521,11 +743,7 @@ function QStr([string]$Value) {
 }
 
 function Update-BusyUi {
-    $busy = $script:Busy -or $script:Starting
-    if ($script:LicenseLocked) { $busy = $true }
-    foreach ($b in @($script:BtnFix, $script:BtnNetwork, $script:BtnMods, $script:BtnSettings, $script:BtnTransfer)) {
-        if ($b) { $b.Enabled = -not $busy; $b.Invalidate() }
-    }
+    # Navigation tabs remain enabled at all times so switching tabs is never delayed or blocked.
 }
 
 function Get-TextWidth([string]$Text, [System.Drawing.Font]$Font) {
@@ -780,21 +998,28 @@ function Update-CardStackLayout {
             $card.Bounds = New-Object System.Drawing.Rectangle(0, $curY, $stackW, $cardH)
             $curY += $cardH + 12
         }
-        $scrollPos = $body.AutoScrollPosition
-        $content.Location = New-Object System.Drawing.Point((16 + $scrollPos.X), (10 + $scrollPos.Y))
+        $curScrollY = if ($script:StackRefs -and $script:StackRefs.ScrollBar) { & $script:StackRefs.ScrollBar.GetScrollY } else { 0 }
+        $content.Location = New-Object System.Drawing.Point(16, (10 - $curScrollY))
         $content.Size = New-Object System.Drawing.Size($stackW, [int][math]::Max(10, ($curY + 8)))
+        if ($script:StackRefs -and $script:StackRefs.ScrollBar) {
+            & $script:StackRefs.ScrollBar.Sync
+        }
     } finally {
         $content.ResumeLayout($true)
     }
 }
 
 function New-CardStack($Page) {
+    $wrap = New-Object System.Windows.Forms.Panel
+    Enable-DoubleBuffer $wrap
+    $wrap.Dock = 'Fill'
+    $wrap.BackColor = $Theme.bg
+
     $body = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $body
     $body.Dock = 'Fill'
     $body.BackColor = $Theme.bg
-    $body.AutoScroll = $true
-    $body.AutoScrollMargin = New-Object System.Drawing.Size(0, 12)
+    $body.AutoScroll = $false
     $content = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $content
     $content.Location = New-Object System.Drawing.Point(16, 10)
@@ -802,11 +1027,16 @@ function New-CardStack($Page) {
     $content.BackColor = $Theme.bg
     $body.Controls.Add($content)
     $body.Tag = $content
-    $script:StackRefs = @{ Body = $body; Content = $content }
+
+    $sbObj = Attach-ModernScrollBar $wrap $body $content { if ($script:StackRefs -and $script:StackRefs.Content) { $script:StackRefs.Content.Height } else { 0 } }
+    $wrap.Controls.Add($body)
+    $body.BringToFront()
+
+    $script:StackRefs = @{ Wrap = $wrap; Body = $body; Content = $content; ScrollBar = $sbObj }
     $script:PageLayout = { Update-CardStackLayout }
     $body.Add_Resize({ Update-CardStackLayout })
-    $Page.Controls.Add($body)
-    $body.BringToFront()
+    $Page.Controls.Add($wrap)
+    $wrap.BringToFront()
     $script:MountCards = {
         param($CardList, $Content)
         $Content.Tag = @($CardList)
@@ -1324,21 +1554,36 @@ Enable-DoubleBuffer $script:Content
 $script:Content.Dock = 'Fill'
 $script:Content.BackColor = $Theme.bg
 
-# Fast page transition helper: suspends layout on $script:Content and disposes
-# non-cached previous page panels so Win32 HWND handles never accumulate.
+# Fast page transition helper: suspends layout on $script:Content and caches
+# created page panels so switching between tabs is instantaneous without HWND churn.
 $script:HomePagePanel = $null
+$script:SettingsPagePanel = $null
+$script:ModsPagePanel = $null
+$script:NetworkPagePanel = $null
+$script:TransferPagePanel = $null
+$script:FixPagePanel = $null
 $script:GuidePagePanel = $null
+$script:ExtraPagePanel = $null
+
+$script:SettingsStackRefs = $null
+$script:NetworkStackRefs = $null
+$script:TransferStackRefs = $null
+$script:ExtraStackRefs = $null
+
 function Switch-ContentPage($NewPage) {
+    if (-not $NewPage) { return }
     $script:Content.SuspendLayout()
     try {
-        $oldCtrls = @($script:Content.Controls)
-        $script:Content.Controls.Clear()
-        foreach ($old in $oldCtrls) {
-            if ($old -and $old -ne $NewPage -and $old -ne $script:HomePagePanel -and $old -ne $script:GuidePagePanel) {
-                try { $old.Dispose() } catch { }
+        foreach ($c in @($script:Content.Controls)) {
+            if ($c -ne $NewPage -and $c.Visible) {
+                $c.Visible = $false
             }
         }
-        $script:Content.Controls.Add($NewPage)
+        if (-not $script:Content.Controls.Contains($NewPage)) {
+            $script:Content.Controls.Add($NewPage)
+        }
+        $NewPage.Visible = $true
+        $NewPage.BringToFront()
     } finally {
         $script:Content.ResumeLayout($true)
     }
@@ -1430,30 +1675,10 @@ function Layout-HomePage {
             $connPrefH = $script:ConnTlp.GetPreferredSize((New-Object System.Drawing.Size($connInnerW, 0))).Height
             $connH = [int]($connPrefH + $connPadV + 4)
 
-            # If connH exceeds ConnCard client height, vertical scrollbar will appear if not already visible.
-            # If vertical scrollbar was not visible, subtract scrollbar width so content never overflows horizontally:
-            if (-not $script:ConnCard.VerticalScroll.Visible -and $connH -gt $script:ConnCard.ClientSize.Height) {
-                $connW = [int][math]::Max(280, ($availW - $vBarW - 1))
-                $connInnerW = [int][math]::Max(240, ($connW - $connPadH))
-                if ($script:LblConnNote -and $script:ConnNoteBox) {
-                    $noteInnerW = [int][math]::Max(180, ($connInnerW - 26))
-                    $script:LblConnNote.MaximumSize = New-Object System.Drawing.Size($noteInnerW, 0)
-                    $script:ConnNoteBox.Width = $connInnerW
-                    $script:ConnNoteBox.Height = [int][math]::Max(30, ($script:LblConnNote.PreferredSize.Height + 14))
-                }
-                if ($script:ConnVpnFlow) {
-                    $script:ConnVpnFlow.MaximumSize = New-Object System.Drawing.Size($connInnerW, 0)
-                    $script:ConnVpnFlow.MinimumSize = New-Object System.Drawing.Size($connInnerW, 36)
-                }
-                $script:ConnTlp.Width = $connInnerW
-                $script:ConnTlp.PerformLayout()
-                $connPrefH = $script:ConnTlp.GetPreferredSize((New-Object System.Drawing.Size($connInnerW, 0))).Height
-                $connH = [int]($connPrefH + $connPadV + 4)
-            }
-
-            $scrollPos = $script:ConnCard.AutoScrollPosition
+            $curScrollY = if ($script:HomeScrollBar) { & $script:HomeScrollBar.GetScrollY } else { 0 }
             $script:ConnContent.Size = New-Object System.Drawing.Size($connW, $connH)
-            $script:ConnContent.Location = New-Object System.Drawing.Point($scrollPos.X, $scrollPos.Y)
+            $script:ConnContent.Location = New-Object System.Drawing.Point(0, -$curScrollY)
+            if ($script:HomeScrollBar) { & $script:HomeScrollBar.Sync }
         }
     } catch { Write-Log "[LAYOUT-ERROR] HOME $($_.Exception.Message)" }
 }
@@ -1620,13 +1845,18 @@ function Show-HomePage {
     $homeSpacer.Height = 10
     $homeSpacer.BackColor = $Theme.bg
 
+    # Connect info card wrapper
+    $connWrap = New-Object System.Windows.Forms.Panel
+    Enable-DoubleBuffer $connWrap
+    $connWrap.Dock = 'Fill'
+    $connWrap.BackColor = $Theme.bg
+
     # Connect info card (fills the rest, scrolls cleanly if needed)
     $script:ConnCard = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $script:ConnCard
     $script:ConnCard.Dock = 'Fill'
     $script:ConnCard.BackColor = $Theme.bg
-    $script:ConnCard.AutoScroll = $true
-    $script:ConnCard.AutoScrollMargin = New-Object System.Drawing.Size(0, 8)
+    $script:ConnCard.AutoScroll = $false
     $script:ConnContent = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $script:ConnContent
     $script:ConnContent.Location = New-Object System.Drawing.Point(0, 0)
@@ -1644,6 +1874,10 @@ function Show-HomePage {
     })
     $script:ConnCard.Controls.Add($script:ConnContent)
     $script:ConnCard.Add_Resize({ Layout-HomePage })
+
+    $script:HomeScrollBar = Attach-ModernScrollBar $connWrap $script:ConnCard $script:ConnContent { if ($script:ConnContent) { $script:ConnContent.Height } else { 0 } }
+    $connWrap.Controls.Add($script:ConnCard)
+    $script:ConnCard.BringToFront()
 
     $connTlp = New-Object System.Windows.Forms.TableLayoutPanel
     Enable-DoubleBuffer $connTlp
@@ -1778,7 +2012,7 @@ function Show-HomePage {
     $connTlp.Controls.Add($script:ConnVpnFlow, 0, $r)
     $connTlp.ResumeLayout($false)
 
-    $p.Controls.Add($script:ConnCard)
+    $p.Controls.Add($connWrap)
     $p.Controls.Add($homeSpacer)
     $p.Controls.Add($script:StatusCard)
     $p.ResumeLayout($true)
@@ -2010,6 +2244,14 @@ function Refresh-Dashboard {
 # ---------------------------------------------------------------------------------------
 function Show-SettingsPage {
     Set-ActiveNav $script:BtnSettings
+    $script:PageLayout = { Update-CardStackLayout }
+    if ($script:SettingsPagePanel -and -not $script:SettingsPagePanel.IsDisposed) {
+        $script:StackRefs = $script:SettingsStackRefs
+        Switch-ContentPage $script:SettingsPagePanel
+        Refresh-SettingsFields
+        Refresh-Dashboard
+        return
+    }
     $p = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $p
     $p.SuspendLayout()
@@ -2225,6 +2467,8 @@ function Show-SettingsPage {
 
     & $script:MountCards $cards $stack.Content
     $p.ResumeLayout($false)
+    $script:SettingsStackRefs = $script:StackRefs
+    $script:SettingsPagePanel = $p
     Switch-ContentPage $p
     $script:SuppressSettingEvents = $true
     $script:ChkLock.Checked = (Test-StaticIpLocked)
@@ -2235,22 +2479,38 @@ function Show-SettingsPage {
     Refresh-Dashboard
 }
 
+function Get-AllConfigValues {
+    $cfgPath = $script:RootDir + 'ServerConfig.toml'
+    $res = @{}
+    if (Test-Path -LiteralPath $cfgPath) {
+        try {
+            foreach ($line in [System.IO.File]::ReadAllLines($cfgPath)) {
+                if ($line -match '^\s*([^#=\s]+)\s*=\s*(.+?)\s*$') {
+                    $res[$Matches[1]] = $Matches[2].Trim().Trim('"')
+                }
+            }
+        } catch { }
+    }
+    return $res
+}
+
 # Fills the settings inputs from the current ServerConfig.toml values.
 function Refresh-SettingsFields {
     try {
         if (-not $script:TxtName) { return }
         $script:SuppressSettingEvents = $true
         try {
-            $script:TxtName.Text = Get-ConfigValue 'Name'
-            $script:TxtPlayers.Text = Get-ConfigValue 'MaxPlayers'
-            $script:TxtCars.Text = Get-ConfigValue 'MaxCars'
-            $script:TxtDescription.Text = Get-ConfigValue 'Description'
-            $script:TxtTags.Text = Get-ConfigValue 'Tags'
-            $script:ChkAllowGuests.Checked = ((Get-ConfigValue 'AllowGuests') -match 'true|1')
-            $script:ChkLogChat.Checked = ((Get-ConfigValue 'LogChat') -match 'true|1')
-            $script:ChkDebug.Checked = ((Get-ConfigValue 'Debug') -match 'true|1')
-            $script:ChkInfoPacket.Checked = ((Get-ConfigValue 'InformationPacket') -match 'true|1')
-            $isPriv = Get-ServerPrivate
+            $cfg = Get-AllConfigValues
+            $script:TxtName.Text = if ($cfg.ContainsKey('Name')) { $cfg['Name'] } else { '' }
+            $script:TxtPlayers.Text = if ($cfg.ContainsKey('MaxPlayers')) { $cfg['MaxPlayers'] } else { '8' }
+            $script:TxtCars.Text = if ($cfg.ContainsKey('MaxCars')) { $cfg['MaxCars'] } else { '1' }
+            $script:TxtDescription.Text = if ($cfg.ContainsKey('Description')) { $cfg['Description'] } else { '' }
+            $script:TxtTags.Text = if ($cfg.ContainsKey('Tags')) { $cfg['Tags'] } else { '' }
+            $script:ChkAllowGuests.Checked = ($cfg['AllowGuests'] -match 'true|1')
+            $script:ChkLogChat.Checked = ($cfg['LogChat'] -match 'true|1')
+            $script:ChkDebug.Checked = ($cfg['Debug'] -match 'true|1')
+            $script:ChkInfoPacket.Checked = ($cfg['InformationPacket'] -match 'true|1')
+            $isPriv = ($cfg['Private'] -match 'true|1')
             $script:isPrivate = [bool]$isPriv
             $script:RadioPublic.Checked = -not $isPriv
             $script:RadioPrivate.Checked = $isPriv
@@ -2315,27 +2575,55 @@ function Refresh-MapListBox {
     if (-not $script:CmbMaps) { return }
     $q = ''
     if ($script:TxtMapSearch) { $q = $script:TxtMapSearch.Text.Trim() }
-    $script:FilteredMaps = @($script:CachedMaps | Where-Object { -not $q -or $_.Name -like "*$q*" -or $_.Path -like "*$q*" })
+    $filtered = @($script:CachedMaps | Where-Object { -not $q -or $_.Name -like "*$q*" -or $_.Path -like "*$q*" })
+
+    $cur = Get-ServerMap
+    $curName = Get-MapNameFromPath $cur
+
+    # If the current server map was not found in the scan and there is no search query,
+    # insert a placeholder object at index 0 of both the array and the combo box
+    # so every ComboBox item index matches $script:FilteredMaps 1-to-1.
+    if ($curName -and -not $q) {
+        $found = $false
+        foreach ($m in $filtered) {
+            if ($m.Name -ieq $curName) { $found = $true; break }
+        }
+        if (-not $found) {
+            $placeholder = [pscustomobject]@{
+                Name = $curName
+                Kind = 'Missing'
+                Path = $cur
+                Zip = $null
+                IsPlaceholder = $true
+            }
+            $filtered = @($placeholder) + @($filtered)
+        }
+    }
+
+    $script:FilteredMaps = $filtered
     $script:CmbMaps.BeginUpdate()
     try {
         $script:CmbMaps.Items.Clear()
-        $script:MapPlaceholder = $false
         foreach ($m in $script:FilteredMaps) {
-            $disp = $m.Name + $(if ($m.Kind -eq 'Vanilla') { '   (Vanilla)' } else { '   [MAP MOD]' })
+            $disp = if ($m.IsPlaceholder) {
+                "$($m.Name)   (current, not found in scan)"
+            } elseif ($m.Kind -eq 'Vanilla') {
+                "$($m.Name)   (Vanilla)"
+            } else {
+                "$($m.Name)   [MAP MOD]"
+            }
             [void]$script:CmbMaps.Items.Add($disp)
         }
-        $cur = Get-ServerMap
-        $curName = Get-MapNameFromPath $cur
+
         if ($curName -and -not $q) {
             $idx = -1
-            for ($i = 0; $i -lt $script:FilteredMaps.Count; $i++) { if ($script:FilteredMaps[$i].Name -ieq $curName) { $idx = $i; break } }
-            if ($idx -ge 0) { $script:CmbMaps.SelectedIndex = $idx }
-            else {
-                $script:MapPlaceholder = $true
-                [void]$script:CmbMaps.Items.Insert(0, "$curName   (current, not found in scan)")
-                $script:CmbMaps.SelectedIndex = 0
+            for ($i = 0; $i -lt $script:FilteredMaps.Count; $i++) {
+                if ($script:FilteredMaps[$i].Name -ieq $curName) { $idx = $i; break }
             }
-        } elseif ($script:FilteredMaps.Count -and $script:CmbMaps.SelectedIndex -lt 0) { $script:CmbMaps.SelectedIndex = 0 }
+            if ($idx -ge 0) { $script:CmbMaps.SelectedIndex = $idx }
+        } elseif ($script:FilteredMaps.Count -gt 0 -and $script:CmbMaps.SelectedIndex -lt 0) {
+            $script:CmbMaps.SelectedIndex = 0
+        }
     } finally {
         $script:CmbMaps.EndUpdate()
     }
@@ -2344,10 +2632,13 @@ function Refresh-MapListBox {
 function Apply-MapSelection {
     if (-not $script:CmbMaps) { return }
     $idx = $script:CmbMaps.SelectedIndex
-    if ($idx -lt 0) { Add-Log "[INFO] Select a map first."; return }
-    if ($script:MapPlaceholder -and $idx -eq 0) { Add-Log "[INFO] The current map was not found in the scan - pick another map from the list."; return }
+    if ($idx -lt 0 -or $idx -ge $script:FilteredMaps.Count) { Add-Log "[INFO] Select a map first."; return }
     $map = $script:FilteredMaps[$idx]
     if (-not $map) { Add-Log "[INFO] Select a map first."; return }
+    if ($map.IsPlaceholder) {
+        Add-Log "[INFO] The current map was not found in the scan - pick another map from the list."
+        return
+    }
     $zipArg = ''
     if ($map.Zip) { $zipArg = " -ZipToHost " + (QStr $map.Zip) }
     Add-Log "[INFO] Applying map $($map.Name)..."
@@ -2498,8 +2789,15 @@ function Persist-LockToggle {
 # ---------------------------------------------------------------------------------------
 # NETWORK PAGE (FRP tunnel + VPN tools + CGNAT help)
 # ---------------------------------------------------------------------------------------
-function Show-NetworkPage {
+function Show-NetworkPage([bool]$ForceRefresh = $false) {
     Set-ActiveNav $script:BtnNetwork
+    $script:PageLayout = { Update-CardStackLayout }
+    if (-not $ForceRefresh -and $script:NetworkPagePanel -and -not $script:NetworkPagePanel.IsDisposed) {
+        $script:StackRefs = $script:NetworkStackRefs
+        Switch-ContentPage $script:NetworkPagePanel
+        Refresh-FrpFields
+        return
+    }
     $p = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $p
     $p.SuspendLayout()
@@ -2507,7 +2805,7 @@ function Show-NetworkPage {
     $p.BackColor = $Theme.bg
 
     $top = New-PageTop $p 'Network' 'Everything about how friends reach you: FRP tunnel, VPNs and CGNAT.'
-    $btnRefresh = New-Btn 'Refresh' 'Re-check which VPNs are installed / running and their IPs.' { Show-NetworkPage }
+    $btnRefresh = New-Btn 'Refresh' 'Re-check which VPNs are installed / running and their IPs.' { Get-InstalledVpns $true | Out-Null; Show-NetworkPage $true }
     $btnRefresh.Size = New-Object System.Drawing.Size(90, 34)
     $top.Flow.Controls.Add($btnRefresh)
     $p.Controls.Add($top.Bar)
@@ -2575,6 +2873,8 @@ function Show-NetworkPage {
 
     & $script:MountCards $cards $stack.Content
     $p.ResumeLayout($false)
+    $script:NetworkStackRefs = $script:StackRefs
+    $script:NetworkPagePanel = $p
     Switch-ContentPage $p
     Refresh-VpnRows
     Refresh-FrpFields
@@ -2738,6 +3038,12 @@ function Refresh-VpnRows {
 # ---------------------------------------------------------------------------------------
 function Show-FixPage {
     Set-ActiveNav $script:BtnFix
+    $script:PageLayout = { Layout-FixRows }
+    if ($script:FixPagePanel -and -not $script:FixPagePanel.IsDisposed) {
+        Switch-ContentPage $script:FixPagePanel
+        & $script:PageLayout
+        return
+    }
     $p = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $p
     $p.SuspendLayout()
@@ -2745,13 +3051,33 @@ function Show-FixPage {
     $p.BackColor = $Theme.bg
     $p.Padding = New-Object System.Windows.Forms.Padding(12, 4, 12, 4)
 
+    $fixWrap = New-Object System.Windows.Forms.Panel
+    Enable-DoubleBuffer $fixWrap
+    $fixWrap.Dock = 'Fill'
+    $fixWrap.BackColor = $Theme.bg
+
+    $script:FixViewport = New-Object System.Windows.Forms.Panel
+    Enable-DoubleBuffer $script:FixViewport
+    $script:FixViewport.Dock = 'Fill'
+    $script:FixViewport.BackColor = $Theme.bg
+    $script:FixViewport.AutoScroll = $false
+
     $script:FixRowsPanel = New-Object System.Windows.Forms.FlowLayoutPanel
     Enable-DoubleBuffer $script:FixRowsPanel
-    $script:FixRowsPanel.Dock = 'Fill'
+    $script:FixRowsPanel.Location = New-Object System.Drawing.Point(0, 0)
+    $script:FixRowsPanel.AutoSize = $true
+    $script:FixRowsPanel.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
     $script:FixRowsPanel.FlowDirection = 'TopDown'
     $script:FixRowsPanel.WrapContents = $false
-    $script:FixRowsPanel.AutoScroll = $true
+    $script:FixRowsPanel.AutoScroll = $false
     $script:FixRowsPanel.BackColor = $Theme.bg
+    $script:FixViewport.Controls.Add($script:FixRowsPanel)
+
+    $script:FixScrollBar = Attach-ModernScrollBar $fixWrap $script:FixViewport $script:FixRowsPanel {
+        if ($script:FixRowsPanel) { $script:FixRowsPanel.PreferredSize.Height } else { 0 }
+    }
+    $fixWrap.Controls.Add($script:FixViewport)
+    $script:FixViewport.BringToFront()
 
     $script:FixTop = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $script:FixTop
@@ -2789,12 +3115,12 @@ function Show-FixPage {
     $script:BtnFixAll.Tag = @{ X = 390; Y = 54; W = 150; H = 34 }
     $script:FixTop.Controls.Add($script:BtnFixAll)
 
-    $p.Controls.Add($script:FixRowsPanel)
+    $p.Controls.Add($fixWrap)
     $p.Controls.Add($script:FixTop)
     $p.ResumeLayout($false)
+    $script:FixPagePanel = $p
     Switch-ContentPage $p
     $script:FixRowRefs = @()
-    $script:PageLayout = { Layout-FixRows }
     & $script:PageLayout
     Show-FixIdle
 }
@@ -2806,6 +3132,7 @@ function Show-FixIdle {
     $script:LblFixSummary = New-Lbl 'Nothing scanned yet. Press "Re-scan everything" (or "Fix all possible") to check your setup - nothing runs on its own.' $Theme.dim 10 22
     $script:LblFixSummary.Location = New-Object System.Drawing.Point(4, 4)
     $script:FixRowsPanel.Controls.Add($script:LblFixSummary)
+    Layout-FixRows
 }
 
 function Run-FixScan {
@@ -2814,6 +3141,7 @@ function Run-FixScan {
     $script:LblFixSummary = New-Lbl 'Scanning... (the first scan takes a few seconds, then it is fast)' $Theme.dim 10 22
     $script:LblFixSummary.Location = New-Object System.Drawing.Point(4, 4)
     $script:FixRowsPanel.Controls.Add($script:LblFixSummary)
+    Layout-FixRows
     Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$State.FixReport = @(Get-FixReport)" 'fixscan'
 }
 
@@ -2898,7 +3226,8 @@ function Add-FixRow($row) {
 function Layout-FixRows {
     if (-not $script:FixRowsPanel) { return }
     try {
-        $w = [int][math]::Max(320, ($script:FixRowsPanel.ClientSize.Width - 22))
+        $availW = if ($script:FixViewport -and $script:FixViewport.ClientSize.Width -gt 50) { $script:FixViewport.ClientSize.Width } else { $script:FixRowsPanel.ClientSize.Width }
+        $w = [int][math]::Max(320, ($availW - 14))
         if ($script:LblFixSummary) {
             $script:LblFixSummary.Width = $w
             $m = Measure-Text $script:LblFixSummary.Text $script:LblFixSummary.Font $w
@@ -2960,6 +3289,11 @@ function Layout-FixRows {
             }
             $r.Row.Invalidate()
         }
+        $totH = if ($script:FixRowsPanel) { $script:FixRowsPanel.PreferredSize.Height } else { 0 }
+        $script:FixRowsPanel.Size = New-Object System.Drawing.Size($w, [math]::Max(10, $totH))
+        $curScrollY = if ($script:FixScrollBar) { & $script:FixScrollBar.GetScrollY } else { 0 }
+        $script:FixRowsPanel.Location = New-Object System.Drawing.Point(0, -$curScrollY)
+        if ($script:FixScrollBar) { & $script:FixScrollBar.Sync }
     } catch { Write-Log "[LAYOUT-ERROR] FIXROWS $($_.Exception.Message)" }
 }
 
@@ -3170,7 +3504,15 @@ function Add-DropTarget($Ctrl) {
 
 function Show-ModsPage {
     Set-ActiveNav $script:BtnMods
+    $script:PageLayout = { Layout-Mods }
+    if ($script:ModsPagePanel -and -not $script:ModsPagePanel.IsDisposed) {
+        Switch-ContentPage $script:ModsPagePanel
+        & $script:PageLayout
+        Populate-ModLists
+        return
+    }
     $p = New-Object System.Windows.Forms.Panel
+    $p.SuspendLayout()
     $p.Dock = 'Fill'
     $p.BackColor = $Theme.bg
     $p.Padding = New-Object System.Windows.Forms.Padding(12, 4, 12, 4)
@@ -3287,8 +3629,9 @@ function Show-ModsPage {
 
     $p.Controls.Add($script:ModsListPanel)
     $p.Controls.Add($script:ModsTop)
+    $p.ResumeLayout($false)
+    $script:ModsPagePanel = $p
     Switch-ContentPage $p
-    $script:PageLayout = { Layout-Mods }
     & $script:PageLayout
     Populate-ModLists
     if (-not $script:State.ModsInfo) { Refresh-ModListsAsync }
@@ -3393,7 +3736,14 @@ function ModAction([string]$Which) {
 # ---------------------------------------------------------------------------------------
 function Show-TransferPage {
     Set-ActiveNav $script:BtnTransfer
+    $script:PageLayout = { Update-CardStackLayout }
+    if ($script:TransferPagePanel -and -not $script:TransferPagePanel.IsDisposed) {
+        $script:StackRefs = $script:TransferStackRefs
+        Switch-ContentPage $script:TransferPagePanel
+        return
+    }
     $p = New-Object System.Windows.Forms.Panel
+    $p.SuspendLayout()
     $p.Dock = 'Fill'
     $p.BackColor = $Theme.bg
     Enable-DoubleBuffer $p
@@ -3496,6 +3846,9 @@ function Show-TransferPage {
     $cards += $card
 
     & $script:MountCards $cards $stack.Content
+    $p.ResumeLayout($false)
+    $script:TransferStackRefs = $script:StackRefs
+    $script:TransferPagePanel = $p
     Switch-ContentPage $p
     $script:ClientModItems = @()
     Start-TransferRefresh
@@ -3858,7 +4211,15 @@ function Get-ToolWindows {
 
 function Show-ExtraPage {
     Set-ActiveNav $script:BtnMore
+    $script:PageLayout = { Update-CardStackLayout }
+    if ($script:ExtraPagePanel -and -not $script:ExtraPagePanel.IsDisposed) {
+        $script:StackRefs = $script:ExtraStackRefs
+        Switch-ContentPage $script:ExtraPagePanel
+        Refresh-WinRows
+        return
+    }
     $p = New-Object System.Windows.Forms.Panel
+    $p.SuspendLayout()
     $p.Dock = 'Fill'
     $p.BackColor = $Theme.bg
     Enable-DoubleBuffer $p
@@ -3894,6 +4255,9 @@ function Show-ExtraPage {
     $cards += $card
 
     & $script:MountCards $cards $stack.Content
+    $p.ResumeLayout($false)
+    $script:ExtraStackRefs = $script:StackRefs
+    $script:ExtraPagePanel = $p
     Switch-ContentPage $p
     Refresh-WinRows
 }
@@ -4004,7 +4368,7 @@ Product: K BNG M Hoster
 Licensor / Copyright Holder: Kinan (@kinan_sx240)
 Copyright (c) 2026 Kinan. All Rights Reserved.
 
-IMPORTANT â€” READ CAREFULLY: BY DOWNLOADING, INSTALLING, ACCESSING, OR USING THE
+IMPORTANT --- READ CAREFULLY: BY DOWNLOADING, INSTALLING, ACCESSING, OR USING THE
 SOFTWARE, YOU ACCEPT AND AGREE TO THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
 DOWNLOAD, INSTALL, OR USE THE SOFTWARE.
 
@@ -4021,7 +4385,7 @@ DOWNLOAD, INSTALL, OR USE THE SOFTWARE.
     "Licensee" means any person or entity that downloads, installs, accesses,
     or uses the Software.
 
-2. LICENSE GRANT â€” LIMITED USE
+2. LICENSE GRANT --- LIMITED USE
 2.1 Subject to strict compliance with this Agreement, the Licensor grants the
     Licensee a limited, revocable, non-exclusive, non-transferable,
     non-sublicensable license to:
@@ -4210,12 +4574,12 @@ function Show-EulaDialog {
 # LICENSE GATE (mandatory EULA check against the official GitHub repository)
 # Set $script:EnableLicenseGate = $true to re-enable the startup license check.
 # ---------------------------------------------------------------------------------------
-$script:EnableLicenseGate = $true
-$script:LicenseLocked = $true
+$script:EnableLicenseGate = $false
+$script:LicenseLocked = $false
 $script:LicenseSavedStates = @{}
 $script:LicenseLocalVersion = ''
 $script:LicenseRemoteVersion = $null
-$script:LicenseCheckDone = $false
+$script:LicenseCheckDone = $true
 $script:LicensePs = $null
 $script:LicenseHandle = $null
 $script:FrpInitPs = $null
@@ -4476,7 +4840,7 @@ function Show-KeySetupDialog($owner) {
     $skip.Location = New-Object System.Drawing.Point(130, 250)
     $dlg.Controls.Add($skip)
 
-    $note = New-Lbl 'Any non-empty key text is accepted (letters, numbers, dashes, custom strings). For a private server, type 0 (or leave empty) - Keymaster authentication is skipped.' $Theme.dim 8.5 20  $false 570
+    $note = New-Lbl 'Any non-empty key text is accepted (letters, numbers, dashes, custom strings). For a private server, type 0 (or leave empty) - Keymaster authentication is skipped.' $Theme.dim 8.5 44  $false 570
     $note.Location = New-Object System.Drawing.Point(14, 300)
     $dlg.Controls.Add($note)
 

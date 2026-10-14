@@ -1,4 +1,4 @@
-﻿# ========================================================================================
+# ========================================================================================
 # K BNG M Hoster v0.7.1.1 - HosterCore.ps1
 # All logic lives here (single source of truth). The GUI (Play_BeamMP.ps1) and every
 # background task load this file and call these functions. No console UI in this file.
@@ -952,26 +952,59 @@ function Get-VpnApps {
     )
 }
 
-# Which VPNs are installed on this PC? (install paths, Start-menu shortcuts, registry).
-function Get-InstalledVpns {
-    $menuDirs = @()
-    foreach ($d in @([Environment]::GetFolderPath('CommonStartMenu'), [Environment]::GetFolderPath('StartMenu'))) { if ($d) { $menuDirs += $d } }
-    $lnks = @(Get-ChildItem -Path $menuDirs -Recurse -Filter '*.lnk' -File -ErrorAction SilentlyContinue)
-    $regItems = @(Get-ItemProperty -Path @(
-        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
-        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*',
-        'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*') -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName })
+# Which VPNs are installed on this PC? (install paths, registry).
+$script:CachedInstalledVpns = $null
+function Get-InstalledVpns([bool]$Force = $false) {
+    if (-not $Force -and $script:CachedInstalledVpns) { return $script:CachedInstalledVpns }
+    $apps = Get-VpnApps
     $out = @()
-    foreach ($app in Get-VpnApps) {
+    $needReg = $false
+
+    foreach ($app in $apps) {
         $exe = $app.Exes | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-        $installed = [bool]$exe -or [bool]($lnks | Where-Object { $_.Name -match $app.Match }) -or [bool]($regItems | Where-Object { $_.DisplayName -match $app.Match })
-        $out += [pscustomobject]@{ Key = $app.Key; Name = $app.Name; Url = $app.Url; Exe = $(if ($exe) { $exe } else { '' }); Installed = $installed }
+        if ($exe) {
+            $out += [pscustomobject]@{ Key = $app.Key; Name = $app.Name; Url = $app.Url; Exe = $exe; Installed = $true }
+        } else {
+            $needReg = $true
+        }
     }
+
+    if ($needReg) {
+        $regNames = New-Object System.Collections.Generic.List[string]
+        try {
+            foreach ($root in @([Microsoft.Win32.Registry]::LocalMachine, [Microsoft.Win32.Registry]::CurrentUser)) {
+                foreach ($sub in @('SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall', 'SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall')) {
+                    $k = $root.OpenSubKey($sub)
+                    if ($k) {
+                        foreach ($subName in $k.GetSubKeyNames()) {
+                            $sk = $k.OpenSubKey($subName)
+                            if ($sk) {
+                                $dn = $sk.GetValue('DisplayName')
+                                if ($dn) { $regNames.Add([string]$dn) }
+                                $sk.Close()
+                            }
+                        }
+                        $k.Close()
+                    }
+                }
+            }
+        } catch { }
+
+        foreach ($app in $apps) {
+            $already = $out | Where-Object { $_.Key -eq $app.Key }
+            if (-not $already) {
+                $installed = [bool]($regNames | Where-Object { $_ -match $app.Match })
+                $out += [pscustomobject]@{ Key = $app.Key; Name = $app.Name; Url = $app.Url; Exe = ''; Installed = $installed }
+            }
+        }
+    }
+
     # Check if playit is installed
     $playitInstalled = Test-Path -LiteralPath "$env:APPDATA\playit-agent\"
     if ($playitInstalled) {
         $out += [pscustomobject]@{ Key = 'playit'; Name = 'Playit.gg'; Url = 'https://playit.gg'; Exe = ''; Installed = $true }
     }
+    $script:CachedInstalledVpns = $out
     return $out
 }
 
@@ -980,21 +1013,26 @@ function Get-VpnIps {
     $out = @()
     try {
         $names = @{ radmin = 'Radmin VPN'; hamachi = 'Hamachi'; zerotier = 'ZeroTier'; tailscale = 'Tailscale' }
-        $adaps = @(Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceAlias -match 'Radmin|Hamachi|LogMeIn|ZeroTier|Tailscale' })
-        foreach ($a in $adaps) {
-            $key = if ($a.InterfaceAlias -match 'Radmin') { 'radmin' }
-                   elseif ($a.InterfaceAlias -match 'Hamachi|LogMeIn') { 'hamachi' }
-                   elseif ($a.InterfaceAlias -match 'ZeroTier') { 'zerotier' }
-                   elseif ($a.InterfaceAlias -match 'Tailscale') { 'tailscale' } else { 'vpn' }
-            $ip = ''
-            try { $ip = ((Get-NetIPAddress -InterfaceIndex $a.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | Select-Object -First 1).IPAddress) } catch { }
-            $out += [pscustomobject]@{ Key = $key; Name = $names[$key]; Ip = $ip; Alias = $a.InterfaceAlias }
-        }
-        $dedicated = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -like '26.*' -or $_.IPAddress -like '25.*' })
-        foreach ($d in $dedicated) {
-            if ($out | Where-Object { $_.Ip -eq $d.IPAddress }) { continue }
-            $key = if ($d.IPAddress -like '26.*') { 'radmin' } else { 'hamachi' }
-            $out += [pscustomobject]@{ Key = $key; Name = $names[$key]; Ip = $d.IPAddress; Alias = 'VPN adapter' }
+        $nics = [System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces()
+        foreach ($nic in $nics) {
+            if ($nic.OperationalStatus -ne [System.Net.NetworkInformation.OperationalStatus]::Up) { continue }
+            $alias = $nic.Name
+            $desc = $nic.Description
+            $key = if ($alias -match 'Radmin' -or $desc -match 'Radmin') { 'radmin' }
+                   elseif ($alias -match 'Hamachi|LogMeIn' -or $desc -match 'Hamachi|LogMeIn') { 'hamachi' }
+                   elseif ($alias -match 'ZeroTier' -or $desc -match 'ZeroTier') { 'zerotier' }
+                   elseif ($alias -match 'Tailscale' -or $desc -match 'Tailscale') { 'tailscale' } else { $null }
+
+            $props = $nic.GetIPProperties()
+            $ipv4List = @($props.UnicastAddresses | Where-Object { $_.Address.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork } | ForEach-Object { $_.Address.ToString() })
+            $ip = if ($ipv4List.Count) { $ipv4List[0] } else { '' }
+
+            if ($key) {
+                $out += [pscustomobject]@{ Key = $key; Name = $names[$key]; Ip = $ip; Alias = $alias }
+            } elseif ($ip -like '26.*' -or $ip -like '25.*') {
+                $k = if ($ip -like '26.*') { 'radmin' } else { 'hamachi' }
+                $out += [pscustomobject]@{ Key = $k; Name = $names[$k]; Ip = $ip; Alias = $alias }
+            }
         }
     } catch { }
     return $out
