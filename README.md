@@ -1,5 +1,8 @@
 <div align="center">
-  
+
+<!-- [1] HERO BANNER — docs/banner.png (upload it, or remove this line) -->
+<img src="docs/banner.png" alt="K BNG M Hoster" width="100%">
+
 # K BNG M Hoster
 
 **Kinan BeamMP Multiplayer Hoster**
@@ -12,7 +15,7 @@
 
 **v0.7.1.1 — New Command Centre, faster performance, better checks**
 
-[**⬇️ Download the latest version**](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest) &nbsp;·&nbsp; [**▶️ Watch the tutorial**](https://youtu.be/lfS44IkpkBo)
+[**⬇️ Download**](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest) &nbsp;·&nbsp; [**▶️ Watch the tutorial**](https://youtu.be/lfS44IkpkBo) &nbsp;·&nbsp; [**❤️ Support on Patreon**](https://patreon.com/KBNGMHosterbykinan)
 
 <br>
 
@@ -141,12 +144,33 @@ You still choose the fun stuff: map, mods, title, description, visibility, tags.
 
 ---
 
+## ❤️ Support the Project
+
+K BNG M Hoster is free and always will be. If it saves you time, supporting on Patreon helps keep it updated and improving.
+
+<div align="center">
+
+### [❤️ Support on Patreon](https://patreon.com/KBNGMHosterbykinan)
+
+*Every bit helps — thank you.*
+
+</div>
+
+Other ways to help, at no cost:
+
+- ⭐ **Star the repo** — helps other players find it
+- 🐛 **Report bugs** — open an [issue](https://github.com/Kinan0713/K-BNG-M-Hoster/issues) with your log
+- 📣 **Share the tutorial** — send the [video](https://youtu.be/lfS44IkpkBo) to friends who want to host
+
+---
+
 ## 🔗 Links
 
 | | |
 |---|---|
 | **Latest version** | [github.com/Kinan0713/K-BNG-M-Hoster/releases/latest](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest) |
 | **Tutorial video** | [youtu.be/lfS44IkpkBo](https://youtu.be/lfS44IkpkBo) |
+| **Patreon** | [patreon.com/KBNGMHosterbykinan](https://patreon.com/KBNGMHosterbykinan) |
 | **Report a problem** | [github.com/Kinan0713/K-BNG-M-Hoster/issues](https://github.com/Kinan0713/K-BNG-M-Hoster/issues) |
 | **Project page** | [github.com/Kinan0713/K-BNG-M-Hoster](https://github.com/Kinan0713/K-BNG-M-Hoster) |
 
