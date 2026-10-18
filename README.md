@@ -1,8 +1,5 @@
 <div align="center">
 
-<!-- [1] HERO BANNER — docs/banner.png (upload it, or remove this line) -->
-<img src="docs/banner.png" alt="K BNG M Hoster" width="100%">
-
 # K BNG M Hoster
 
 **Kinan BeamMP Multiplayer Hoster**
@@ -15,7 +12,7 @@
 
 **v0.7.1.1 — New Command Centre, faster performance, better checks**
 
-[**⬇️ Download**](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest) &nbsp;·&nbsp; [**▶️ Watch the tutorial**](https://youtu.be/lfS44IkpkBo) &nbsp;·&nbsp; [**❤️ Support on Patreon**](https://patreon.com/KBNGMHosterbykinan)
+[**⬇️ Download**](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest) &nbsp;·&nbsp; [**▶️ Watch the tutorial**](https://youtu.be/lfS44IkpkBo) &nbsp;·&nbsp; [**💬 Join the Discord**](https://discord.gg/Ga5dpsMaqR)
 
 <br>
 
@@ -140,7 +137,7 @@ You still choose the fun stuff: map, mods, title, description, visibility, tags.
 | Your friend can't join | They must join your VPN network **before** you start the server. Then send them the exact IP and port from the app, and they paste it into BeamMP's Direct Connect. |
 | You get a warning message | v0.7.1.1 checks your setup and tells you what's wrong. Read the message and fix what it points to. |
 
-*Still stuck? Watch the [tutorial](https://youtu.be/lfS44IkpkBo) or open an [issue](https://github.com/Kinan0713/K-BNG-M-Hoster/issues) and include your log.*
+*Still stuck? Watch the [tutorial](https://youtu.be/lfS44IkpkBo), ask in the [Discord](https://discord.gg/Ga5dpsMaqR), or open an [issue](https://github.com/Kinan0713/K-BNG-M-Hoster/issues) and include your log.*
 
 ---
 
@@ -164,13 +161,41 @@ Other ways to help, at no cost:
 
 ---
 
+## 💬 Community & Socials
+
+Need help, want to find people to play with, or just want to see new updates first? Join the Discord.
+
+<div align="center">
+
+### [💬 Join the Discord server](https://discord.gg/Ga5dpsMaqR)
+
+<br>
+
+[![Instagram](https://img.shields.io/badge/Instagram-E4405F?style=flat-square&logo=instagram&logoColor=white)](https://www.instagram.com/kinan_sx240)
+[![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=flat-square&logo=youtube&logoColor=white)](https://youtube.com/@kinan_sx240)
+[![TikTok](https://img.shields.io/badge/TikTok-000000?style=flat-square&logo=tiktok&logoColor=white)](https://www.tiktok.com/@kinan_sx240)
+
+</div>
+
+Follow for clips, updates and new releases:
+
+- **Instagram** — [@kinan_sx240](https://www.instagram.com/kinan_sx240)
+- **YouTube** — [@kinan_sx240](https://youtube.com/@kinan_sx240)
+- **TikTok** — [@kinan_sx240](https://www.tiktok.com/@kinan_sx240)
+
+---
+
 ## 🔗 Links
 
 | | |
 |---|---|
 | **Latest version** | [github.com/Kinan0713/K-BNG-M-Hoster/releases/latest](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest) |
 | **Tutorial video** | [youtu.be/lfS44IkpkBo](https://youtu.be/lfS44IkpkBo) |
+| **Discord** | [discord.gg/Ga5dpsMaqR](https://discord.gg/Ga5dpsMaqR) |
 | **Patreon** | [patreon.com/KBNGMHosterbykinan](https://patreon.com/KBNGMHosterbykinan) |
+| **Instagram** | [@kinan_sx240](https://www.instagram.com/kinan_sx240) |
+| **YouTube** | [@kinan_sx240](https://youtube.com/@kinan_sx240) |
+| **TikTok** | [@kinan_sx240](https://www.tiktok.com/@kinan_sx240) |
 | **Report a problem** | [github.com/Kinan0713/K-BNG-M-Hoster/issues](https://github.com/Kinan0713/K-BNG-M-Hoster/issues) |
 | **Project page** | [github.com/Kinan0713/K-BNG-M-Hoster](https://github.com/Kinan0713/K-BNG-M-Hoster) |
 
