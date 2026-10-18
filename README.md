@@ -1,8 +1,5 @@
 <div align="center">
-
-<!-- [1] HERO BANNER — 1280×320 or 2560×640 (2x) -->
-<img src="docs/banner.png" alt="K BNG M Hoster" width="100%">
-
+  
 # K BNG M Hoster
 
 **Kinan BeamMP Multiplayer Hoster**
@@ -65,9 +62,9 @@ You still choose the fun stuff: map, mods, title, description, visibility, tags.
 
 ---
 
-<!-- [3] MAIN SCREENSHOT — Command Centre overview, 1600×900 -->
+<!-- [3] MAIN SCREENSHOT — Command Centre overview -->
 <p align="center">
-  <img src="docs/screenshots/command-centre.png"
+  <img src="https://github.com/user-attachments/assets/60319916-7d2e-4196-8ca2-954eb1aa3f85"
        alt="K BNG M Hoster Command Centre"
        width="820">
   <br>
@@ -78,12 +75,16 @@ You still choose the fun stuff: map, mods, title, description, visibility, tags.
 
 ## ✨ What's New in v0.7.1.1
 
-<!-- [4] BEFORE / AFTER — two-up comparison, 800×450 each -->
+<!-- [4] BEFORE / AFTER — side by side -->
 <p align="center">
-  <img src="docs/screenshots/ui-before.png" alt="Old look" width="400">
-  <img src="docs/screenshots/ui-after.png"  alt="New Command Centre" width="400">
+  <img src="https://github.com/user-attachments/assets/1715a6a3-2cb9-4722-9213-74a2e19b7b43"
+       alt="Old interface"
+       width="400">
+  <img src="https://github.com/user-attachments/assets/6b3d86f9-cbaf-488d-afe1-6acecf62140e"
+       alt="New Command Centre"
+       width="400">
   <br>
-  <sub><i>The old look (left) and the new Command Centre (right).</i></sub>
+  <sub><i>Old interface (left) and the new Command Centre (right).</i></sub>
 </p>
 
 - **New Command Centre** — everything on one screen.
@@ -95,13 +96,14 @@ You still choose the fun stuff: map, mods, title, description, visibility, tags.
 
 ## 🎯 Features
 
-<!-- [5] SCREENSHOT GRID — 3 across, 480×270 each -->
+<!-- [5] SCREENSHOT GRID — two across (add a third when you have it) -->
 <p align="center">
-  <img src="docs/screenshots/presets.png" alt="Presets for every vibe" width="260">
-  <img src="docs/screenshots/mods.png"    alt="Mod management"          width="260">
-  <img src="docs/screenshots/hosting.png" alt="One-click start"         width="260">
-  <br>
-  <sub><b>Presets for every vibe</b> &nbsp;·&nbsp; <b>Mods handled for you</b> &nbsp;·&nbsp; <b>One-click start</b></sub>
+  <img src="https://github.com/user-attachments/assets/dbaba0f5-2b8e-4b08-a684-ad76f12549b4"
+       alt="Presets for every vibe"
+       width="360">
+  <img src="https://github.com/user-attachments/assets/8290c0fa-768f-44c5-96f8-d5f294f47b87"
+       alt="Mods handled for you"
+       width="360">
 </p>
 
 - **No commands, no config files** — everything is done with clicks in the app
@@ -117,9 +119,9 @@ You still choose the fun stuff: map, mods, title, description, visibility, tags.
 
 ## 📋 Requirements
 
-- **Windows** *(e.g. Windows 10/11 64-bit)* Not tested on Linux yet!
-- **BeamNG.drive** *(Newest version!)*
-- A **BeamMP** Newest version!
+- **Windows 10 or 11 (64-bit)** — not tested on Linux yet
+- **BeamNG.drive** — newest version
+- A **BeamMP** account and server access — newest version
 - A **VPN** for private games — the app shows you a list of options, and you install the one you choose *(the VPN is not included in K BNG M Hoster)*
 
 ---
@@ -134,13 +136,6 @@ You still choose the fun stuff: map, mods, title, description, visibility, tags.
 | No VPN options showing | The app gives you a list of VPNs to pick from — it doesn't install one for you. Choose one, install it, then come back to the **Network and Tunnels** tab. |
 | Your friend can't join | They must join your VPN network **before** you start the server. Then send them the exact IP and port from the app, and they paste it into BeamMP's Direct Connect. |
 | You get a warning message | v0.7.1.1 checks your setup and tells you what's wrong. Read the message and fix what it points to. |
-
-<!-- [6] DEMO GIF — optional, 720 wide, under 5 MB -->
-<p align="center">
-  <img src="docs/gifs/switch-vibes.gif" alt="Switching between server presets" width="720">
-  <br>
-  <sub><i>Switch vibes in seconds — pick a preset, press start.</i></sub>
-</p>
 
 *Still stuck? Watch the [tutorial](https://youtu.be/lfS44IkpkBo) or open an [issue](https://github.com/Kinan0713/K-BNG-M-Hoster/issues) and include your log.*
 
