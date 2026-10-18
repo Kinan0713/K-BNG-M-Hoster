@@ -1,112 +1,171 @@
 <div align="center">
 
+<!-- [1] HERO BANNER — 1280×320 or 2560×640 (2x) -->
+<img src="docs/banner.png" alt="K BNG M Hoster" width="100%">
+
 # K BNG M Hoster
 
-### *(Kinan BeamNG Multiplayer Hoster)* — **v0.7.1.1** *(Command Centre UI, Performance & Validation Overhaul)*
+**Kinan BeamMP Multiplayer Hoster**
 
-**The All-In-One Automated BeamMP Hosting & Joining Tool**
+![Version](https://img.shields.io/badge/version-0.7.1.1-blue?style=flat-square)
+![Platform](https://img.shields.io/badge/platform-Windows-lightgrey?style=flat-square)
+![Status](https://img.shields.io/badge/status-active-brightgreen?style=flat-square)
 
-> 🔽 **Download the latest release:** [K BNG M Hoster v0.7.1.1 ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
+### The easy way to host a BeamNG.drive server with your friends
 
-> ⚠️ **Official download only:** Get K BNG M Hoster exclusively from the GitHub Releases page above. Please do **not** share, reupload, or forward this tool — everyone should download it from here so they always get the latest version.
+**v0.7.1.1 — New Command Centre, faster performance, better checks**
 
-*Created and developed by **Kinan** (`@kinan_sx240`) · UI/UX Overhaul by **`@bomberrie`***
+[**⬇️ Download the latest version**](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest) &nbsp;·&nbsp; [**▶️ Watch the tutorial**](https://youtu.be/lfS44IkpkBo)
+
+<br>
+
+<!-- [2] YOUTUBE TUTORIAL — clickable thumbnail, 16:9 -->
+<a href="https://youtu.be/lfS44IkpkBo">
+  <img src="https://img.youtube.com/vi/lfS44IkpkBo/maxresdefault.jpg"
+       alt="Watch the K BNG M Hoster tutorial"
+       width="760">
+</a>
+
+**▶️ [Watch the tutorial](https://youtu.be/lfS44IkpkBo)**
 
 </div>
 
 ---
 
-## ðŸš€ Quick Start (30 seconds)
-
-1. **Extract** the ZIP to any folder.
-2. **Double-click `Start_Here.bat`** â€” a window opens. That's it.
-3. First time: accept the license, then paste your **BeamMP key** â€” your server starts automatically.
-4. Send your friends the address shown on the window (press **Ctrl+C** or the **Copy IP** button).
-
-That's everything. The tool handles the key, settings, ports and problems for you.
+> ⚠️ **Download it from here only**
+> Get K BNG M Hoster **only** from the [Releases page](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest). Please don't share it, reupload it, or send it to other people. If everyone downloads from here, everyone gets the newest version and stays safe.
 
 ---
 
-## 🧭 What it does
+## 🤖 What is K BNG M Hoster?
 
-- **Starts and runs your BeamMP server** with one click — no config files, no console commands.
-- **Dashboard (`Ctrl+H`)** features a 4-Pill Telemetry KPI Strip (Server State, Port & Protocol, Visibility Mode, Network Reachability), live AuthKey readiness banner, Recommended Friend Route badge, and a 5-row Connection Matrix with one-click Copy buttons (Loopback, LAN, FRP Tunnel, VPN/Playit.gg, and WAN).
-- **Server Settings (`Ctrl+T`)**: server name, max players, max cars, port, IP lock, server key, searchable map picker, Public/Private visibility, and saved Presets — all in plain language.
-- **Scan & Fix (`Ctrl+F`)**: checks key, port, firewall, VPNs, maps, CGNAT, and external reachability — each with its own one-click Fix, plus **Fix All Possible**.
-- **Network & Tunnels (`Ctrl+V`)**: starts Radmin VPN / Hamachi / ZeroTier / Tailscale / Playit.gg for you, or hosts through a bundled **FRP tunnel** with zero router port forwarding.
-- **Mod Manager (`Ctrl+M`)**: drag & drop `.zip` mods, multi-select enable/disable, and scan mods for safety.
-- **Cloud Transfer (`Ctrl+U`)**: export server mods into cloud-sized chunks (5GB–25GB), install downloaded client mods, and selectively delete client mods.
-- **Built-in Guide (`Ctrl+G`)**: step-by-step interactive walkthrough with structured typography, callout badges, and quick-jump navigation buttons.
-- **Fullscreen**: press `F11` (or `Alt+Enter`) anytime; `Esc` to exit.
-- Shortcuts are always shown at the bottom of the window: `Ctrl+H` Dashboard, `Ctrl+S` Start, `Ctrl+X` Stop, `Ctrl+D` Diagnose, `Ctrl+C` Copy IP.
+**K BNG M Hoster** is a free Windows app that **automates the technical side of hosting a BeamNG.drive server** through **BeamMP** — installing mods, setting the server key, sorting the network, and launching the server.
 
----
+**No commands. No config files.** Everything is clicks in one window.
 
-## 📡 How friends connect
+You still choose the fun stuff: map, mods, title, description, visibility, tags.
 
-Pick **one** method:
+**The best part is presets.** A preset saves a whole server vibe — the map, the mods, the title, all of it. So switching vibes takes seconds. Touge tonight, drag racing tomorrow, free roam on the weekend — pick the preset and press start.
 
-| Method | When to use it | What friends do |
-|---|---|---|
-| **FRP tunnel** | Anywhere, even CGNAT — needs a shared frps server | They Direct Connect to the FRP server address shown on your Stats page |
-| **Tailscale** | Easy, no router changes, private group | They join your Tailscale network, then Direct Connect to your Tailscale IP |
-| **Port forwarding** (Public) | You want anyone to find your server in the BeamMP list | They search your server name in the BeamMP browser, or Direct Connect to your public IP |
-| **P2P VPN** (Radmin / Hamachi / ZeroTier) | Your ISP blocks port forwarding (CGNAT) | They install the same VPN app, join your network, then Direct Connect to your VPN IP |
-
-> Stuck? Open **Fix Problems** (`Ctrl+F`) or press **Diagnose** (`Ctrl+D`) — the tool checks everything for you and explains the fix.
+**In one sentence:** K BNG M Hoster is a free Windows app that automates the technical side of hosting a BeamMP server for BeamNG.drive with no commands and no config files, plus presets that make switching server vibes fast and easy.
 
 ---
 
-## ðŸ› ï¸ Requirements
+## 🎬 Getting Started
 
-| Requirement | What it's for | Download |
-|---|---|---|
-| **BeamMP Keymaster** | Your free server key | [keymaster.beammp.com](https://keymaster.beammp.com) |
-| **BeamMP Client** | Play multiplayer in BeamNG | [beammp.com](https://beammp.com) |
-| **Tailscale** (optional) | Private hosting without router setup | [tailscale.com](https://tailscale.com) |
-| **Radmin VPN / Hamachi / ZeroTier** (optional) | VPN hosting when port forwarding can't work | [radmin-vpn.com](https://www.radmin-vpn.com/) Â· [vpn.net](https://www.vpn.net/) Â· [zerotier.com](https://www.zerotier.com/download/) |
+**The video tutorial shows you everything.** It goes through installing the app, setting up your server, choosing a VPN and making the network, and joining in BeamMP — from start to finish.
 
----
+<div align="center">
 
-## â“ Common questions
+### ▶️ [Watch the tutorial](https://youtu.be/lfS44IkpkBo)
 
-**"My server closes instantly."**
-Your key is probably missing or wrong. The tool walks you through it on first run — or open the key setup from Fix Problems.
+*First time hosting? Watch this first.*
 
-**"Friends can't connect."**
-Usually one of three things: your ISP blocks port forwarding (CGNAT) — use a VPN instead; only TCP is forwarded (BeamMP needs TCP **and** UDP); or Windows Firewall blocks the server. **Fix Problems** checks all of these.
-
-**"Is it safe?"**
-Yes. No data collection, no phoning home. Your key is used only while hosting and is wiped when you stop. Mods are scanned for executables before being served.
+</div>
 
 ---
 
-## ðŸ“œ License
-
-This software is distributed under a proprietary EULA. By using this software you agree to its terms.
-
-**Permitted actions:**
-- Running the unmodified packaged software
-- Editing the server settings through the app's Settings tab
-- Adding your own mod files for server-side mod syncing
-
-**Strictly prohibited:**
-- Modifying, patching, or reverse-engineering the internal scripts and logic
-- Decompiling or attempting to derive the source code of the software
-- Reuploading, mirroring, forking, redistributing, or selling the software
-- Sharing the ZIP or the tool itself outside the official GitHub Releases page
-- Using the software for paid hosting or commercial services without written permission
-- Removing, altering, or obscuring author attribution (Kinan / @kinan_sx240)
-
-**For permissions, DMCA, or legal inquiries:** open an issue on GitHub: https://github.com/Kinan0713/K-BNG-M-Hoster/issues
+<!-- [3] MAIN SCREENSHOT — Command Centre overview, 1600×900 -->
+<p align="center">
+  <img src="docs/screenshots/command-centre.png"
+       alt="K BNG M Hoster Command Centre"
+       width="820">
+  <br>
+  <sub><i>The Command Centre — set up and start servers from one screen.</i></sub>
+</p>
 
 ---
 
-## 📄 Credits & Contributions
+## ✨ What's New in v0.7.1.1
 
-- **Sole Developer & Creator:** **Kinan** (`@kinan_sx240`)
-- **`@bomberrie`** — v0.7.1 Complete Command Center UI/UX Redesign
-- **Ali Alldoboni** (`@alialldoboni`) — early co-development for v0.2–v0.5.2
-- **Discord:** [Innocent BeamMP Server Community](https://discord.gg/2FxsJvKr4a)
+<!-- [4] BEFORE / AFTER — two-up comparison, 800×450 each -->
+<p align="center">
+  <img src="docs/screenshots/ui-before.png" alt="Old look" width="400">
+  <img src="docs/screenshots/ui-after.png"  alt="New Command Centre" width="400">
+  <br>
+  <sub><i>The old look (left) and the new Command Centre (right).</i></sub>
+</p>
 
-*All original code, tools, scripts, and rights belong strictly and exclusively to the original author.*
+- **New Command Centre** — everything on one screen.
+- **Faster** — the app opens quicker and runs smoother.
+- **Better checks** — it catches setup mistakes before you start the server.
+- **New design** by [`@bomberrie`](https://github.com/bomberrie).
+
+---
+
+## 🎯 Features
+
+<!-- [5] SCREENSHOT GRID — 3 across, 480×270 each -->
+<p align="center">
+  <img src="docs/screenshots/presets.png" alt="Presets for every vibe" width="260">
+  <img src="docs/screenshots/mods.png"    alt="Mod management"          width="260">
+  <img src="docs/screenshots/hosting.png" alt="One-click start"         width="260">
+  <br>
+  <sub><b>Presets for every vibe</b> &nbsp;·&nbsp; <b>Mods handled for you</b> &nbsp;·&nbsp; <b>One-click start</b></sub>
+</p>
+
+- **No commands, no config files** — everything is done with clicks in the app
+- **Presets for fast switching** — save a server vibe once, then jump between vibes in seconds
+- **Mods handled for you** — the app installs and enables them
+- **One-click start** — the app sets the server key and launches the server
+- **VPN options with guided setup** — pick one from the list and the app walks you through the network *(the VPN isn't included — you install the one you choose)*
+- **Copy IP with one button** — send it to a friend, they paste it into BeamMP
+- **Checks your setup** before starting, so mistakes show up early
+- **Updates itself** from GitHub
+
+---
+
+## 📋 Requirements
+
+- **Windows** *(e.g. Windows 10/11 64-bit)* Not tested on Linux yet!
+- **BeamNG.drive** *(Newest version!)*
+- A **BeamMP** Newest version!
+- A **VPN** for private games — the app shows you a list of options, and you install the one you choose *(the VPN is not included in K BNG M Hoster)*
+
+---
+
+## 🛠️ Troubleshooting
+
+| Problem | What to do |
+|---|---|
+| The app won't open | Extract the ZIP first. Don't run it from inside the ZIP. |
+| The server won't start | Check your BeamMP server path and login in the Command Centre. |
+| Mods didn't load | Pick the preset again, and wait for the mods to finish before clicking Start Server. |
+| No VPN options showing | The app gives you a list of VPNs to pick from — it doesn't install one for you. Choose one, install it, then come back to the **Network and Tunnels** tab. |
+| Your friend can't join | They must join your VPN network **before** you start the server. Then send them the exact IP and port from the app, and they paste it into BeamMP's Direct Connect. |
+| You get a warning message | v0.7.1.1 checks your setup and tells you what's wrong. Read the message and fix what it points to. |
+
+<!-- [6] DEMO GIF — optional, 720 wide, under 5 MB -->
+<p align="center">
+  <img src="docs/gifs/switch-vibes.gif" alt="Switching between server presets" width="720">
+  <br>
+  <sub><i>Switch vibes in seconds — pick a preset, press start.</i></sub>
+</p>
+
+*Still stuck? Watch the [tutorial](https://youtu.be/lfS44IkpkBo) or open an [issue](https://github.com/Kinan0713/K-BNG-M-Hoster/issues) and include your log.*
+
+---
+
+## 🔗 Links
+
+| | |
+|---|---|
+| **Latest version** | [github.com/Kinan0713/K-BNG-M-Hoster/releases/latest](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest) |
+| **Tutorial video** | [youtu.be/lfS44IkpkBo](https://youtu.be/lfS44IkpkBo) |
+| **Report a problem** | [github.com/Kinan0713/K-BNG-M-Hoster/issues](https://github.com/Kinan0713/K-BNG-M-Hoster/issues) |
+| **Project page** | [github.com/Kinan0713/K-BNG-M-Hoster](https://github.com/Kinan0713/K-BNG-M-Hoster) |
+
+---
+
+## 👏 Credits
+
+- **Made by** Kinan ([`@kinan_sx240`](https://github.com/Kinan0713))
+- **New design by** [`@bomberrie`](https://github.com/bomberrie)
+
+---
+
+<div align="center">
+
+*If K BNG M Hoster saves you time, a ⭐ on the repo helps a lot.*
+
+</div>
