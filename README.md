@@ -2,11 +2,11 @@
 
 # K BNG M Hoster
 
-### *(Kinan BeamNG Multiplayer Hoster)* — **v0.7.1.1** *(Command Centre UI, Performance & Validation Overhaul)*
+### *(Kinan BeamNG Multiplayer Hoster)* — **v0.7.2.0** *(Advanced Settings & Streamer Mode Integration)*
 
 **The All-In-One Automated BeamMP Hosting & Joining Tool**
 
-> 🔽 **Download the latest release:** [K BNG M Hoster v0.7.1.1 ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
+> 🔽 **Download the latest release:** [K BNG M Hoster v0.7.2.0 ZIP](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest)
 
 > ⚠️ **Official download only:** Get K BNG M Hoster exclusively from the GitHub Releases page above. Please do **not** share, reupload, or forward this tool — everyone should download it from here so they always get the latest version.
 
@@ -31,7 +31,8 @@ That's everything. The tool handles the key, settings, ports and problems for yo
 
 - **Starts and runs your BeamMP server** with one click — no config files, no console commands.
 - **Dashboard (`Ctrl+H`)** features a 4-Pill Telemetry KPI Strip (Server State, Port & Protocol, Visibility Mode, Network Reachability), live AuthKey readiness banner, Recommended Friend Route badge, and a 5-row Connection Matrix with one-click Copy buttons (Loopback, LAN, FRP Tunnel, VPN/Playit.gg, and WAN).
-- **Server Settings (`Ctrl+T`)**: server name, max players, max cars, port, IP lock, server key, searchable map picker, Public/Private visibility, and saved Presets — all in plain language.
+- **Server Settings (`Ctrl+T`)**: server name, max players, max cars, port, IP lock, server key, searchable map picker, Public/Private visibility, and saved Presets — plus a collapsible **Advanced Server Settings** accordion mapping custom game ports, network bind IP (`::`/`0.0.0.0`), resource folders, and update reminders.
+- **Streamer Privacy Mode**: one-click persistent header toggle and dedicated settings switch that actively redacts Public WAN IPs, AuthKeys, and local Windows user paths (`***`) across the Dashboard, Network tab, and Activity Console during live broadcasts.
 - **Scan & Fix (`Ctrl+F`)**: checks key, port, firewall, VPNs, maps, CGNAT, and external reachability — each with its own one-click Fix, plus **Fix All Possible**.
 - **Network & Tunnels (`Ctrl+V`)**: starts Radmin VPN / Hamachi / ZeroTier / Tailscale / Playit.gg for you, or hosts through a bundled **FRP tunnel** with zero router port forwarding.
 - **Mod Manager (`Ctrl+M`)**: drag & drop `.zip` mods, multi-select enable/disable, and scan mods for safety.

@@ -1,5 +1,5 @@
-# ========================================================================================
-# K BNG M Hoster v0.7.1.1 - Simplest Edition (GUI)
+﻿# ========================================================================================
+# K BNG M Hoster v0.7.2.0 - Simplest Edition (GUI)
 # All logic lives in HosterCore.ps1 (single source of truth). This file is the window.
 # Start_Here.bat / Play_BeamMP.bat only launch this file.
 #
@@ -141,7 +141,7 @@ $script:State = @{
     Frp           = ''
     FrpError      = ''
 }
-$script:AppVersion = '0.7.1.1'
+$script:AppVersion = '0.7.2.0'
 $script:CorePath = Join-Path $PSScriptRoot 'HosterCore.ps1'
 $script:CoreText = "`$script:CorePath = '" + ($script:CorePath -replace "'", "''") + "'`r`n" + (Get-Content -LiteralPath $script:CorePath -Raw)
 $script:PendingAction = $null
@@ -754,6 +754,17 @@ function Add-LogBatch([string[]]$Lines) {
         $ts = (Get-Date -Format 'HH:mm:ss') + '  '
         foreach ($Line in $Lines) {
             if (-not $Line) { continue }
+            $cleanLine = $Line
+            if ($script:StreamerMode -and (Get-Command 'Protect-StreamerText' -ErrorAction SilentlyContinue)) {
+                $pubIp = if ($script:State -and $script:State.Conn) { $script:State.Conn.Public } else { '' }
+                $authKey = Get-ConfigValue 'AuthKey'
+                $extraIps = @()
+                if ($script:State -and $script:State.Conn) {
+                    if ($script:State.Conn.Vpn) { $extraIps += @($script:State.Conn.Vpn | Where-Object { $_.Ip } | ForEach-Object { $_.Ip }) }
+                    if ($script:State.Conn.Tailscale) { $extraIps += $script:State.Conn.Tailscale }
+                }
+                $cleanLine = Protect-StreamerText $Line $true $pubIp $authKey $extraIps
+            }
             $script:LogBox.SelectionStart = $script:LogBox.TextLength
             $script:LogBox.SelectionLength = 0
             $script:LogBox.SelectionColor = $Theme.muted
@@ -772,7 +783,7 @@ function Add-LogBatch([string[]]$Lines) {
             $script:LogBox.SelectionStart = $script:LogBox.TextLength
             $script:LogBox.SelectionLength = 0
             $script:LogBox.SelectionColor = $lineCol
-            $script:LogBox.AppendText($Line + [Environment]::NewLine)
+            $script:LogBox.AppendText($cleanLine + [Environment]::NewLine)
         }
         if ($script:LogBox.Lines.Count -gt 520) {
             $script:LogBox.Select(0, $script:LogBox.GetFirstCharIndexFromLine(40))
@@ -1005,7 +1016,7 @@ function Update-CardStackLayout {
     try {
         $curY = 0
         foreach ($card in $cards) {
-            if (-not $card -or $card.IsDisposed) { continue }
+            if (-not $card -or $card.IsDisposed -or -not $card.Visible) { continue }
             $t = $card.Tag
             if (-not ($t -is [System.Windows.Forms.TableLayoutPanel])) { continue }
             $t.SuspendLayout()
@@ -1174,7 +1185,7 @@ function New-PageTop($Page, [string]$Title, [string]$Hint = '') {
 # ---------------------------------------------------------------------------------------
 $script:Form = New-Object System.Windows.Forms.Form
 Enable-DoubleBuffer $script:Form
-$script:Form.Text = 'K BNG M Hoster v0.7.1.1 - by Kinan (@kinan_sx240) & @bomberrie'
+$script:Form.Text = 'K BNG M Hoster v0.7.2.0 - by Kinan (@kinan_sx240) & @bomberrie'
 $script:Form.FormBorderStyle = 'None'
 $script:Form.MinimumSize = New-Object System.Drawing.Size(900, 540)
 $workArea = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
@@ -1199,6 +1210,8 @@ $stopIcon = [char]0x25A0
 
 $script:IsMaximized = $false
 $script:RestoreBounds = $script:Form.Bounds
+$script:StreamerMode = (Test-Path -LiteralPath ($script:ServerDir + '.streamer'))
+$script:AdvancedExpanded = $false
 
 $script:DragWindowHandler = {
     param($s, $e)
@@ -1208,6 +1221,61 @@ $script:DragWindowHandler = {
             [Win32Chrome]::SendMessage($script:Form.Handle, 0x00A1, [IntPtr]2, [IntPtr]0) | Out-Null
         } catch { }
     }
+}
+
+
+# ---------------------------------------------------------------------------------------
+# STREAMER PRIVACY MODE DISPATCHER
+# ---------------------------------------------------------------------------------------
+function Set-StreamerMode([bool]$Enabled) {
+    $script:StreamerMode = $Enabled
+    $streamerFile = $script:ServerDir + '.streamer'
+    if ($Enabled) {
+        Set-Content -LiteralPath $streamerFile -Value '1' -ErrorAction SilentlyContinue
+    } else {
+        Remove-Item -LiteralPath $streamerFile -Force -ErrorAction SilentlyContinue
+    }
+
+    if ($script:BtnHeaderStreamer) {
+        $script:BtnHeaderStreamer.Invalidate()
+    }
+
+    if ($script:ChkStreamerMode -and $script:ChkStreamerMode.Checked -ne $Enabled) {
+        $script:SuppressSettingEvents = $true
+        $script:ChkStreamerMode.Checked = $Enabled
+        $script:SuppressSettingEvents = $false
+    }
+
+    if ($Enabled -and $script:LogBox -and $script:LogBox.Text) {
+        try {
+            $pub = if ($script:State -and $script:State.Conn) { $script:State.Conn.Public } else { '' }
+            $key = Get-ConfigValue 'AuthKey'
+            $extraIps = @()
+            if ($script:State -and $script:State.Conn) {
+                if ($script:State.Conn.Vpn) { $extraIps += @($script:State.Conn.Vpn | Where-Object { $_.Ip } | ForEach-Object { $_.Ip }) }
+                if ($script:State.Conn.Tailscale) { $extraIps += $script:State.Conn.Tailscale }
+            }
+            $clean = Protect-StreamerText $script:LogBox.Text $true $pub $key $extraIps
+            if ($clean -ne $script:LogBox.Text) {
+                $script:LogBox.SuspendLayout()
+                $script:LogBox.Text = $clean
+                $script:LogBox.SelectionStart = $script:LogBox.TextLength
+                $script:LogBox.ScrollToCaret()
+                $script:LogBox.ResumeLayout($true)
+            }
+        } catch { }
+    }
+
+    Refresh-Dashboard
+    if ($script:VpnRowsWrap) {
+        Refresh-VpnRows
+    }
+
+    Add-Log "[INFO] Streamer Privacy Mode $(if ($Enabled) { 'ENABLED (WAN IP, AuthKey & user paths masked)' } else { 'DISABLED (Standard display)' })"
+}
+
+function Toggle-StreamerMode {
+    Set-StreamerMode (-not [bool]$script:StreamerMode)
 }
 
 function Toggle-MaximizeWindow {
@@ -1274,7 +1342,7 @@ $script:LblVersionChip.Add_Paint({
         $e.Graphics.DrawRectangle((Get-CachedPen $Theme.accentDim 1), 0, 0, ($s.Width - 1), ($s.Height - 1))
     } catch { }
 })
-$chipText = New-Lbl 'v0.7.1' $Theme.blue 8 18 $true
+$chipText = New-Lbl 'v0.7.2' $Theme.blue 8 18 $true
 $chipText.AutoSize = $false
 $chipText.Size = New-Object System.Drawing.Size(48, 18)
 $chipText.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
@@ -1287,12 +1355,13 @@ $script:LblSubtitle.AutoSize = $false
 $script:LblSubtitle.AutoEllipsis = $true
 $script:LblSubtitle.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
 $script:LblSubtitle.Location = New-Object System.Drawing.Point(220, 9)
-$script:LblSubtitle.Size = New-Object System.Drawing.Size(600, 20)
+$script:LblSubtitle.Size = New-Object System.Drawing.Size(460, 20)
 $script:LblSubtitle.Add_MouseDown($script:DragWindowHandler)
 $script:LblSubtitle.Add_DoubleClick({ Toggle-MaximizeWindow })
 $titleBar.Add_Resize({
     if ($script:LblSubtitle) {
-        $script:LblSubtitle.Width = [int][math]::Max(60, ($this.ClientSize.Width - 220 - 146))
+        $reserved = (46 * 3) + 142 + 24
+        $script:LblSubtitle.Width = [int][math]::Max(60, ($this.ClientSize.Width - 220 - $reserved))
     }
 })
 
@@ -1342,6 +1411,42 @@ function New-WindowCtrlBtn([string]$Kind, [string]$TipText, [scriptblock]$OnClic
     return $p
 }
 
+$script:BtnHeaderStreamer = New-Object System.Windows.Forms.Panel
+Enable-DoubleBuffer $script:BtnHeaderStreamer
+$script:BtnHeaderStreamer.Dock = 'Right'
+$script:BtnHeaderStreamer.Width = 142
+$script:BtnHeaderStreamer.Height = 26
+$script:BtnHeaderStreamer.BackColor = [System.Drawing.Color]::Transparent
+$script:BtnHeaderStreamer.Cursor = [System.Windows.Forms.Cursors]::Hand
+$script:Tip.SetToolTip($script:BtnHeaderStreamer, 'Streamer Privacy Mode: Click to toggle real-time masking of WAN IP, AuthKey, and personal file paths.')
+$script:BtnHeaderStreamer.Add_Click({ Toggle-StreamerMode })
+$script:BtnHeaderStreamer.Add_Paint({
+    param($s, $e)
+    try {
+        $g = $e.Graphics
+        $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $active = [bool]$script:StreamerMode
+        $borderCol = if ($active) { $Theme.green } else { $Theme.border }
+        $bgCol = if ($active) { [System.Drawing.Color]::FromArgb(40, 16, 185, 129) } else { $Theme.card }
+        $textCol = if ($active) { $Theme.green } else { $Theme.dim }
+        $statusText = if ($active) { 'STREAMER: ON' } else { 'STREAMER: OFF' }
+
+        $path = Get-RoundedRectPath 4 6 ($s.Width - 8) ($s.Height - 12) 4
+        try {
+            $g.FillPath((Get-CachedBrush $bgCol), $path)
+            $g.DrawPath((Get-CachedPen $borderCol 1), $path)
+        } finally { $path.Dispose() }
+
+        $dotCol = if ($active) { $Theme.green } else { $Theme.dim }
+        $dotY = [int](($s.Height - 6) / 2)
+        $g.FillEllipse((Get-CachedBrush $dotCol), 16, $dotY, 6, 6)
+
+        $fBtn = Get-CachedFont 'Segoe UI Semibold' 8.5 ([System.Drawing.FontStyle]::Bold)
+        $rText = New-Object System.Drawing.Rectangle(26, 6, ($s.Width - 34), ($s.Height - 12))
+        [System.Windows.Forms.TextRenderer]::DrawText($g, $statusText, $fBtn, $rText, $textCol, ([System.Windows.Forms.TextFormatFlags]::HorizontalCenter -bor [System.Windows.Forms.TextFormatFlags]::VerticalCenter))
+    } catch { }
+})
+
 $script:BtnWinMin   = New-WindowCtrlBtn 'min'   'Minimize window'          { $script:Form.WindowState = 'Minimized' }
 $script:BtnWinMax   = New-WindowCtrlBtn 'max'   'Maximize / Restore (F11 for Fullscreen)' { Toggle-MaximizeWindow }
 $script:BtnWinClose = New-WindowCtrlBtn 'close' 'Close K BNG M Hoster'     { $script:Form.Close() }
@@ -1349,6 +1454,7 @@ $script:BtnWinClose = New-WindowCtrlBtn 'close' 'Close K BNG M Hoster'     { $sc
 $titleBar.Controls.Add($titleBrand)
 $titleBar.Controls.Add($script:LblVersionChip)
 $titleBar.Controls.Add($script:LblSubtitle)
+$titleBar.Controls.Add($script:BtnHeaderStreamer)
 $titleBar.Controls.Add($script:BtnWinMin)
 $titleBar.Controls.Add($script:BtnWinMax)
 $titleBar.Controls.Add($script:BtnWinClose)
@@ -2036,6 +2142,8 @@ function Show-HomePage {
                 Show-FixPage
             } elseif ($val -eq '__REFRESH__') {
                 Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$State.Conn = Get-ConnectionInfo`nSay ""Addresses refreshed."" " 'live'
+            } elseif ($val -eq '__STREAMER_BLOCKED__') {
+                Add-Log "[NOTE] Clipboard copy blocked: Sensitive endpoint is masked while Streamer Privacy Mode is active."
             } elseif ($val) {
                 [System.Windows.Forms.Clipboard]::SetText($val)
                 Add-Log "[OK] Copied endpoint to clipboard: $val"
@@ -2113,8 +2221,15 @@ function Set-RowBtn($Btn, [string]$Text, [string]$TagVal) {
     $Btn.Tag = $TagVal
     if ($Btn.Text -ne $Text) {
         $Btn.Text = $Text
-        $Btn.Invalidate()
     }
+    if ($TagVal -eq '__STREAMER_BLOCKED__') {
+        $Btn.ForeColor = $Theme.dim
+        $Btn.FlatAppearance.BorderColor = $Theme.border
+    } else {
+        $Btn.ForeColor = $Theme.text
+        $Btn.FlatAppearance.BorderColor = $Theme.border
+    }
+    $Btn.Invalidate()
     if (-not $Btn.Visible) { $Btn.Visible = $true }
 }
 
@@ -2122,7 +2237,13 @@ function Refresh-Dashboard {
     if (-not $script:LblStatusBig) { return }
     $conn = $script:State.Conn
     $running = [bool]$script:State.Running
-    $port = if ($conn) { $conn.Port } else { (Get-ServerPort) }
+    $port = if ($script:State -and $script:State.Port) {
+        $script:State.Port
+    } elseif ($conn -and $conn.Port) {
+        $conn.Port
+    } else {
+        (Get-ServerPort)
+    }
     $name = if ($script:State.ServerName) { $script:State.ServerName } else { 'K BNG M Server' }
     $isPrivate = Get-ServerPrivate
     $layoutChanged = $false
@@ -2226,13 +2347,23 @@ function Refresh-Dashboard {
     # 3. Tunnel (FRP or Playit.gg)
     $playitAddress = Get-PlayitAddress
     if ($running -and $script:State.Frp) {
-        [void](Set-CtrlText $script:LblConnTunnel "$bul  $($script:State.Frp)   (FRP Public Tunnel)")
+        $frpDisp = if ($script:StreamerMode) { ($script:State.Frp -replace '\b\d{1,3}(\.\d{1,3}){3}\b', '***.***.***.***') } else { $script:State.Frp }
+        [void](Set-CtrlText $script:LblConnTunnel "$bul  $frpDisp   (FRP Public Tunnel)")
         if ($script:RowConnTunnel -and -not $script:RowConnTunnel.Visible) { $script:RowConnTunnel.Visible = $true; $layoutChanged = $true }
-        Set-RowBtn $script:BtnConnTunnel 'Copy IP' "$($script:State.Frp)"
+        if ($script:StreamerMode) {
+            Set-RowBtn $script:BtnConnTunnel 'Protected' '__STREAMER_BLOCKED__'
+        } else {
+            Set-RowBtn $script:BtnConnTunnel 'Copy IP' "$($script:State.Frp)"
+        }
     } elseif ($playitAddress) {
-        [void](Set-CtrlText $script:LblConnTunnel "$bul  $playitAddress   (Playit.gg Tunnel)")
+        $playitDisp = if ($script:StreamerMode) { ($playitAddress -replace '\b\d{1,3}(\.\d{1,3}){3}\b', '***.***.***.***') } else { $playitAddress }
+        [void](Set-CtrlText $script:LblConnTunnel "$bul  $playitDisp   (Playit.gg Tunnel)")
         if ($script:RowConnTunnel -and -not $script:RowConnTunnel.Visible) { $script:RowConnTunnel.Visible = $true; $layoutChanged = $true }
-        Set-RowBtn $script:BtnConnTunnel 'Copy IP' "$playitAddress"
+        if ($script:StreamerMode) {
+            Set-RowBtn $script:BtnConnTunnel 'Protected' '__STREAMER_BLOCKED__'
+        } else {
+            Set-RowBtn $script:BtnConnTunnel 'Copy IP' "$playitAddress"
+        }
     } else {
         if ($script:RowConnTunnel -and $script:RowConnTunnel.Visible) { $script:RowConnTunnel.Visible = $false; $layoutChanged = $true }
     }
@@ -2241,21 +2372,28 @@ function Refresh-Dashboard {
     $vpnLines = @()
     if ($conn) { $vpnLines = @($conn.Vpn | Where-Object { $_.Ip }) }
     if ($vpnLines.Count) {
-        $vpnText = (($vpnLines | ForEach-Object { "$($_.Name) $arr $($_.Ip):$port" }) -join '   ')
-        [void](Set-CtrlText $script:LblConnVpn "$bul  $vpnText" $Theme.green)
-        Set-RowBtn $script:BtnConnVpn 'Copy IP' "$($vpnLines[0].Ip):$port"
+        if ($script:StreamerMode) {
+            $vpnText = (($vpnLines | ForEach-Object { "$($_.Name) $arr ***.***.***.***:$port [PROTECTED]" }) -join '   ')
+            [void](Set-CtrlText $script:LblConnVpn "$bul  $vpnText" $Theme.blue)
+            Set-RowBtn $script:BtnConnVpn 'Protected' '__STREAMER_BLOCKED__'
+        } else {
+            $vpnText = (($vpnLines | ForEach-Object { "$($_.Name) $arr $($_.Ip):$port" }) -join '   ')
+            [void](Set-CtrlText $script:LblConnVpn "$bul  $vpnText" $Theme.green)
+            Set-RowBtn $script:BtnConnVpn 'Copy IP' "$($vpnLines[0].Ip):$port"
+        }
     } else {
         [void](Set-CtrlText $script:LblConnVpn "$hol  Standby   $dot   Radmin / ZeroTier / Hamachi" $Theme.dim)
         Set-RowBtn $script:BtnConnVpn 'Configure' '__NETWORK__'
     }
     if ($script:ConnVpnFlow) {
         $vpnSig = ($vpnLines | ForEach-Object { "$($_.Name):$($_.Ip):$port" }) -join '|'
+        $vpnSig += ":$($script:StreamerMode)"
         if ($script:ConnVpnFlow.Tag -ne $vpnSig) {
             $script:ConnVpnFlow.Tag = $vpnSig
             $script:ConnVpnFlow.SuspendLayout()
             foreach ($oldB in @($script:ConnVpnFlow.Controls)) { try { $oldB.Dispose() } catch { } }
             $script:ConnVpnFlow.Controls.Clear()
-            if ($vpnLines.Count -ge 2) {
+            if ($vpnLines.Count -ge 2 -and -not $script:StreamerMode) {
                 foreach ($v in $vpnLines) {
                     $b = New-CopyButton "Copy $($v.Name) IP" "Copy the $($v.Name) IP:port address ($($v.Ip):$port) - only for friends on the SAME $($v.Name) network." "$($v.Ip):$port" "$($v.Name) address $($v.Ip):$port"
                     $b.Size = New-Object System.Drawing.Size(150, 28)
@@ -2272,8 +2410,13 @@ function Refresh-Dashboard {
 
     # 5. Tailscale Mesh
     if ($conn -and $conn.Tailscale) {
-        [void](Set-CtrlText $script:LblConnTail "$bul  $($conn.Tailscale):$port   (Tailscale Mesh)" $Theme.blue)
-        Set-RowBtn $script:BtnConnTail 'Copy IP' "$($conn.Tailscale):$port"
+        if ($script:StreamerMode) {
+            [void](Set-CtrlText $script:LblConnTail "$bul  ***.***.***.***:$port   (Tailscale Mesh - Protected)" $Theme.blue)
+            Set-RowBtn $script:BtnConnTail 'Protected' '__STREAMER_BLOCKED__'
+        } else {
+            [void](Set-CtrlText $script:LblConnTail "$bul  $($conn.Tailscale):$port   (Tailscale Mesh)" $Theme.blue)
+            Set-RowBtn $script:BtnConnTail 'Copy IP' "$($conn.Tailscale):$port"
+        }
     } else {
         [void](Set-CtrlText $script:LblConnTail "$hol  Standby   $dot   Tailscale not running" $Theme.dim)
         Set-RowBtn $script:BtnConnTail 'Set Up' '__NETWORK__'
@@ -2287,7 +2430,10 @@ function Refresh-Dashboard {
         $script:Tip.SetToolTip($script:BtnInvite, $(if ($isPrivate) { 'Your server is PRIVATE - friends cannot find it in the list. This copies the full invite message with the address and connect steps.' } else { 'Copy a ready-made invite message. For a public server friends can also just find it in the BeamMP list.' }))
     }
     $privNote = if ($isPrivate) { '   [PRIVATE]' } else { '   (Public WAN)' }
-    if ($conn -and $conn.Public) {
+    if ($script:StreamerMode) {
+        [void](Set-CtrlText $script:LblConnPub "$bul  ***.***.***.***:$port$privNote  [PROTECTED / STREAMER MODE]" $Theme.blue)
+        Set-RowBtn $script:BtnConnPub 'Protected' '__STREAMER_BLOCKED__'
+    } elseif ($conn -and $conn.Public) {
         [void](Set-CtrlText $script:LblConnPub "$bul  $($conn.Public):$port$privNote" $Theme.text)
         Set-RowBtn $script:BtnConnPub 'Copy IP' "$($conn.Public):$port"
     } else {
@@ -2519,6 +2665,104 @@ function Show-SettingsPage {
     Add-RowFull $card $script:ChkDebug
     $cards += $card
 
+    # ---- Streamer Privacy Mode ----
+    $card = New-Card 'Streamer Privacy Mode' 'Mask sensitive data during live broadcasting and recording.'
+    $script:ChkStreamerMode = New-Object System.Windows.Forms.CheckBox
+    $script:ChkStreamerMode.Text = 'Enable Streamer Privacy Mode (instantly redacts WAN IP, AuthKey, and Windows usernames)'
+    $script:ChkStreamerMode.ForeColor = $Theme.green
+    $script:ChkStreamerMode.BackColor = $Theme.card
+    $script:ChkStreamerMode.Font = $rFont95
+    $script:ChkStreamerMode.Height = 26
+    $script:ChkStreamerMode.Checked = [bool]$script:StreamerMode
+    $script:ChkStreamerMode.Add_CheckedChanged({
+        if ($script:SuppressSettingEvents) { return }
+        Set-StreamerMode $this.Checked
+    })
+    Add-RowFull $card $script:ChkStreamerMode
+    Add-RowNote $card 'When active, WAN IPs, server keys, and local user file paths are replaced with *** across the Dashboard, Network tab, and Activity Console. A quick toggle is also always available in the top-right header.' $Theme.dim | Out-Null
+    $cards += $card
+
+    # ---- Advanced Server Settings (Collapsible Accordion) ----
+    $card = New-Card 'Advanced Server Settings' 'Bind IP, custom port, resource folder, and engine update reminders.'
+    $script:AdvancedControls = @()
+
+    $advTopBar = New-ButtonBar
+    $script:BtnToggleAdvanced = New-Btn $(if ($script:AdvancedExpanded) { 'v  Hide Advanced Settings' } else { '>  Show Advanced Settings (5 options)' }) 'Click to expand or collapse fine-grained server engine settings.' {
+        $script:AdvancedExpanded = -not [bool]$script:AdvancedExpanded
+        $script:BtnToggleAdvanced.Text = if ($script:AdvancedExpanded) { 'v  Hide Advanced Settings' } else { '>  Show Advanced Settings (5 options)' }
+        $script:BtnToggleAdvanced.ForeColor = if ($script:AdvancedExpanded) { $Theme.blue } else { [System.Drawing.Color]::White }
+        foreach ($ctrl in $script:AdvancedControls) {
+            $ctrl.Visible = $script:AdvancedExpanded
+        }
+        Update-CardStackLayout
+    }
+    $script:BtnToggleAdvanced.Size = New-Object System.Drawing.Size(260, 32)
+    $script:BtnToggleAdvanced.BackColor = $Theme.panel
+    $advTopBar.Controls.Add($script:BtnToggleAdvanced)
+    Add-RowFull $card $advTopBar
+
+    # 1. Custom Listen Port
+    $flPort = New-ButtonBar
+    $flPort.Visible = [bool]$script:AdvancedExpanded
+    $script:TxtCustomPort = New-SettingsInput
+    $script:TxtCustomPort.Width = 90
+    $script:TxtCustomPort.Height = 26
+    $flPort.Controls.Add($script:TxtCustomPort)
+    $flPort.Controls.Add((New-Lbl 'default: 30814 (TCP + UDP listen port; range: 1024-65535)' $Theme.dim 9 20))
+    Add-Row $card 'Game listen port:' $flPort
+    $script:AdvancedControls += $flPort
+    $tAdv = $card.Tag
+    if ($tAdv.Controls.Count -ge 2) { $script:AdvancedControls += $tAdv.Controls[$tAdv.Controls.Count - 2]; $tAdv.Controls[$tAdv.Controls.Count - 2].Visible = [bool]$script:AdvancedExpanded }
+
+    # 2. Network Bind IP
+    $flBind = New-ButtonBar
+    $flBind.Visible = [bool]$script:AdvancedExpanded
+    $script:TxtBindIp = New-SettingsInput
+    $script:TxtBindIp.Width = 160
+    $script:TxtBindIp.Height = 26
+    $flBind.Controls.Add($script:TxtBindIp)
+    $flBind.Controls.Add((New-Lbl 'default: :: (dual-stack IPv6/IPv4; or 0.0.0.0 for IPv4)' $Theme.dim 9 20))
+    Add-Row $card 'Bind IP address (IP):' $flBind
+    $script:AdvancedControls += $flBind
+    if ($tAdv.Controls.Count -ge 2) { $script:AdvancedControls += $tAdv.Controls[$tAdv.Controls.Count - 2]; $tAdv.Controls[$tAdv.Controls.Count - 2].Visible = [bool]$script:AdvancedExpanded }
+
+    # 3. Resource Folder
+    $flRes = New-ButtonBar
+    $flRes.Visible = [bool]$script:AdvancedExpanded
+    $script:TxtResourceFolder = New-SettingsInput
+    $script:TxtResourceFolder.Width = 160
+    $script:TxtResourceFolder.Height = 26
+    $flRes.Controls.Add($script:TxtResourceFolder)
+    $flRes.Controls.Add((New-Lbl 'default: Resources (folder where synced mods reside)' $Theme.dim 9 20))
+    Add-Row $card 'Resource folder:' $flRes
+    $script:AdvancedControls += $flRes
+    if ($tAdv.Controls.Count -ge 2) { $script:AdvancedControls += $tAdv.Controls[$tAdv.Controls.Count - 2]; $tAdv.Controls[$tAdv.Controls.Count - 2].Visible = [bool]$script:AdvancedExpanded }
+
+    # 4. Hide Update Reminders
+    $script:ChkImScaredOfUpdates = New-Object System.Windows.Forms.CheckBox
+    $script:ChkImScaredOfUpdates.Text = 'Hide periodic update reminders in server console (ImScaredOfUpdates)'
+    $script:ChkImScaredOfUpdates.ForeColor = [System.Drawing.Color]::White
+    $script:ChkImScaredOfUpdates.BackColor = $Theme.card
+    $script:ChkImScaredOfUpdates.Font = $rFont9
+    $script:ChkImScaredOfUpdates.Height = 24
+    $script:ChkImScaredOfUpdates.Visible = [bool]$script:AdvancedExpanded
+    Add-RowFull $card $script:ChkImScaredOfUpdates
+    $script:AdvancedControls += $script:ChkImScaredOfUpdates
+
+    # 5. Update Reminder Frequency
+    $flRem = New-ButtonBar
+    $flRem.Visible = [bool]$script:AdvancedExpanded
+    $script:TxtUpdateReminder = New-SettingsInput
+    $script:TxtUpdateReminder.Width = 90
+    $script:TxtUpdateReminder.Height = 26
+    $flRem.Controls.Add($script:TxtUpdateReminder)
+    $flRem.Controls.Add((New-Lbl 'default: 30s (e.g., 30s, 5min, 1h, 1d)' $Theme.dim 9 20))
+    Add-Row $card 'Update reminder frequency:' $flRem
+    $script:AdvancedControls += $flRem
+    if ($tAdv.Controls.Count -ge 2) { $script:AdvancedControls += $tAdv.Controls[$tAdv.Controls.Count - 2]; $tAdv.Controls[$tAdv.Controls.Count - 2].Visible = [bool]$script:AdvancedExpanded }
+
+    $cards += $card
+
     # ---- Presets ----
     $card = New-Card 'Presets' 'Save a whole setup (settings + enabled mods) under a name, load it back later. Great for different game nights.'
     $preRow = New-ButtonBar
@@ -2596,6 +2840,14 @@ function Refresh-SettingsFields {
             $script:ChkLogChat.Checked = ($cfg['LogChat'] -match 'true|1')
             $script:ChkDebug.Checked = ($cfg['Debug'] -match 'true|1')
             $script:ChkInfoPacket.Checked = ($cfg['InformationPacket'] -match 'true|1')
+            $curPort = if ($script:State -and $script:State.Port) { [string]$script:State.Port } elseif ($cfg.ContainsKey('Port')) { $cfg['Port'] } else { '30814' }
+            if ($script:TxtCustomPort) { $script:TxtCustomPort.Text = $curPort }
+            if ($script:LblSettings3) { $script:LblSettings3.Text = "Port: $curPort  (change it automatically if it is ever busy)" }
+            if ($script:TxtBindIp) { $script:TxtBindIp.Text = if ($cfg.ContainsKey('IP')) { $cfg['IP'] } else { '::' } }
+            if ($script:TxtResourceFolder) { $script:TxtResourceFolder.Text = if ($cfg.ContainsKey('ResourceFolder')) { $cfg['ResourceFolder'] } else { 'Resources' } }
+            if ($script:ChkImScaredOfUpdates) { $script:ChkImScaredOfUpdates.Checked = ($cfg['ImScaredOfUpdates'] -match 'true|1') }
+            if ($script:TxtUpdateReminder) { $script:TxtUpdateReminder.Text = if ($cfg.ContainsKey('UpdateReminderTime')) { $cfg['UpdateReminderTime'] } else { '30s' } }
+            if ($script:ChkStreamerMode) { $script:ChkStreamerMode.Checked = [bool]$script:StreamerMode }
             $isPriv = ($cfg['Private'] -match 'true|1')
             $script:isPrivate = [bool]$isPriv
             $script:RadioPublic.Checked = -not $isPriv
@@ -2780,6 +3032,40 @@ function Save-Settings {
     if ($desc) { $vals['Description'] = '"' + $desc + '"' } else { $vals['Description'] = '""' }
     $tags = $script:TxtTags.Text.Trim().Replace('"', "'") -replace '[\x00-\x1F]', ' '
     if ($tags) { $vals['Tags'] = '"' + $tags + '"' } else { $vals['Tags'] = '""' }
+    # Advanced settings validation & persistence
+    if ($script:TxtCustomPort) {
+        $pVal = $script:TxtCustomPort.Text.Trim()
+        if ($pVal -match '^\d+$') {
+            $pNum = [int]$pVal
+            if ($pNum -ge 1024 -and $pNum -le 65535) {
+                $vals['Port'] = $pNum
+                $script:State.Port = $pNum
+                if ($script:State.Conn) { $script:State.Conn.Port = $pNum }
+                if ($script:LblSettings3) {
+                    $script:LblSettings3.Text = "Port: $pNum  (change it automatically if it is ever busy)"
+                }
+                Add-Log "[INFO] Game listen port set to $pNum (applies on next start)."
+            } else {
+                Add-Log '[WARN] Game port must be between 1024 and 65535 - leaving unchanged.'
+            }
+        }
+    }
+    if ($script:TxtBindIp) {
+        $bIp = $script:TxtBindIp.Text.Trim().Replace('"', '') -replace '[\x00-\x1F]', ''
+        if ($bIp) { $vals['IP'] = '"' + $bIp + '"' } else { $vals['IP'] = '"::"' }
+    }
+    if ($script:TxtResourceFolder) {
+        $rFold = $script:TxtResourceFolder.Text.Trim().Replace('"', '') -replace '[\x00-\x1F/\\\:]', ''
+        if ($rFold) { $vals['ResourceFolder'] = '"' + $rFold + '"' } else { $vals['ResourceFolder'] = '"Resources"' }
+    }
+    if ($script:ChkImScaredOfUpdates) {
+        $vals['ImScaredOfUpdates'] = $script:ChkImScaredOfUpdates.Checked.ToString().ToLower()
+    }
+    if ($script:TxtUpdateReminder) {
+        $uRem = $script:TxtUpdateReminder.Text.Trim().Replace('"', '') -replace '[\x00-\x1F]', ''
+        if ($uRem) { $vals['UpdateReminderTime'] = '"' + $uRem + '"' } else { $vals['UpdateReminderTime'] = '"30s"' }
+    }
+
     $vals['AllowGuests'] = $script:ChkAllowGuests.Checked.ToString().ToLower()
     $vals['LogChat'] = $script:ChkLogChat.Checked.ToString().ToLower()
     $vals['Debug'] = $script:ChkDebug.Checked.ToString().ToLower()
@@ -3024,7 +3310,7 @@ function Refresh-VpnRows {
         $rows = @()
         $apps = @(Get-InstalledVpns)
         $running = @(Get-VpnIps)
-        $srvPort = Get-ServerPort
+        $srvPort = if ($script:State -and $script:State.Port) { $script:State.Port } elseif ($conn -and $conn.Port) { $conn.Port } else { Get-ServerPort }
         foreach ($app in $apps) {
             $run = @($running | Where-Object { $_.Key -eq $app.Key })
             $rowPanel = New-Object System.Windows.Forms.Panel
@@ -3048,8 +3334,9 @@ function Refresh-VpnRows {
                 $state = 'NOT installed'
                 $color = $Theme.yellow
             } elseif ($run.Count -and $run[0].Ip) {
-                $state = "RUNNING  $dot  IP $($run[0].Ip)"
-                $color = $Theme.green
+                $dispVpnIp = if ($script:StreamerMode) { '***.***.***.***' } else { $run[0].Ip }
+                $state = "RUNNING  $dot  IP $dispVpnIp"
+                $color = if ($script:StreamerMode) { $Theme.blue } else { $Theme.green }
             } elseif ($run.Count) {
                 $state = "RUNNING  $dot  connecting (no VPN IP yet)"
                 $color = $Theme.yellow
@@ -3076,16 +3363,34 @@ function Refresh-VpnRows {
             $rowPanel.Controls.Add($btnFlow)
 
             if ($app.Installed -and $run.Count -and $run[0].Ip -and $app.Key -ne 'playit') {
-                $btnCopy = New-CopyButton 'Copy IP' "Copy the VPN address (IP:port) of $($app.Name) to your clipboard - paste it to your friends so they can direct-connect." "$($run[0].Ip):$srvPort" "VPN address of $($app.Name): $($run[0].Ip):$srvPort"
-                $btnCopy.Size = New-Object System.Drawing.Size(84, 30)
-                $btnFlow.Controls.Add($btnCopy)
+                if ($script:StreamerMode) {
+                    $btnCopy = New-Btn 'Protected' 'Streamer Privacy Mode: VPN IP is protected.' {
+                        Add-Log '[NOTE] Clipboard copy blocked: VPN endpoint is masked while Streamer Privacy Mode is active.'
+                    }
+                    $btnCopy.ForeColor = $Theme.dim
+                    $btnCopy.Size = New-Object System.Drawing.Size(84, 30)
+                    $btnFlow.Controls.Add($btnCopy)
+                } else {
+                    $btnCopy = New-CopyButton 'Copy IP' "Copy the VPN address (IP:port) of $($app.Name) to your clipboard - paste it to your friends so they can direct-connect." "$($run[0].Ip):$srvPort" "VPN address of $($app.Name): $($run[0].Ip):$srvPort"
+                    $btnCopy.Size = New-Object System.Drawing.Size(84, 30)
+                    $btnFlow.Controls.Add($btnCopy)
+                }
             }
             if ($app.Key -eq 'playit' -and $app.Installed) {
                 $address = Get-PlayitAddress
                 if ($address) {
-                    $btnCopy = New-CopyButton 'Copy Address' "Copy the Playit.gg tunnel address to your clipboard - paste it to your friends so they can direct-connect." "$address" "Playit.gg address: $address"
-                    $btnCopy.Size = New-Object System.Drawing.Size(110, 30)
-                    $btnFlow.Controls.Add($btnCopy)
+                    if ($script:StreamerMode) {
+                        $btnCopy = New-Btn 'Protected' 'Streamer Privacy Mode: Playit tunnel address is protected.' {
+                            Add-Log '[NOTE] Clipboard copy blocked: Tunnel address is masked while Streamer Privacy Mode is active.'
+                        }
+                        $btnCopy.ForeColor = $Theme.dim
+                        $btnCopy.Size = New-Object System.Drawing.Size(110, 30)
+                        $btnFlow.Controls.Add($btnCopy)
+                    } else {
+                        $btnCopy = New-CopyButton 'Copy Address' "Copy the Playit.gg tunnel address to your clipboard - paste it to your friends so they can direct-connect." "$address" "Playit.gg address: $address"
+                        $btnCopy.Size = New-Object System.Drawing.Size(110, 30)
+                        $btnFlow.Controls.Add($btnCopy)
+                    }
                 }
             }
             if ($app.Installed -and $run.Count) {
@@ -5085,9 +5390,13 @@ function Stop-ServerFlow {
 }
 
 function Copy-ConnectionLine {
+    if ($script:StreamerMode) {
+        Add-Log "[NOTE] Clipboard copy blocked: Sensitive endpoint is masked while Streamer Privacy Mode is active."
+        return
+    }
     try { $conn = Get-ConnectionInfo -SkipRouterWan } catch { $conn = $script:State.Conn }
     if (-not $conn) { $conn = $script:State.Conn }
-    $port = if ($conn) { $conn.Port } else { Get-ServerPort }
+    $port = if ($script:State -and $script:State.Port) { $script:State.Port } elseif ($conn -and $conn.Port) { $conn.Port } else { Get-ServerPort }
     $line = "127.0.0.1:$port"
     if ($conn -and $conn.LAN) { $line = "$($conn.LAN):$port" }
     $vpnLines = @()
@@ -5106,9 +5415,13 @@ function Copy-ConnectionLine {
 # Copies a friendly full invite message (address + connect steps) - the easy way
 # to invite friends to a PRIVATE server (or any server).
 function Copy-Invite {
+    if ($script:StreamerMode) {
+        Add-Log "[NOTE] Clipboard copy blocked: Server invite is protected while Streamer Privacy Mode is active."
+        return
+    }
     try { $conn = Get-ConnectionInfo -SkipRouterWan } catch { $conn = $script:State.Conn }
     if (-not $conn) { $conn = $script:State.Conn }
-    $port = if ($conn) { $conn.Port } else { Get-ServerPort }
+    $port = if ($script:State -and $script:State.Port) { $script:State.Port } elseif ($conn -and $conn.Port) { $conn.Port } else { Get-ServerPort }
     $addr = $null
     if ($conn) {
         $vpnLines = @($conn.Vpn | Where-Object { $_.Ip })
@@ -5307,7 +5620,20 @@ $timerMain.Add_Tick({
             'tinstall' { Update-TransferInstallUi }
             'trefresh' { Populate-ClientModList }
             'tdel' { Update-TransferDeleteUi }
-            'settings' { $script:LblSettingsResult.Text = 'Settings saved.'; $script:LblSettingsResult.ForeColor = $Theme.green }
+            'settings' {
+                $script:LblSettingsResult.Text = 'Settings saved.'
+                $script:LblSettingsResult.ForeColor = $Theme.green
+                Refresh-SettingsFields
+                Refresh-Dashboard
+            }
+            'setport' {
+                $newPort = Get-ServerPort
+                $script:State.Port = $newPort
+                if ($script:State.Conn) { $script:State.Conn.Port = $newPort }
+                if ($script:LblSettingsResult) { $script:LblSettingsResult.Text = "Port changed to $newPort."; $script:LblSettingsResult.ForeColor = $Theme.green }
+                Refresh-SettingsFields
+                Refresh-Dashboard
+            }
             'update' { $script:LblSettingsResult.Text = $(if ($script:State.UpdateMsg) { "Update available: $($script:State.UpdateMsg)" } else { 'Checked.' }); $script:LblSettingsResult.ForeColor = $Theme.green }
             'setmap' {
                 if ($script:LblSettingsResult) { $script:LblSettingsResult.Text = 'Map applied.'; $script:LblSettingsResult.ForeColor = $Theme.green }

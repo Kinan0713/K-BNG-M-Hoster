@@ -1,3 +1,27 @@
+## v0.7.2.0 - Update 10: Advanced Settings Expansion & Streamer Mode Integration
+
+- **Streamer Privacy Mode:**
+  - One-click persistent header toggle (`$titleBar`) and dedicated card in Settings with glowing active indicator and tactile toggle feedback.
+  - Intercepts and masks sensitive data in real time: Public WAN IPs (`***.***.***.***`), Keymaster AuthKeys (`********************************`), and Windows local user file paths (`C:\Users\***`).
+  - Active across the Dashboard Direct Connect Matrix, Network VPN rows, and the Activity Console log stream with pre-render redaction.
+  - Clipboard copy protection prevents accidental pasting of sensitive endpoints during live broadcasts and recording sessions.
+
+- **Advanced Server Settings (Collapsible Accordion):**
+  - Smooth collapsible accordion container in Server Settings keeping the primary cards uncluttered and focused.
+  - Complete mapping of previously unexposed `ServerConfig.toml` variables:
+    - Custom Game Listen Port (`Port`, range 1024-65535).
+    - Network Bind IP (`IP`, default `::` dual-stack IPv6/IPv4 or `0.0.0.0`).
+    - Mod Resource Folder (`ResourceFolder`, default `Resources`).
+    - Hide Server Update Prompts (`ImScaredOfUpdates = true/false`).
+    - Update Reminder Frequency (`UpdateReminderTime`, default `30s`).
+
+- **Section-Aware TOML Serializer & Fallback Resilience:**
+  - Enhanced `Set-ServerConfig` intelligently routes keys to `[General]`, `[Misc]`, and `[FRP]` tables while preserving existing comments, indentation, and ordering.
+  - Fallback defaults for all fields prevent null-reference exceptions and crash-to-desktop scenarios on incomplete or legacy configurations.
+
+- **Activity Console Streamer Hook Fix:**
+  - Resolved an unassigned variable binding in `Add-LogBatch` where `$cleanLine` was not populated on normal log streams, restoring instant visibility for all server events, status updates, and diagnostic messages with correct timestamps and semantic colors.
+
 ## v0.7.1.1 - Update 9: Validation & input fixes
 
 - **No more false-positive validation errors:** the server key check no longer rejects
