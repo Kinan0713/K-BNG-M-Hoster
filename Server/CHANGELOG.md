@@ -5,10 +5,10 @@
   - **Unsegregated KPI Telemetry Strip**: Eliminated individual bordered rectangle boxes from the 4 KPI metric chips ("SERVER NAME", "PORT (UDP/TCP)", "VISIBILITY", "GATEWAY STATUS"); layout is now structured purely through Margin, Padding, and high-contrast typography hierarchy.
   - **Hairline Internal Row Dividers**: Enforced that the only lines rendered across the entire Dashboard are ultra-thin (1px), low-opacity (`rgba(255, 255, 255, 0.05)`) internal horizontal row dividers between matrix endpoints.
 
-- **Sidebar Re-architecture & Floating Shortcuts:**
-  - **Full-Width Low-Opacity Accent Fill**: Eradicated the legacy thin orange vertical indicator line; the active "Dashboard" state now spans the entire button width with a clean, low-opacity warm accent fill (`rgba(255, 115, 29, 0.10)`) and zero perimeter borders.
-  - **Cleanly Floating Shortcuts**: Completely stripped rectangular badge boundaries around keyboard shortcuts (`^H`, `^T`, `^M`, `^V`, `^U`, `^F`); shortcuts now float right-aligned inside each button with zero borders.
-  - **Seamless Inactive State**: Idle sidebar buttons render completely borderless and transparent, seamlessly blending into the `#111115` surface.
+- **Sidebar Definition & Tactile Button Borders:**
+  - **Subtle Surface Lift & Defined Hitboxes**: Re-applied a subtle `#111115` surface elevation with an ultra-thin 1px border (`rgba(255, 255, 255, 0.08)`) and 6px rounded corners across all inactive sidebar navigation items ("Server Settings", "Mod Manager", "Network & Tunnels", "Cloud Transfer", "Scan & Fix", "More Tools"), establishing unambiguous clickable hitboxes without reverting to legacy harsh UI boxes.
+  - **Active State Harmony & Glowing Accent**: Harmonized the active "Dashboard" button with a warm accent fill (`rgba(255, 115, 29, 0.14)`), a luminous glowing accent border (`rgba(255, 115, 29, 0.38)`), and floating warm amber shortcut indicators (`^H`).
+  - **Consistent Utility Buttons**: Aligned the bottom-left utility actions ("Open Folder", "Guide (^G)") with identical 6px rounded pill geometry and subtle 1px translucent borders.
 
 - **Layered Material Elevation (Tactile Top Buttons):**
   - **Multi-Layered Drop Shadows**: Implemented dual-layer GDI+ drop shadows (soft ambient shadow `rgba(0, 0, 0, 0.16)` + crisp contact shadow `rgba(0, 0, 0, 0.30)`) on top action buttons ("Copy Best IP", "Copy Invite", "Diagnose", "Refresh") and matrix action buttons, physically lifting them off the `#09090b` canvas.

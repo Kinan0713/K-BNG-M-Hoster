@@ -348,48 +348,55 @@ function New-Btn([string]$Text, [string]$Tip, [scriptblock]$OnClick) {
             $isStopBtn = ($script:BtnStop -and $s -eq $script:BtnStop)
 
             if ($isNav) {
-                # Sidebar Navigation: full-width low-opacity accent fill when active, zero borders, floating shortcuts
+                # Sidebar Navigation: Defined interactive surfaces with subtle border, 6px corner radius, and glowing active selection
                 if ($isActiveNav) {
-                    $fillCol = [System.Drawing.Color]::FromArgb(26, 255, 115, 29)
-                    $borderCol = [System.Drawing.Color]::Transparent
+                    # Active State Harmony: Warm accent fill with luminous accent border
+                    $fillCol = [System.Drawing.Color]::FromArgb(34, 255, 115, 29)
+                    $borderCol = [System.Drawing.Color]::FromArgb(96, 255, 115, 29)
                     $textCol = [System.Drawing.Color]::White
                 } elseif ($state -eq 'hover') {
-                    $fillCol = [System.Drawing.Color]::FromArgb(16, 255, 255, 255)
-                    $borderCol = [System.Drawing.Color]::Transparent
+                    # Hover State: Subtle surface brightening with crisp translucent highlight border
+                    $fillCol = [System.Drawing.Color]::FromArgb(24, 24, 32)
+                    $borderCol = [System.Drawing.Color]::FromArgb(44, 255, 255, 255)
                     $textCol = [System.Drawing.Color]::White
                 } elseif ($state -eq 'down') {
-                    $fillCol = [System.Drawing.Color]::FromArgb(28, 28, 36)
-                    $borderCol = [System.Drawing.Color]::Transparent
+                    # Down State: Tactile depression
+                    $fillCol = [System.Drawing.Color]::FromArgb(19, 19, 25)
+                    $borderCol = [System.Drawing.Color]::FromArgb(34, 255, 255, 255)
                     $textCol = [System.Drawing.Color]::White
                 } else {
-                    $fillCol = [System.Drawing.Color]::Transparent
-                    $borderCol = [System.Drawing.Color]::Transparent
+                    # Inactive Idle State: Subtle #111115 surface lift with ultra-subtle border (rgba(255, 255, 255, 0.08))
+                    $fillCol = [System.Drawing.Color]::FromArgb(17, 17, 21)
+                    $borderCol = [System.Drawing.Color]::FromArgb(20, 255, 255, 255)
                     $textCol = $Theme.textSec
                 }
 
-                $navW = $s.Width - 1
-                $navH = $s.Height - 1
-                $navPath = Get-RoundedRectPath 0 0 $navW $navH 6
-                try {
-                    if ($fillCol.A -gt 0) {
+                $navW = $s.Width - 3
+                $navH = $s.Height - 3
+                if ($navW -gt 4 -and $navH -gt 4) {
+                    $navPath = Get-RoundedRectPath 1 1 $navW $navH 6
+                    try {
                         $g.FillPath((Get-CachedBrush $fillCol), $navPath)
+                        if ($borderCol.A -gt 0) {
+                            $g.DrawPath((Get-CachedPen $borderCol 1), $navPath)
+                        }
+                    } finally {
+                        $navPath.Dispose()
                     }
-                } finally {
-                    $navPath.Dispose()
                 }
 
                 $flags = [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::SingleLine -bor [System.Windows.Forms.TextFormatFlags]::EndEllipsis -bor [System.Windows.Forms.TextFormatFlags]::NoPrefix -bor [System.Windows.Forms.TextFormatFlags]::Left
                 $rightReserve = if ($s.Name) { 48 } else { 16 }
-                $rect = New-Object System.Drawing.Rectangle(12, 0, ($s.Width - $rightReserve), $s.Height)
+                $rect = New-Object System.Drawing.Rectangle(14, 0, ($s.Width - $rightReserve), $s.Height)
                 [System.Windows.Forms.TextRenderer]::DrawText($g, $s.Text, $s.Font, $rect, $textCol, $flags)
 
                 # Keyboard shortcut text floating cleanly inside with zero border and zero background box
                 if ($s.Name) {
                     $kw = 36
                     $kh = $s.Height
-                    $kx = $s.Width - $kw - 12
+                    $kx = $s.Width - $kw - 14
                     $rKey = New-Object System.Drawing.Rectangle($kx, 0, $kw, $kh)
-                    $kFg = if ($isActiveNav) { [System.Drawing.Color]::FromArgb(255, 175, 120) } elseif ($state -eq 'hover') { [System.Drawing.Color]::FromArgb(185, 185, 198) } else { [System.Drawing.Color]::FromArgb(95, 95, 110) }
+                    $kFg = if ($isActiveNav) { [System.Drawing.Color]::FromArgb(255, 180, 125) } elseif ($state -eq 'hover') { [System.Drawing.Color]::FromArgb(185, 185, 198) } else { [System.Drawing.Color]::FromArgb(100, 100, 115) }
                     $kFlags = [System.Windows.Forms.TextFormatFlags]::Right -bor [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::SingleLine
                     [System.Windows.Forms.TextRenderer]::DrawText($g, $s.Name, $script:NavKeyFont, $rKey, $kFg, $kFlags)
                 }
