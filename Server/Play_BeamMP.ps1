@@ -490,13 +490,9 @@ function Set-ActiveNav($ActiveBtn) {
         if ($nb.AccessibleName -ne $wantName) {
             $nb.AccessibleName = $wantName
             if ($nb -eq $ActiveBtn) {
-                $nb.BackColor = [System.Drawing.Color]::FromArgb(26, 255, 115, 29)
                 $nb.ForeColor = [System.Drawing.Color]::White
-                $nb.FlatAppearance.BorderColor = [System.Drawing.Color]::Transparent
             } else {
-                $nb.BackColor = [System.Drawing.Color]::Transparent
                 $nb.ForeColor = $Theme.textSec
-                $nb.FlatAppearance.BorderColor = [System.Drawing.Color]::Transparent
             }
             $nb.Invalidate()
         }
