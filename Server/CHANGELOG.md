@@ -1,5 +1,12 @@
 ## v0.7.2.0 - Update 10: Advanced Settings Expansion & Streamer Mode Integration
 
+- **Dashboard Modernization & Command Center Craft:**
+  - **Tactile Button Overhaul**: Eradicated legacy heavy grey backgrounds across the top action row and matrix rows; implemented soft-elevated `#1c1c24` surfaces with subtle `rgba(255,255,255,0.08)` translucent borders and zero-jitter hover/press luminance states.
+  - **KPI Telemetry Breathing Room**: Expanded the 4-pill telemetry strip to 52px height with 10px inter-chip margins; established strict typographic hierarchy using muted Zinc-400 captions (`#888894`) while reserving high-contrast white and semantic colors purely for live telemetry values.
+  - **Direct Connect Matrix Visual Rhythm**: Standardized the 6-row routing table with a uniform 184px title column, strict monospaced Cascadia Mono status alignment, and standardized 90x26px right-aligned action buttons.
+  - **Modern Semantic Callout Banner**: Redesigned the harsh yellow TIP banner into a subtle, low-opacity warm amber surface fill (`#1c160c`) with soft 6px rounded corners, inline `[i]` badge glyph, and warm zinc-amber typography.
+  - **Precision Streamer Pill Toggle**: Evolved the top-right header button into a sleek pill-shaped toggle switch with tactile thumb indicator and luminous protective emerald shield styling when active.
+
 - **Streamer Privacy Mode:**
   - One-click persistent header toggle (`$titleBar`) and dedicated card in Settings with glowing active indicator and tactile toggle feedback.
   - Intercepts and masks sensitive data in real time: Public WAN IPs (`***.***.***.***`), Keymaster AuthKeys (`********************************`), and Windows local user file paths (`C:\Users\***`).

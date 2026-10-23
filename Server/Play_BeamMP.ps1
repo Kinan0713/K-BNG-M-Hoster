@@ -189,9 +189,12 @@ $Theme = @{
     red              = [System.Drawing.Color]::FromArgb(251, 113, 133) # Brake-Light Crimson (#FB7185)
     yellow           = [System.Drawing.Color]::FromArgb(251, 191, 36)  # Warm Caution Amber (#FBBF24)
 
-    # Interactive Button Tokens
-    btn              = [System.Drawing.Color]::FromArgb(39, 39, 46)    # Resting gunmetal control (#27272E)
-    btnHov           = [System.Drawing.Color]::FromArgb(54, 54, 64)    # Hover elevation (#363640)
+    # Interactive Button Tokens - Modernized Tactile Palette (#1c1c24 soft-elevated)
+    btn              = [System.Drawing.Color]::FromArgb(28, 28, 36)    # Soft-elevated dark zinc (#1C1C24)
+    btnHov           = [System.Drawing.Color]::FromArgb(38, 38, 48)    # Hover luminance elevation (#262630)
+    btnBorder        = [System.Drawing.Color]::FromArgb(48, 48, 58)    # Translucent subtle border (rgba(255,255,255,0.08))
+    btnBorderHov     = [System.Drawing.Color]::FromArgb(72, 72, 86)    # Hover specular edge (rgba(255,255,255,0.18))
+    btnDown          = [System.Drawing.Color]::FromArgb(22, 22, 28)    # Pressed tactile inset (#16161C)
     btnAct           = [System.Drawing.Color]::FromArgb(62, 31, 16)    # Active racing-orange bronze surface (#3E1F10)
     btnSuccess       = [System.Drawing.Color]::FromArgb(16, 118, 84)   # Emerald action fill (#107654)
     btnSuccessHov    = [System.Drawing.Color]::FromArgb(21, 148, 105)  # Emerald action hover (#159469)
@@ -276,9 +279,9 @@ function New-Btn([string]$Text, [string]$Tip, [scriptblock]$OnClick) {
     $b.UseMnemonic = $false
     $b.FlatStyle = 'Flat'
     $b.FlatAppearance.BorderSize = 0
-    $b.FlatAppearance.BorderColor = $Theme.border
+    $b.FlatAppearance.BorderColor = $Theme.btnBorder
     $b.FlatAppearance.MouseOverBackColor = $Theme.btnHov
-    $b.FlatAppearance.MouseDownBackColor = $Theme.surface
+    $b.FlatAppearance.MouseDownBackColor = $Theme.btnDown
     $b.BackColor = $Theme.btn
     $b.ForeColor = $Theme.text
     $b.Font = $script:DefaultBtnFont
@@ -333,8 +336,8 @@ function New-Btn([string]$Text, [string]$Tip, [scriptblock]$OnClick) {
             $state = $s.AccessibleDescription
 
             if (-not $s.Enabled) {
-                $fillCol = if ($isNav) { [System.Drawing.Color]::FromArgb(20, 20, 24) } else { [System.Drawing.Color]::FromArgb(24, 24, 29) }
-                $borderCol = if ($isNav) { [System.Drawing.Color]::FromArgb(30, 30, 36) } else { [System.Drawing.Color]::FromArgb(36, 36, 44) }
+                $fillCol = if ($isNav) { [System.Drawing.Color]::FromArgb(20, 20, 24) } else { [System.Drawing.Color]::FromArgb(20, 20, 25) }
+                $borderCol = if ($isNav) { [System.Drawing.Color]::FromArgb(30, 30, 36) } else { [System.Drawing.Color]::FromArgb(34, 34, 42) }
                 $textCol = $Theme.muted
             } else {
                 if ($isNav) {
@@ -356,9 +359,26 @@ function New-Btn([string]$Text, [string]$Tip, [scriptblock]$OnClick) {
                         $textCol = $Theme.textSec
                     }
                 } else {
-                    $fillCol = if ($state -eq 'down') { $s.FlatAppearance.MouseDownBackColor } elseif ($state -eq 'hover') { $s.FlatAppearance.MouseOverBackColor } else { $s.BackColor }
-                    $borderCol = if ($state -eq 'hover') { $Theme.blue } else { $s.FlatAppearance.BorderColor }
-                    $textCol = $s.ForeColor
+                    $isCustom = ($s.BackColor.ToArgb() -ne $Theme.btn.ToArgb() -and $s.BackColor.ToArgb() -ne 0)
+                    if ($isCustom) {
+                        $fillCol = if ($state -eq 'down') { $s.FlatAppearance.MouseDownBackColor } elseif ($state -eq 'hover') { $s.FlatAppearance.MouseOverBackColor } else { $s.BackColor }
+                        $borderCol = if ($state -eq 'hover') { $Theme.blue } else { $s.FlatAppearance.BorderColor }
+                        $textCol = $s.ForeColor
+                    } else {
+                        if ($state -eq 'down') {
+                            $fillCol = $Theme.btnDown
+                            $borderCol = $Theme.borderHi
+                            $textCol = [System.Drawing.Color]::White
+                        } elseif ($state -eq 'hover') {
+                            $fillCol = $Theme.btnHov
+                            $borderCol = $Theme.btnBorderHov
+                            $textCol = [System.Drawing.Color]::White
+                        } else {
+                            $fillCol = $Theme.btn
+                            $borderCol = $Theme.btnBorder
+                            $textCol = $Theme.textSec
+                        }
+                    }
                 }
             }
 
@@ -1420,30 +1440,59 @@ $script:BtnHeaderStreamer.BackColor = [System.Drawing.Color]::Transparent
 $script:BtnHeaderStreamer.Cursor = [System.Windows.Forms.Cursors]::Hand
 $script:Tip.SetToolTip($script:BtnHeaderStreamer, 'Streamer Privacy Mode: Click to toggle real-time masking of WAN IP, AuthKey, and personal file paths.')
 $script:BtnHeaderStreamer.Add_Click({ Toggle-StreamerMode })
+$script:BtnHeaderStreamer.Add_MouseEnter({ $this.AccessibleDescription = 'hover'; $this.Invalidate() })
+$script:BtnHeaderStreamer.Add_MouseLeave({ $this.AccessibleDescription = ''; $this.Invalidate() })
+$script:BtnHeaderStreamer.Add_MouseDown({ $this.AccessibleDescription = 'down'; $this.Invalidate() })
+$script:BtnHeaderStreamer.Add_MouseUp({ $this.AccessibleDescription = 'hover'; $this.Invalidate() })
 $script:BtnHeaderStreamer.Add_Paint({
     param($s, $e)
     try {
         $g = $e.Graphics
         $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
         $active = [bool]$script:StreamerMode
-        $borderCol = if ($active) { $Theme.green } else { $Theme.border }
-        $bgCol = if ($active) { [System.Drawing.Color]::FromArgb(40, 16, 185, 129) } else { $Theme.card }
-        $textCol = if ($active) { $Theme.green } else { $Theme.dim }
-        $statusText = if ($active) { 'STREAMER: ON' } else { 'STREAMER: OFF' }
+        $hov = ($s.AccessibleDescription -eq 'hover')
+        $down = ($s.AccessibleDescription -eq 'down')
 
-        $path = Get-RoundedRectPath 4 6 ($s.Width - 8) ($s.Height - 12) 4
+        $pillW = $s.Width - 12
+        $pillH = 24
+        $pillX = 6
+        $pillY = [int](($s.Height - $pillH) / 2)
+
+        if ($active) {
+            # Protective Emerald Shield Theme
+            $bgCol = if ($down) { [System.Drawing.Color]::FromArgb(45, 16, 120, 85) } elseif ($hov) { [System.Drawing.Color]::FromArgb(50, 16, 160, 110) } else { [System.Drawing.Color]::FromArgb(35, 16, 135, 95) }
+            $borderCol = if ($hov) { [System.Drawing.Color]::FromArgb(60, 230, 170) } else { [System.Drawing.Color]::FromArgb(16, 185, 129) }
+            $thumbCol = [System.Drawing.Color]::FromArgb(52, 211, 153)
+            $textCol = [System.Drawing.Color]::FromArgb(52, 211, 153)
+            $statusText = 'STREAMER: ON'
+        } else {
+            # Quiet Elevated Dark Zinc Theme
+            $bgCol = if ($down) { [System.Drawing.Color]::FromArgb(18, 18, 23) } elseif ($hov) { [System.Drawing.Color]::FromArgb(32, 32, 40) } else { [System.Drawing.Color]::FromArgb(24, 24, 30) }
+            $borderCol = if ($hov) { [System.Drawing.Color]::FromArgb(65, 65, 78) } else { [System.Drawing.Color]::FromArgb(44, 44, 54) }
+            $thumbCol = if ($hov) { [System.Drawing.Color]::FromArgb(140, 140, 155) } else { [System.Drawing.Color]::FromArgb(90, 90, 105) }
+            $textCol = if ($hov) { [System.Drawing.Color]::FromArgb(200, 200, 215) } else { [System.Drawing.Color]::FromArgb(140, 140, 155) }
+            $statusText = 'STREAMER: OFF'
+        }
+
+        $path = Get-RoundedRectPath $pillX $pillY $pillW $pillH 12
         try {
             $g.FillPath((Get-CachedBrush $bgCol), $path)
             $g.DrawPath((Get-CachedPen $borderCol 1), $path)
         } finally { $path.Dispose() }
 
-        $dotCol = if ($active) { $Theme.green } else { $Theme.dim }
-        $dotY = [int](($s.Height - 6) / 2)
-        $g.FillEllipse((Get-CachedBrush $dotCol), 16, $dotY, 6, 6)
+        # Thumb indicator switch (10x10 pill dot)
+        $dotSz = 10
+        $dotX = $pillX + 8
+        $dotY = $pillY + [int](($pillH - $dotSz) / 2)
+        $g.FillEllipse((Get-CachedBrush $thumbCol), $dotX, $dotY, $dotSz, $dotSz)
+        if ($active) {
+            $g.FillEllipse((Get-CachedBrush [System.Drawing.Color]::White), ($dotX + 3), ($dotY + 3), 4, 4)
+        }
 
-        $fBtn = Get-CachedFont 'Segoe UI Semibold' 8.5 ([System.Drawing.FontStyle]::Bold)
-        $rText = New-Object System.Drawing.Rectangle(26, 6, ($s.Width - 34), ($s.Height - 12))
-        [System.Windows.Forms.TextRenderer]::DrawText($g, $statusText, $fBtn, $rText, $textCol, ([System.Windows.Forms.TextFormatFlags]::HorizontalCenter -bor [System.Windows.Forms.TextFormatFlags]::VerticalCenter))
+        $fBtn = Get-CachedFont 'Segoe UI Semibold' 8 ([System.Drawing.FontStyle]::Bold)
+        $rText = New-Object System.Drawing.Rectangle(($dotX + $dotSz + 6), $pillY, ($pillW - $dotSz - 16), $pillH)
+        [System.Windows.Forms.TextRenderer]::DrawText($g, $statusText, $fBtn, $rText, $textCol, ([System.Windows.Forms.TextFormatFlags]::Left -bor [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::NoPrefix))
     } catch { }
 })
 
@@ -1851,10 +1900,10 @@ function Layout-HomePage {
             $connPadV = $script:ConnContent.Padding.Top + $script:ConnContent.Padding.Bottom
             $connInnerW = [int][math]::Max(240, ($connW - $connPadH))
             if ($script:LblConnNote -and $script:ConnNoteBox) {
-                $noteInnerW = [int][math]::Max(180, ($connInnerW - 26))
+                $noteInnerW = [int][math]::Max(180, ($connInnerW - 48))
                 $script:LblConnNote.MaximumSize = New-Object System.Drawing.Size($noteInnerW, 0)
                 $script:ConnNoteBox.Width = $connInnerW
-                $script:ConnNoteBox.Height = [int][math]::Max(30, ($script:LblConnNote.PreferredSize.Height + 14))
+                $script:ConnNoteBox.Height = [int][math]::Max(36, ($script:LblConnNote.PreferredSize.Height + 16))
             }
             if ($script:ConnVpnFlow) {
                 $script:ConnVpnFlow.MaximumSize = New-Object System.Drawing.Size($connInnerW, 0)
@@ -1895,23 +1944,32 @@ function Show-HomePage {
     Enable-DoubleBuffer $script:StatusCard
     $script:StatusCard.Dock = 'Top'
     $script:StatusCard.AutoSize = $false
-    $script:StatusCard.Height = 128
+    $script:StatusCard.Height = 142
     $script:StatusCard.BackColor = $Theme.card
-    $script:StatusCard.Padding = New-Object System.Windows.Forms.Padding(18, 10, 16, 10)
+    $script:StatusCard.Padding = New-Object System.Windows.Forms.Padding(18, 12, 16, 12)
     $script:StatusCard.Add_SizeChanged({ $this.Invalidate() })
     $script:StatusCard.Add_Paint({
         param($s, $e)
         try {
-            $e.Graphics.DrawRectangle((Get-CachedPen $Theme.border 1), 0, 0, ($s.Width - 1), ($s.Height - 1))
-            $e.Graphics.DrawLine((Get-CachedPen $Theme.borderHi 1), 4, 0, ($s.Width - 2), 0)
+            $g = $e.Graphics
+            $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+            $w = $s.Width - 1
+            $h = $s.Height - 1
+            $path = Get-RoundedRectPath 0 0 $w $h 6
+            try {
+                $g.FillPath((Get-CachedBrush $Theme.card), $path)
+                $g.DrawPath((Get-CachedPen $Theme.border 1), $path)
+            } finally { $path.Dispose() }
+            $g.DrawLine((Get-CachedPen $Theme.borderHi 1), 6, 0, ($s.Width - 7), 0)
             $barCol = if ($script:State.Running) { $Theme.green } elseif ($script:State.FrpError) { $Theme.red } else { $Theme.blue }
-            $e.Graphics.FillRectangle((Get-CachedBrush $barCol), 0, 0, 4, $s.Height)
+            $barPath = Get-RoundedRectPath 0 0 4 $s.Height 2
+            try { $g.FillPath((Get-CachedBrush $barCol), $barPath) } finally { $barPath.Dispose() }
         } catch { }
     })
     $stTlp = New-Object System.Windows.Forms.TableLayoutPanel
     Enable-DoubleBuffer $stTlp
     $stTlp.SuspendLayout()
-    $stTlp.Location = New-Object System.Drawing.Point(18, 10)
+    $stTlp.Location = New-Object System.Drawing.Point(18, 12)
     $stTlp.AutoSize = $true
     $stTlp.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
     $stTlp.ColumnCount = 2
@@ -1920,11 +1978,11 @@ function Show-HomePage {
     $script:StatusTlp = $stTlp
     $script:StatusCard.Controls.Add($stTlp)
 
-    $script:LblStatusBig = New-Lbl "$([char]0x25CF)  SERVER STANDBY" $Theme.yellow 13.5 28 $true
+    $script:LblStatusBig = New-Lbl "$([char]0x25CF)  SERVER STANDBY" $Theme.yellow 13 28 $true
     $script:LblStatusBig.AutoSize = $true
     $script:LblStatusBig.Anchor = 'Left'
-    $script:LblStatusBig.Margin = New-Object System.Windows.Forms.Padding(0, 2, 12, 2)
-    $script:LblStatusBig.Font = Get-CachedFont 'Segoe UI Semibold' 13.5 ([System.Drawing.FontStyle]::Bold)
+    $script:LblStatusBig.Margin = New-Object System.Windows.Forms.Padding(0, 1, 14, 2)
+    $script:LblStatusBig.Font = Get-CachedFont 'Segoe UI Semibold' 13 ([System.Drawing.FontStyle]::Bold)
     $r = $stTlp.RowCount; $stTlp.RowCount = $r + 1
     $null = $stTlp.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
     $stTlp.Controls.Add($script:LblStatusBig, 0, $r)
@@ -1933,20 +1991,20 @@ function Show-HomePage {
     Enable-DoubleBuffer $btnBar
     $btnBar.AutoSize = $true
     $btnBar.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
-    $btnBar.WrapContents = $true
+    $btnBar.WrapContents = $false
     $btnBar.FlowDirection = [System.Windows.Forms.FlowDirection]::LeftToRight
     $btnBar.Anchor = 'Right'
     $btnBar.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 0)
     $btnBar.Padding = New-Object System.Windows.Forms.Padding(0, 0, 0, 0)
     $script:BtnCopy = New-Btn 'Copy Best IP' 'Copy the best address for your friends to the clipboard (FRP > LAN > VPN > Tailscale > internet). (Ctrl+C)' { Copy-ConnectionLine }
-    $script:BtnCopy.Size = New-Object System.Drawing.Size(112, 30)
+    $script:BtnCopy.Size = New-Object System.Drawing.Size(116, 30)
     $script:BtnInvite = New-Btn 'Copy Invite' 'Copy a ready-made invite message (address + how to connect) to paste to your friends. Perfect for a private server.' { Copy-Invite }
     $script:BtnInvite.Size = New-Object System.Drawing.Size(126, 30)
     $script:BtnDiag = New-Btn 'Diagnose' 'Run a full live diagnosis and show a plain-language report of any problem. (Ctrl+D)' { Run-Diagnose }
-    $script:BtnDiag.Size = New-Object System.Drawing.Size(90, 30)
+    $script:BtnDiag.Size = New-Object System.Drawing.Size(92, 30)
     $script:BtnRefreshHome = New-Btn 'Refresh' 'Re-check every address and the server status right now. (The page also refreshes by itself every few seconds while the server runs.)' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$State.Conn = Get-ConnectionInfo`nSay ""Addresses refreshed."" " 'live' }
-    $script:BtnRefreshHome.Size = New-Object System.Drawing.Size(80, 30)
-    $script:BtnRefreshHome.Margin = New-Object System.Windows.Forms.Padding(3, 3, 0, 3)
+    $script:BtnRefreshHome.Size = New-Object System.Drawing.Size(84, 30)
+    $script:BtnRefreshHome.Margin = New-Object System.Windows.Forms.Padding(3, 0, 0, 0)
     $btnBar.Controls.Add($script:BtnCopy)
     $btnBar.Controls.Add($script:BtnInvite)
     $btnBar.Controls.Add($script:BtnDiag)
@@ -1958,8 +2016,8 @@ function Show-HomePage {
     Enable-DoubleBuffer $kpiGrid
     $kpiGrid.SuspendLayout()
     $kpiGrid.Anchor = 'Left,Right'
-    $kpiGrid.Height = 44
-    $kpiGrid.Margin = New-Object System.Windows.Forms.Padding(0, 6, 0, 4)
+    $kpiGrid.Height = 52
+    $kpiGrid.Margin = New-Object System.Windows.Forms.Padding(0, 8, 0, 4)
     $kpiGrid.ColumnCount = 4
     $kpiGrid.RowCount = 1
     $null = $kpiGrid.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 28)))
@@ -1971,29 +2029,36 @@ function Show-HomePage {
     function New-KpiChip([int]$ColIdx, [string]$Caption, [string]$VarName, [bool]$IsLast = $false) {
         $chip = New-Object System.Windows.Forms.Panel
         Enable-DoubleBuffer $chip
-        $chip.Size = New-Object System.Drawing.Size(200, 44)
+        $chip.Size = New-Object System.Drawing.Size(200, 52)
         $chip.Dock = 'Fill'
-        $chip.BackColor = $Theme.panel
-        $rightPad = if ($IsLast) { 0 } else { 8 }
+        $chip.BackColor = [System.Drawing.Color]::FromArgb(20, 20, 25)
+        $rightPad = if ($IsLast) { 0 } else { 10 }
         $chip.Margin = New-Object System.Windows.Forms.Padding(0, 0, $rightPad, 0)
+        $chip.Padding = New-Object System.Windows.Forms.Padding(12, 6, 10, 6)
         $chip.Add_SizeChanged({ $this.Invalidate() })
         $chip.Add_Paint({
             param($s, $e)
             try {
-                $e.Graphics.DrawRectangle((Get-CachedPen $Theme.border 1), 0, 0, ($s.Width - 1), ($s.Height - 1))
-                $e.Graphics.DrawLine((Get-CachedPen $Theme.borderHi 1), 1, 0, ($s.Width - 2), 0)
+                $g = $e.Graphics
+                $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+                $path = Get-RoundedRectPath 1 1 ($s.Width - 3) ($s.Height - 3) 6
+                try {
+                    $g.FillPath((Get-CachedBrush ([System.Drawing.Color]::FromArgb(20, 20, 25))), $path)
+                    $g.DrawPath((Get-CachedPen ([System.Drawing.Color]::FromArgb(44, 44, 54)) 1), $path)
+                } finally { $path.Dispose() }
+                $g.DrawLine((Get-CachedPen ([System.Drawing.Color]::FromArgb(65, 65, 78)) 1), 6, 1, ($s.Width - 7), 1)
             } catch { }
         })
-        $lCap = New-Lbl $Caption $Theme.muted 7.25 13 $true
+        $lCap = New-Lbl $Caption ([System.Drawing.Color]::FromArgb(136, 136, 148)) 7.5 14 $true
         $lCap.AutoSize = $false
-        $lCap.Location = New-Object System.Drawing.Point(10, 5)
-        $lCap.Size = New-Object System.Drawing.Size(180, 13)
+        $lCap.Location = New-Object System.Drawing.Point(12, 7)
+        $lCap.Size = New-Object System.Drawing.Size(180, 14)
         $lCap.Anchor = 'Top,Left,Right'
         $lCap.AutoEllipsis = $true
-        $lVal = New-Lbl '-' $Theme.text 9.25 18 $true
+        $lVal = New-Lbl '-' ([System.Drawing.Color]::FromArgb(244, 244, 248)) 10.25 22 $true
         $lVal.AutoSize = $false
-        $lVal.Location = New-Object System.Drawing.Point(10, 19)
-        $lVal.Size = New-Object System.Drawing.Size(180, 18)
+        $lVal.Location = New-Object System.Drawing.Point(12, 23)
+        $lVal.Size = New-Object System.Drawing.Size(180, 22)
         $lVal.Anchor = 'Top,Left,Right'
         $lVal.AutoEllipsis = $true
         $chip.Controls.Add($lCap)
@@ -2095,24 +2160,30 @@ function Show-HomePage {
         Enable-DoubleBuffer $rowP
         $rowP.SuspendLayout()
         $rowP.Anchor = 'Left,Right'
-        $rowP.Height = 34
-        $rowP.BackColor = $Theme.panel
+        $rowP.Height = 36
+        $rowP.BackColor = [System.Drawing.Color]::FromArgb(21, 21, 26)
         $rowP.Margin = New-Object System.Windows.Forms.Padding(0, 2, 0, 2)
-        $rowP.Padding = New-Object System.Windows.Forms.Padding(10, 2, 6, 2)
+        $rowP.Padding = New-Object System.Windows.Forms.Padding(12, 3, 8, 3)
         $rowP.ColumnCount = 3
-        $null = $rowP.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 176)))
+        $null = $rowP.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 184)))
         $null = $rowP.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100)))
-        $null = $rowP.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 96)))
+        $null = $rowP.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 98)))
         $rowP.RowCount = 1
         $null = $rowP.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100)))
         $rowP.Add_Paint({
             param($s, $e)
             try {
-                $e.Graphics.DrawRectangle((Get-CachedPen $Theme.border 1), 0, 0, ($s.Width - 1), ($s.Height - 1))
+                $g = $e.Graphics
+                $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+                $path = Get-RoundedRectPath 1 1 ($s.Width - 3) ($s.Height - 3) 5
+                try {
+                    $g.FillPath((Get-CachedBrush ([System.Drawing.Color]::FromArgb(21, 21, 26))), $path)
+                    $g.DrawPath((Get-CachedPen ([System.Drawing.Color]::FromArgb(40, 40, 50)) 1), $path)
+                } finally { $path.Dispose() }
             } catch { }
         })
 
-        $lTitle = New-Lbl $TitleText $Theme.textSec 8.5 26 $true
+        $lTitle = New-Lbl $TitleText ([System.Drawing.Color]::FromArgb(168, 168, 180)) 8.25 28 $true
         $lTitle.AutoSize = $false
         $lTitle.AutoEllipsis = $true
         $lTitle.Dock = 'Fill'
@@ -2120,7 +2191,7 @@ function Show-HomePage {
         if ($TipText) { $script:Tip.SetToolTip($lTitle, $TipText) }
         $rowP.Controls.Add($lTitle, 0, 0)
 
-        $lbl = New-Lbl '' $Color 9 26 $Bold
+        $lbl = New-Lbl '' $Color 9 28 $Bold
         $lbl.AutoSize = $false
         $lbl.Dock = 'Fill'
         $lbl.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
@@ -2150,7 +2221,7 @@ function Show-HomePage {
             }
         }
         $actBtn.Font = Get-CachedFont 'Segoe UI Semibold' 8 ([System.Drawing.FontStyle]::Regular)
-        $actBtn.Size = New-Object System.Drawing.Size(88, 24)
+        $actBtn.Size = New-Object System.Drawing.Size(90, 26)
         $actBtn.Anchor = 'Right'
         $rowP.Controls.Add($actBtn, 2, 0)
         $rowP.ResumeLayout($false)
@@ -2171,26 +2242,48 @@ function Show-HomePage {
     Add-EndpointRow 'INTERNET (PUBLIC WAN)'    'Your direct public internet IP (requires router UPnP or manual port forwarding).'        'LblConnPub'    'RowConnPub'    'BtnConnPub'    $Theme.dim   $false
     Add-EndpointRow 'ROUTER PORT (UPNP)'       'Automatic router port forwarding status for direct internet connections.'                'LblConnRouter' 'RowConnRouter' 'BtnConnRouter' $Theme.dim   $false
 
-    # Styled Amber Callout Banner for TIP / Warning
+    # Styled Modern Semantic Callout Banner (Low-opacity warm amber with inline glyph)
     $noteBox = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $noteBox
     $noteBox.Anchor = 'Left,Right'
     $noteBox.AutoSize = $false
-    $noteBox.Height = 34
-    $noteBox.BackColor = [System.Drawing.Color]::FromArgb(30, 24, 14)
-    $noteBox.Padding = New-Object System.Windows.Forms.Padding(14, 7, 12, 7)
-    $noteBox.Margin = New-Object System.Windows.Forms.Padding(0, 6, 0, 2)
+    $noteBox.Height = 36
+    $noteBox.BackColor = [System.Drawing.Color]::FromArgb(26, 20, 10)
+    $noteBox.Padding = New-Object System.Windows.Forms.Padding(12, 8, 12, 8)
+    $noteBox.Margin = New-Object System.Windows.Forms.Padding(0, 8, 0, 4)
     $noteBox.Add_SizeChanged({ $this.Invalidate() })
     $noteBox.Add_Paint({
         param($s, $e)
         try {
-            $e.Graphics.DrawRectangle((Get-CachedPen ([System.Drawing.Color]::FromArgb(120, 86, 22)) 1), 0, 0, ($s.Width - 1), ($s.Height - 1))
-            $e.Graphics.FillRectangle((Get-CachedBrush $Theme.yellow), 0, 0, 4, $s.Height)
+            $g = $e.Graphics
+            $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+            $w = $s.Width - 3
+            $h = $s.Height - 3
+            if ($w -le 4 -or $h -le 4) { return }
+            $path = Get-RoundedRectPath 1 1 $w $h 6
+            try {
+                $fillBrush = Get-CachedBrush ([System.Drawing.Color]::FromArgb(28, 22, 12))
+                $borderPen = Get-CachedPen ([System.Drawing.Color]::FromArgb(65, 48, 18)) 1
+                $g.FillPath($fillBrush, $path)
+                $g.DrawPath($borderPen, $path)
+            } finally { $path.Dispose() }
+
+            # Subtle inline info indicator glyph
+            $badgeX = 12
+            $badgeY = [int](($s.Height - 16) / 2)
+            $badgePath = Get-RoundedRectPath $badgeX $badgeY 16 16 4
+            try {
+                $g.FillPath((Get-CachedBrush ([System.Drawing.Color]::FromArgb(48, 36, 16))), $badgePath)
+                $g.DrawPath((Get-CachedPen ([System.Drawing.Color]::FromArgb(120, 90, 30)) 1), $badgePath)
+            } finally { $badgePath.Dispose() }
+            $fBadge = Get-CachedFont 'Segoe UI' 7.5 ([System.Drawing.FontStyle]::Bold)
+            $rBadge = New-Object System.Drawing.Rectangle($badgeX, $badgeY, 16, 16)
+            [System.Windows.Forms.TextRenderer]::DrawText($g, 'i', $fBadge, $rBadge, $Theme.yellow, ([System.Windows.Forms.TextFormatFlags]::HorizontalCenter -bor [System.Windows.Forms.TextFormatFlags]::VerticalCenter))
         } catch { }
     })
     $script:ConnNoteBox = $noteBox
-    $script:LblConnNote = New-Lbl '' $Theme.yellow 8.5 18 $false
-    $script:LblConnNote.Location = New-Object System.Drawing.Point(14, 7)
+    $script:LblConnNote = New-Lbl '' ([System.Drawing.Color]::FromArgb(235, 195, 125)) 8.5 18 $false
+    $script:LblConnNote.Location = New-Object System.Drawing.Point(36, 8)
     $script:LblConnNote.AutoSize = $true
     $noteBox.Controls.Add($script:LblConnNote)
     $r = $connTlp.RowCount; $connTlp.RowCount = $r + 1
@@ -2227,7 +2320,7 @@ function Set-RowBtn($Btn, [string]$Text, [string]$TagVal) {
         $Btn.FlatAppearance.BorderColor = $Theme.border
     } else {
         $Btn.ForeColor = $Theme.text
-        $Btn.FlatAppearance.BorderColor = $Theme.border
+        $Btn.FlatAppearance.BorderColor = $Theme.btnBorder
     }
     $Btn.Invalidate()
     if (-not $Btn.Visible) { $Btn.Visible = $true }
