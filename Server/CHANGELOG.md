@@ -1,3 +1,24 @@
+## v0.7.2.2 - Update 12: Structural Edgeless Design Overhaul & Tactile Material Elevation
+
+- **Edgeless Design & Destruction of Legacy Boxes (`apple-design` & `emil-design-eng`):**
+  - **Outer Bounding Box Eradication**: Completely removed `BorderThickness` and outer card container borders from both the Hero Status Card (`$script:StatusCard`) and the Direct Connect Endpoints Matrix (`$script:ConnContent`), allowing data to sit cleanly on the canvas (`#09090b`).
+  - **Unsegregated KPI Telemetry Strip**: Eliminated individual bordered rectangle boxes from the 4 KPI metric chips ("SERVER NAME", "PORT (UDP/TCP)", "VISIBILITY", "GATEWAY STATUS"); layout is now structured purely through Margin, Padding, and high-contrast typography hierarchy.
+  - **Hairline Internal Row Dividers**: Enforced that the only lines rendered across the entire Dashboard are ultra-thin (1px), low-opacity (`rgba(255, 255, 255, 0.05)`) internal horizontal row dividers between matrix endpoints.
+
+- **Sidebar Re-architecture & Floating Shortcuts:**
+  - **Full-Width Low-Opacity Accent Fill**: Eradicated the legacy thin orange vertical indicator line; the active "Dashboard" state now spans the entire button width with a clean, low-opacity warm accent fill (`rgba(255, 115, 29, 0.10)`) and zero perimeter borders.
+  - **Cleanly Floating Shortcuts**: Completely stripped rectangular badge boundaries around keyboard shortcuts (`^H`, `^T`, `^M`, `^V`, `^U`, `^F`); shortcuts now float right-aligned inside each button with zero borders.
+  - **Seamless Inactive State**: Idle sidebar buttons render completely borderless and transparent, seamlessly blending into the `#111115` surface.
+
+- **Layered Material Elevation (Tactile Top Buttons):**
+  - **Multi-Layered Drop Shadows**: Implemented dual-layer GDI+ drop shadows (soft ambient shadow `rgba(0, 0, 0, 0.16)` + crisp contact shadow `rgba(0, 0, 0, 0.30)`) on top action buttons ("Copy Best IP", "Copy Invite", "Diagnose", "Refresh") and matrix action buttons, physically lifting them off the `#09090b` canvas.
+  - **Elevated `#1c1c24` Surface & Top Specular Catch-Light**: Applied subtle translucent borders (`rgba(255, 255, 255, 0.10)`) and a 1px top specular catch-light line across button upper edges.
+  - **Tactile Depression Feedback**: Integrated dynamic 1px depression shifts and shadow collapse on click (`$state -eq 'down'`).
+
+- **Semantic Callout Rebuild ("TIP" Box):**
+  - **Border Elimination & Solid `#291f00` Fill**: Stripped the stark yellow outline completely in favor of a solid `#291f00` (dark amber) background fill.
+  - **Rounded Corner Geometry**: Increased corner radius to 10px with an ambient amber circular icon badge and softened warm amber typography (`#fed7aa`).
+
 ## v0.7.2.1 - Update 11: Apple-Design UI Modernization, Runspace Latency Optimization & Dynamic Data-Binding Polish
 
 - **Sidebar Navigation Craft & Tactile Elevation:**
