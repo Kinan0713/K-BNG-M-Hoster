@@ -29,6 +29,10 @@
 - **Activity Console Streamer Hook Fix:**
   - Resolved an unassigned variable binding in `Add-LogBatch` where `$cleanLine` was not populated on normal log streams, restoring instant visibility for all server events, status updates, and diagnostic messages with correct timestamps and semantic colors.
 
+- **Dashboard Telemetry & Action Bar Alignment Fix:**
+  - Resolved `PORT (TCP+U...` truncation on standard and high-DPI displays by rebalancing KPI grid column styles (23% / 20% / 26% / 31%), modernizing the caption to `PORT (UDP/TCP)`, and optimizing value font sizing to prevent label ellipsis at all window sizes.
+  - Aligned the top action buttons (`Copy Best IP`, `Copy Invite`, `Diagnose`, `Refresh`) with uniform 28px height, 4px margins, and expanded card top/bottom padding (14px) eliminating vertical clipping and button misalignment.
+
 ## v0.7.1.1 - Update 9: Validation & input fixes
 
 - **No more false-positive validation errors:** the server key check no longer rejects

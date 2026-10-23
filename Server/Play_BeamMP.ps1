@@ -1,4 +1,4 @@
-﻿# ========================================================================================
+# ========================================================================================
 # K BNG M Hoster v0.7.2.0 - Simplest Edition (GUI)
 # All logic lives in HosterCore.ps1 (single source of truth). This file is the window.
 # Start_Here.bat / Play_BeamMP.bat only launch this file.
@@ -1946,7 +1946,7 @@ function Show-HomePage {
     $script:StatusCard.AutoSize = $false
     $script:StatusCard.Height = 142
     $script:StatusCard.BackColor = $Theme.card
-    $script:StatusCard.Padding = New-Object System.Windows.Forms.Padding(18, 12, 16, 12)
+    $script:StatusCard.Padding = New-Object System.Windows.Forms.Padding(18, 14, 16, 14)
     $script:StatusCard.Add_SizeChanged({ $this.Invalidate() })
     $script:StatusCard.Add_Paint({
         param($s, $e)
@@ -1969,7 +1969,7 @@ function Show-HomePage {
     $stTlp = New-Object System.Windows.Forms.TableLayoutPanel
     Enable-DoubleBuffer $stTlp
     $stTlp.SuspendLayout()
-    $stTlp.Location = New-Object System.Drawing.Point(18, 12)
+    $stTlp.Location = New-Object System.Drawing.Point(18, 14)
     $stTlp.AutoSize = $true
     $stTlp.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
     $stTlp.ColumnCount = 2
@@ -1981,7 +1981,7 @@ function Show-HomePage {
     $script:LblStatusBig = New-Lbl "$([char]0x25CF)  SERVER STANDBY" $Theme.yellow 13 28 $true
     $script:LblStatusBig.AutoSize = $true
     $script:LblStatusBig.Anchor = 'Left'
-    $script:LblStatusBig.Margin = New-Object System.Windows.Forms.Padding(0, 1, 14, 2)
+    $script:LblStatusBig.Margin = New-Object System.Windows.Forms.Padding(0, 0, 14, 0)
     $script:LblStatusBig.Font = Get-CachedFont 'Segoe UI Semibold' 13 ([System.Drawing.FontStyle]::Bold)
     $r = $stTlp.RowCount; $stTlp.RowCount = $r + 1
     $null = $stTlp.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
@@ -1997,14 +1997,17 @@ function Show-HomePage {
     $btnBar.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 0)
     $btnBar.Padding = New-Object System.Windows.Forms.Padding(0, 0, 0, 0)
     $script:BtnCopy = New-Btn 'Copy Best IP' 'Copy the best address for your friends to the clipboard (FRP > LAN > VPN > Tailscale > internet). (Ctrl+C)' { Copy-ConnectionLine }
-    $script:BtnCopy.Size = New-Object System.Drawing.Size(116, 30)
+    $script:BtnCopy.Size = New-Object System.Drawing.Size(108, 28)
+    $script:BtnCopy.Margin = New-Object System.Windows.Forms.Padding(4, 0, 0, 0)
     $script:BtnInvite = New-Btn 'Copy Invite' 'Copy a ready-made invite message (address + how to connect) to paste to your friends. Perfect for a private server.' { Copy-Invite }
-    $script:BtnInvite.Size = New-Object System.Drawing.Size(126, 30)
+    $script:BtnInvite.Size = New-Object System.Drawing.Size(104, 28)
+    $script:BtnInvite.Margin = New-Object System.Windows.Forms.Padding(4, 0, 0, 0)
     $script:BtnDiag = New-Btn 'Diagnose' 'Run a full live diagnosis and show a plain-language report of any problem. (Ctrl+D)' { Run-Diagnose }
-    $script:BtnDiag.Size = New-Object System.Drawing.Size(92, 30)
+    $script:BtnDiag.Size = New-Object System.Drawing.Size(84, 28)
+    $script:BtnDiag.Margin = New-Object System.Windows.Forms.Padding(4, 0, 0, 0)
     $script:BtnRefreshHome = New-Btn 'Refresh' 'Re-check every address and the server status right now. (The page also refreshes by itself every few seconds while the server runs.)' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$State.Conn = Get-ConnectionInfo`nSay ""Addresses refreshed."" " 'live' }
-    $script:BtnRefreshHome.Size = New-Object System.Drawing.Size(84, 30)
-    $script:BtnRefreshHome.Margin = New-Object System.Windows.Forms.Padding(3, 0, 0, 0)
+    $script:BtnRefreshHome.Size = New-Object System.Drawing.Size(78, 28)
+    $script:BtnRefreshHome.Margin = New-Object System.Windows.Forms.Padding(4, 0, 0, 0)
     $btnBar.Controls.Add($script:BtnCopy)
     $btnBar.Controls.Add($script:BtnInvite)
     $btnBar.Controls.Add($script:BtnDiag)
@@ -2017,13 +2020,13 @@ function Show-HomePage {
     $kpiGrid.SuspendLayout()
     $kpiGrid.Anchor = 'Left,Right'
     $kpiGrid.Height = 52
-    $kpiGrid.Margin = New-Object System.Windows.Forms.Padding(0, 8, 0, 4)
+    $kpiGrid.Margin = New-Object System.Windows.Forms.Padding(0, 10, 0, 4)
     $kpiGrid.ColumnCount = 4
     $kpiGrid.RowCount = 1
-    $null = $kpiGrid.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 28)))
-    $null = $kpiGrid.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 18)))
-    $null = $kpiGrid.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 24)))
-    $null = $kpiGrid.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 30)))
+    $null = $kpiGrid.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 23)))
+    $null = $kpiGrid.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 20)))
+    $null = $kpiGrid.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 26)))
+    $null = $kpiGrid.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 31)))
     $null = $kpiGrid.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100)))
 
     function New-KpiChip([int]$ColIdx, [string]$Caption, [string]$VarName, [bool]$IsLast = $false) {
@@ -2032,9 +2035,9 @@ function Show-HomePage {
         $chip.Size = New-Object System.Drawing.Size(200, 52)
         $chip.Dock = 'Fill'
         $chip.BackColor = [System.Drawing.Color]::FromArgb(20, 20, 25)
-        $rightPad = if ($IsLast) { 0 } else { 10 }
+        $rightPad = if ($IsLast) { 0 } else { 8 }
         $chip.Margin = New-Object System.Windows.Forms.Padding(0, 0, $rightPad, 0)
-        $chip.Padding = New-Object System.Windows.Forms.Padding(12, 6, 10, 6)
+        $chip.Padding = New-Object System.Windows.Forms.Padding(10, 6, 8, 6)
         $chip.Add_SizeChanged({ $this.Invalidate() })
         $chip.Add_Paint({
             param($s, $e)
@@ -2051,14 +2054,14 @@ function Show-HomePage {
         })
         $lCap = New-Lbl $Caption ([System.Drawing.Color]::FromArgb(136, 136, 148)) 7.5 14 $true
         $lCap.AutoSize = $false
-        $lCap.Location = New-Object System.Drawing.Point(12, 7)
-        $lCap.Size = New-Object System.Drawing.Size(180, 14)
+        $lCap.Location = New-Object System.Drawing.Point(10, 7)
+        $lCap.Size = New-Object System.Drawing.Size(182, 14)
         $lCap.Anchor = 'Top,Left,Right'
         $lCap.AutoEllipsis = $true
-        $lVal = New-Lbl '-' ([System.Drawing.Color]::FromArgb(244, 244, 248)) 10.25 22 $true
+        $lVal = New-Lbl '-' ([System.Drawing.Color]::FromArgb(244, 244, 248)) 9.75 22 $true
         $lVal.AutoSize = $false
-        $lVal.Location = New-Object System.Drawing.Point(12, 23)
-        $lVal.Size = New-Object System.Drawing.Size(180, 22)
+        $lVal.Location = New-Object System.Drawing.Point(10, 23)
+        $lVal.Size = New-Object System.Drawing.Size(182, 22)
         $lVal.Anchor = 'Top,Left,Right'
         $lVal.AutoEllipsis = $true
         $chip.Controls.Add($lCap)
@@ -2067,7 +2070,7 @@ function Show-HomePage {
         Set-Variable -Name $VarName -Value $lVal -Scope Script
     }
     New-KpiChip 0 'SERVER NAME'    'LblKpiServer' $false
-    New-KpiChip 1 'PORT (TCP+UDP)' 'LblKpiPort'   $false
+    New-KpiChip 1 'PORT (UDP/TCP)' 'LblKpiPort'   $false
     New-KpiChip 2 'VISIBILITY'     'LblKpiVis'    $false
     New-KpiChip 3 'GATEWAY STATUS' 'LblKpiGate'   $true
     $kpiGrid.ResumeLayout($false)
@@ -2516,7 +2519,7 @@ function Refresh-Dashboard {
     }
 
     # 6. Public Internet (WAN)
-    $invText = if ($isPrivate) { 'Copy Invite (Private)' } else { 'Copy Invite' }
+    $invText = 'Copy Invite'
     if ($script:BtnInvite.Text -ne $invText) {
         $script:BtnInvite.Text = $invText
         $script:BtnInvite.Invalidate()
