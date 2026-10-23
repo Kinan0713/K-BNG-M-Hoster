@@ -1,4 +1,4 @@
-﻿# ========================================================================================
+# ========================================================================================
 # K BNG M Hoster v0.7.1.1 - HosterCore.ps1
 # All logic lives here (single source of truth). The GUI (Play_BeamMP.ps1) and every
 # background task load this file and call these functions. No console UI in this file.
@@ -1302,9 +1302,15 @@ function Start-PlayitAgent {
 # ---------------------------------------------------------------------------------------
 # UPnP
 # ---------------------------------------------------------------------------------------
+$script:CachedUpnpControl = $null
+$script:CachedUpnpTime = $null
+
 function Get-UpnpControlUrl {
+    if ($script:CachedUpnpControl -and $script:CachedUpnpTime -and ((Get-Date) - $script:CachedUpnpTime).TotalMinutes -lt 10) {
+        return $script:CachedUpnpControl
+    }
     $client = New-Object System.Net.Sockets.UdpClient
-    $client.Client.ReceiveTimeout = 2000
+    $client.Client.ReceiveTimeout = 1500
     # Bind to the LAN interface so VPN adapters (Radmin/Tailscale/ZeroTier...)
     # cannot hijack the SSDP multicast - without this the router never hears us
     # and UPnP "does not work" even though it is enabled in the router.
@@ -1319,19 +1325,22 @@ function Get-UpnpControlUrl {
     try {
         $client.Send($bytes, $bytes.Length, $endpoint) | Out-Null
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        while ($sw.ElapsedMilliseconds -lt 6000) {
+        while ($sw.ElapsedMilliseconds -lt 1800) {
             try {
                 $resp = $client.Receive([ref]$endpoint)
                 $text = [System.Text.Encoding]::ASCII.GetString($resp)
                 $locLine = $text -split "`r?`n" | Where-Object { $_ -match '^LOCATION:\s*(.+)$' } | Select-Object -First 1
-                if ($locLine -and $locLine -match '^LOCATION:\s*(.+)$') { $locations[$Matches[1].Trim()] = $true }
+                if ($locLine -and $locLine -match '^LOCATION:\s*(.+)$') {
+                    $locations[$Matches[1].Trim()] = $true
+                    break
+                }
             } catch { break }
         }
     } catch { }
     $client.Close()
     foreach ($url in $locations.Keys) {
         try {
-            $xml = [xml](Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5).Content
+            $xml = [xml](Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 3).Content
             foreach ($svc in $xml.SelectNodes('//*[local-name()="service"]')) {
                 $stNode = $svc.SelectSingleNode('*[local-name()="serviceType"]')
                 $cuNode = $svc.SelectSingleNode('*[local-name()="controlURL"]')
@@ -1343,7 +1352,10 @@ function Get-UpnpControlUrl {
                     if ($ctrl -match '^/') { $ctrl = ($url -replace '^(https?://[^/]+).*$', '$1') + $ctrl }
                     else { $ctrl = $url.Substring(0, $url.LastIndexOf('/') + 1) + $ctrl }
                 }
-                return @{ ServiceType = $st; ControlUrl = $ctrl }
+                $res = @{ ServiceType = $st; ControlUrl = $ctrl }
+                $script:CachedUpnpControl = $res
+                $script:CachedUpnpTime = Get-Date
+                return $res
             }
         } catch { }
     }
@@ -1441,10 +1453,17 @@ function Get-PublicIpCached {
         } catch { }
     }
     $public = ''
-    try {
-        $public = (Invoke-RestMethod -Uri 'https://api.ipify.org' -TimeoutSec 8).ToString().Trim()
-        if ($public) { @{ ip = $public; checked = (Get-Date).ToString('o') } | ConvertTo-Json | Set-Content -LiteralPath $cache }
-    } catch { }
+    $endpoints = @('https://api.ipify.org', 'https://icanhazip.com', 'https://ifconfig.me/ip')
+    foreach ($ep in $endpoints) {
+        try {
+            $resp = (Invoke-RestMethod -Uri $ep -TimeoutSec 3).ToString().Trim()
+            if ($resp -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') {
+                $public = $resp
+                @{ ip = $public; checked = (Get-Date).ToString('o') } | ConvertTo-Json | Set-Content -LiteralPath $cache
+                break
+            }
+        } catch { }
+    }
     return $public
 }
 

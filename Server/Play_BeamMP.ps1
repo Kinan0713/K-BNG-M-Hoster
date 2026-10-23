@@ -141,7 +141,7 @@ $script:State = @{
     Frp           = ''
     FrpError      = ''
 }
-$script:AppVersion = '0.7.2.0'
+$script:AppVersion = '0.7.2.1'
 $script:CorePath = Join-Path $PSScriptRoot 'HosterCore.ps1'
 $script:CoreText = "`$script:CorePath = '" + ($script:CorePath -replace "'", "''") + "'`r`n" + (Get-Content -LiteralPath $script:CorePath -Raw)
 $script:PendingAction = $null
@@ -254,8 +254,18 @@ function Get-CachedBrush([System.Drawing.Color]$Color) {
 function Set-CtrlText($Ctrl, [string]$Text, $ForeColor = $null) {
     if (-not $Ctrl) { return $false }
     $changed = $false
-    if ($Ctrl.Text -cne $Text) { $Ctrl.Text = $Text; $changed = $true }
-    if ($null -ne $ForeColor -and $Ctrl.ForeColor -ne $ForeColor) { $Ctrl.ForeColor = $ForeColor; $changed = $true }
+    if ($Ctrl.Text -cne $Text) {
+        $Ctrl.Text = $Text
+        $changed = $true
+    }
+    if ($null -ne $ForeColor -and $Ctrl.ForeColor.ToArgb() -ne $ForeColor.ToArgb()) {
+        $Ctrl.ForeColor = $ForeColor
+        $changed = $true
+    }
+    if ($changed) {
+        $Ctrl.Invalidate()
+        if ($Ctrl.Parent) { $Ctrl.Parent.Invalidate() }
+    }
     return $changed
 }
 
@@ -334,28 +344,52 @@ function New-Btn([string]$Text, [string]$Tip, [scriptblock]$OnClick) {
             $isNav = ($s.AccessibleRole -eq [System.Windows.Forms.AccessibleRole]::MenuItem)
             $isActiveNav = ($s.AccessibleName -eq 'nav-active')
             $state = $s.AccessibleDescription
+            $isStartBtn = ($script:BtnStart -and $s -eq $script:BtnStart)
+            $isStopBtn = ($script:BtnStop -and $s -eq $script:BtnStop)
 
             if (-not $s.Enabled) {
-                $fillCol = if ($isNav) { [System.Drawing.Color]::FromArgb(20, 20, 24) } else { [System.Drawing.Color]::FromArgb(20, 20, 25) }
-                $borderCol = if ($isNav) { [System.Drawing.Color]::FromArgb(30, 30, 36) } else { [System.Drawing.Color]::FromArgb(34, 34, 42) }
-                $textCol = $Theme.muted
+                if ($isStopBtn) {
+                    # Standby: Visually recessed but cleanly styled
+                    $fillCol = [System.Drawing.Color]::FromArgb(16, 16, 21)
+                    $borderCol = [System.Drawing.Color]::FromArgb(28, 28, 36)
+                    $textCol = [System.Drawing.Color]::FromArgb(90, 90, 104)
+                } elseif ($isStartBtn) {
+                    $fillCol = [System.Drawing.Color]::FromArgb(20, 20, 26)
+                    $borderCol = [System.Drawing.Color]::FromArgb(34, 34, 42)
+                    $textCol = $Theme.muted
+                } else {
+                    $fillCol = if ($isNav) { [System.Drawing.Color]::FromArgb(20, 20, 24) } else { [System.Drawing.Color]::FromArgb(20, 20, 25) }
+                    $borderCol = if ($isNav) { [System.Drawing.Color]::FromArgb(30, 30, 36) } else { [System.Drawing.Color]::FromArgb(34, 34, 42) }
+                    $textCol = $Theme.muted
+                }
             } else {
-                if ($isNav) {
+                if ($isStartBtn) {
+                    # Tactile Material Emerald elevation for Start Server
+                    $fillCol = if ($state -eq 'down') { [System.Drawing.Color]::FromArgb(12, 100, 70) } elseif ($state -eq 'hover') { [System.Drawing.Color]::FromArgb(20, 150, 105) } else { [System.Drawing.Color]::FromArgb(16, 128, 90) }
+                    $borderCol = if ($state -eq 'hover') { [System.Drawing.Color]::FromArgb(52, 211, 153) } else { [System.Drawing.Color]::FromArgb(40, 180, 125) }
+                    $textCol = [System.Drawing.Color]::White
+                } elseif ($isStopBtn) {
+                    # Tactile Crimson action elevation for Stop Server
+                    $fillCol = if ($state -eq 'down') { [System.Drawing.Color]::FromArgb(115, 18, 40) } elseif ($state -eq 'hover') { [System.Drawing.Color]::FromArgb(180, 32, 65) } else { [System.Drawing.Color]::FromArgb(148, 24, 52) }
+                    $borderCol = if ($state -eq 'hover') { [System.Drawing.Color]::FromArgb(251, 113, 133) } else { [System.Drawing.Color]::FromArgb(244, 63, 94) }
+                    $textCol = [System.Drawing.Color]::White
+                } elseif ($isNav) {
                     if ($isActiveNav) {
-                        $fillCol = $Theme.btnAct
-                        $borderCol = $Theme.accentDim
+                        # Modern active state: soft semi-transparent accent fill with ultra-subtle edge (no harsh orange bounding box)
+                        $fillCol = [System.Drawing.Color]::FromArgb(32, 255, 115, 29)
+                        $borderCol = [System.Drawing.Color]::FromArgb(18, 255, 255, 255)
                         $textCol = [System.Drawing.Color]::White
                     } elseif ($state -eq 'down') {
-                        $fillCol = $Theme.surface
-                        $borderCol = $Theme.borderHi
+                        $fillCol = [System.Drawing.Color]::FromArgb(24, 24, 30)
+                        $borderCol = [System.Drawing.Color]::FromArgb(44, 44, 54)
                         $textCol = [System.Drawing.Color]::White
                     } elseif ($state -eq 'hover') {
-                        $fillCol = [System.Drawing.Color]::FromArgb(34, 34, 41)
-                        $borderCol = $Theme.borderHi
+                        $fillCol = [System.Drawing.Color]::FromArgb(32, 32, 40)
+                        $borderCol = [System.Drawing.Color]::FromArgb(48, 48, 60)
                         $textCol = [System.Drawing.Color]::White
                     } else {
-                        $fillCol = [System.Drawing.Color]::FromArgb(23, 23, 27)
-                        $borderCol = [System.Drawing.Color]::FromArgb(33, 33, 40)
+                        $fillCol = [System.Drawing.Color]::FromArgb(20, 20, 25)
+                        $borderCol = [System.Drawing.Color]::FromArgb(30, 30, 38)
                         $textCol = $Theme.textSec
                     }
                 } else {
@@ -390,8 +424,15 @@ function New-Btn([string]$Text, [string]$Tip, [scriptblock]$OnClick) {
                 $path.Dispose()
             }
 
+            # Specular catch-light for tactile primary and active buttons
+            if (($isStartBtn -and $s.Enabled) -or ($isStopBtn -and $s.Enabled)) {
+                $g.DrawLine((Get-CachedPen ([System.Drawing.Color]::FromArgb(60, 255, 255, 255)) 1), 6, 1, ($w - 5), 1)
+            }
+
+            # Solid left-edge indicator for active sidebar navigation
             if ($isNav -and $isActiveNav) {
-                $g.FillRectangle((Get-CachedBrush $Theme.blue), 2, 8, 3, ($s.Height - 16))
+                $indPath = Get-RoundedRectPath 3 7 3 ($s.Height - 14) 1
+                try { $g.FillPath((Get-CachedBrush $Theme.accent), $indPath) } finally { $indPath.Dispose() }
             }
 
             $flags = [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::SingleLine -bor [System.Windows.Forms.TextFormatFlags]::EndEllipsis -bor [System.Windows.Forms.TextFormatFlags]::NoPrefix
@@ -405,22 +446,16 @@ function New-Btn([string]$Text, [string]$Tip, [scriptblock]$OnClick) {
             }
             [System.Windows.Forms.TextRenderer]::DrawText($g, $s.Text, $s.Font, $rect, $textCol, $flags)
 
+            # Typographically softened keyboard shortcuts (organically blended, no rigid boxes)
             if ($isNav -and $s.Name) {
-                $kw = 26
+                $kw = 28
                 $kh = 16
-                $kx = $s.Width - $kw - 9
+                $kx = $s.Width - $kw - 10
                 $ky = [int](($s.Height - $kh) / 2)
-                $kPath = Get-RoundedRectPath $kx $ky $kw $kh 4
-                try {
-                    $kBg = if ($isActiveNav) { [System.Drawing.Color]::FromArgb(44, 22, 12) } else { [System.Drawing.Color]::FromArgb(18, 18, 22) }
-                    $kBd = if ($isActiveNav) { $Theme.accentDim } else { [System.Drawing.Color]::FromArgb(38, 38, 46) }
-                    $kFg = if ($isActiveNav) { $Theme.blue } else { $Theme.muted }
-                    $g.FillPath((Get-CachedBrush $kBg), $kPath)
-                    $g.DrawPath((Get-CachedPen $kBd 1), $kPath)
-                    $rKey = New-Object System.Drawing.Rectangle($kx, $ky, $kw, $kh)
-                    $kFlags = [System.Windows.Forms.TextFormatFlags]::HorizontalCenter -bor [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::SingleLine
-                    [System.Windows.Forms.TextRenderer]::DrawText($g, $s.Name, $script:NavKeyFont, $rKey, $kFg, $kFlags)
-                } finally { $kPath.Dispose() }
+                $rKey = New-Object System.Drawing.Rectangle($kx, $ky, $kw, $kh)
+                $kFg = if ($isActiveNav) { [System.Drawing.Color]::FromArgb(255, 180, 135) } elseif ($state -eq 'hover') { [System.Drawing.Color]::FromArgb(180, 180, 195) } else { [System.Drawing.Color]::FromArgb(105, 105, 118) }
+                $kFlags = [System.Windows.Forms.TextFormatFlags]::HorizontalCenter -bor [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::SingleLine
+                [System.Windows.Forms.TextRenderer]::DrawText($g, $s.Name, $script:NavKeyFont, $rKey, $kFg, $kFlags)
             }
         } catch { }
     })
@@ -437,9 +472,9 @@ function Set-ActiveNav($ActiveBtn) {
         if ($nb.AccessibleName -ne $wantName) {
             $nb.AccessibleName = $wantName
             if ($nb -eq $ActiveBtn) {
-                $nb.BackColor = $Theme.btnAct
+                $nb.BackColor = [System.Drawing.Color]::FromArgb(32, 255, 115, 29)
                 $nb.ForeColor = [System.Drawing.Color]::White
-                $nb.FlatAppearance.BorderColor = $Theme.blue
+                $nb.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(18, 255, 255, 255)
             } else {
                 $nb.BackColor = $Theme.btn
                 $nb.ForeColor = $Theme.text
@@ -813,6 +848,7 @@ function Add-LogBatch([string[]]$Lines) {
         }
         $script:LogBox.SelectionStart = $script:LogBox.TextLength
         $script:LogBox.ScrollToCaret()
+        if ($script:SyncLogScroll) { & $script:SyncLogScroll }
     } finally {
         $script:LogBox.ResumeLayout()
     }
@@ -1281,6 +1317,7 @@ function Set-StreamerMode([bool]$Enabled) {
                 $script:LogBox.Text = $clean
                 $script:LogBox.SelectionStart = $script:LogBox.TextLength
                 $script:LogBox.ScrollToCaret()
+                if ($script:SyncLogScroll) { & $script:SyncLogScroll }
                 $script:LogBox.ResumeLayout($true)
             }
         } catch { }
@@ -1460,18 +1497,18 @@ $script:BtnHeaderStreamer.Add_Paint({
         $pillY = [int](($s.Height - $pillH) / 2)
 
         if ($active) {
-            # Protective Emerald Shield Theme
-            $bgCol = if ($down) { [System.Drawing.Color]::FromArgb(45, 16, 120, 85) } elseif ($hov) { [System.Drawing.Color]::FromArgb(50, 16, 160, 110) } else { [System.Drawing.Color]::FromArgb(35, 16, 135, 95) }
-            $borderCol = if ($hov) { [System.Drawing.Color]::FromArgb(60, 230, 170) } else { [System.Drawing.Color]::FromArgb(16, 185, 129) }
+            # Modern Emerald Shield Activation with distinct color-shift surface
+            $bgCol = if ($down) { [System.Drawing.Color]::FromArgb(45, 12, 100, 70) } elseif ($hov) { [System.Drawing.Color]::FromArgb(50, 16, 140, 95) } else { [System.Drawing.Color]::FromArgb(35, 16, 128, 88) }
+            $borderCol = if ($hov) { [System.Drawing.Color]::FromArgb(100, 52, 211, 153) } else { [System.Drawing.Color]::FromArgb(65, 52, 211, 153) }
             $thumbCol = [System.Drawing.Color]::FromArgb(52, 211, 153)
             $textCol = [System.Drawing.Color]::FromArgb(52, 211, 153)
             $statusText = 'STREAMER: ON'
         } else {
-            # Quiet Elevated Dark Zinc Theme
-            $bgCol = if ($down) { [System.Drawing.Color]::FromArgb(18, 18, 23) } elseif ($hov) { [System.Drawing.Color]::FromArgb(32, 32, 40) } else { [System.Drawing.Color]::FromArgb(24, 24, 30) }
-            $borderCol = if ($hov) { [System.Drawing.Color]::FromArgb(65, 65, 78) } else { [System.Drawing.Color]::FromArgb(44, 44, 54) }
-            $thumbCol = if ($hov) { [System.Drawing.Color]::FromArgb(140, 140, 155) } else { [System.Drawing.Color]::FromArgb(90, 90, 105) }
-            $textCol = if ($hov) { [System.Drawing.Color]::FromArgb(200, 200, 215) } else { [System.Drawing.Color]::FromArgb(140, 140, 155) }
+            # Soft-elevated #1c1c24 dark zinc surface with subtle translucent border
+            $bgCol = if ($down) { [System.Drawing.Color]::FromArgb(18, 18, 24) } elseif ($hov) { [System.Drawing.Color]::FromArgb(32, 32, 42) } else { [System.Drawing.Color]::FromArgb(24, 24, 32) }
+            $borderCol = if ($hov) { [System.Drawing.Color]::FromArgb(45, 255, 255, 255) } else { [System.Drawing.Color]::FromArgb(20, 255, 255, 255) }
+            $thumbCol = if ($hov) { [System.Drawing.Color]::FromArgb(150, 150, 165) } else { [System.Drawing.Color]::FromArgb(100, 100, 115) }
+            $textCol = if ($hov) { [System.Drawing.Color]::FromArgb(225, 225, 235) } else { [System.Drawing.Color]::FromArgb(150, 150, 165) }
             $statusText = 'STREAMER: OFF'
         }
 
@@ -1481,17 +1518,17 @@ $script:BtnHeaderStreamer.Add_Paint({
             $g.DrawPath((Get-CachedPen $borderCol 1), $path)
         } finally { $path.Dispose() }
 
-        # Thumb indicator switch (10x10 pill dot)
-        $dotSz = 10
+        # Tactile switch indicator dot
+        $dotSz = 8
         $dotX = $pillX + 8
         $dotY = $pillY + [int](($pillH - $dotSz) / 2)
         $g.FillEllipse((Get-CachedBrush $thumbCol), $dotX, $dotY, $dotSz, $dotSz)
         if ($active) {
-            $g.FillEllipse((Get-CachedBrush [System.Drawing.Color]::White), ($dotX + 3), ($dotY + 3), 4, 4)
+            $g.FillEllipse((Get-CachedBrush [System.Drawing.Color]::White), ($dotX + 2), ($dotY + 2), 4, 4)
         }
 
         $fBtn = Get-CachedFont 'Segoe UI Semibold' 8 ([System.Drawing.FontStyle]::Bold)
-        $rText = New-Object System.Drawing.Rectangle(($dotX + $dotSz + 6), $pillY, ($pillW - $dotSz - 16), $pillH)
+        $rText = New-Object System.Drawing.Rectangle(($dotX + $dotSz + 7), $pillY, ($pillW - $dotSz - 16), $pillH)
         [System.Windows.Forms.TextRenderer]::DrawText($g, $statusText, $fBtn, $rText, $textCol, ([System.Windows.Forms.TextFormatFlags]::Left -bor [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::NoPrefix))
     } catch { }
 })
@@ -1522,17 +1559,26 @@ $sidebar.Add_Paint({
     } catch { }
 })
 
-# Server Control Pod inside sidebar
+# Server Control Pod inside sidebar (Tactile elevated pod container)
 $ctrlPod = New-Object System.Windows.Forms.Panel
 Enable-DoubleBuffer $ctrlPod
 $ctrlPod.BackColor = $Theme.card
 $ctrlPod.Location = New-Object System.Drawing.Point(12, 14)
-$ctrlPod.Size = New-Object System.Drawing.Size(200, 94)
+$ctrlPod.Size = New-Object System.Drawing.Size(200, 96)
 $ctrlPod.Add_Paint({
     param($s, $e)
     try {
-        $e.Graphics.DrawRectangle((Get-CachedPen $Theme.border 1), 0, 0, ($s.Width - 1), ($s.Height - 1))
-        $e.Graphics.DrawLine((Get-CachedPen $Theme.borderHi 1), 1, 0, ($s.Width - 2), 0)
+        $g = $e.Graphics
+        $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $w = $s.Width - 1
+        $h = $s.Height - 1
+        if ($w -le 2 -or $h -le 2) { return }
+        $path = Get-RoundedRectPath 0 0 $w $h 8
+        try {
+            $g.FillPath((Get-CachedBrush ([System.Drawing.Color]::FromArgb(18, 18, 23))), $path)
+            $g.DrawPath((Get-CachedPen ([System.Drawing.Color]::FromArgb(38, 38, 48)) 1), $path)
+        } finally { $path.Dispose() }
+        $g.DrawLine((Get-CachedPen ([System.Drawing.Color]::FromArgb(55, 55, 68)) 1), 8, 0, ($w - 8), 0)
     } catch { }
 })
 
@@ -1547,11 +1593,12 @@ $script:BtnStart.Font = Get-CachedFont 'Segoe UI Semibold' 10 ([System.Drawing.F
 
 $script:BtnStop = New-Btn "$stopIcon  Stop Server" 'Stop the running server. Closing the launcher window also stops it. (Ctrl+X)' { Stop-ServerFlow }
 $script:BtnStop.Location = New-Object System.Drawing.Point(10, 54)
-$script:BtnStop.Size = New-Object System.Drawing.Size(180, 30)
+$script:BtnStop.Size = New-Object System.Drawing.Size(180, 32)
 $script:BtnStop.BackColor = $Theme.btnDanger
 $script:BtnStop.FlatAppearance.MouseOverBackColor = $Theme.btnDangerHov
 $script:BtnStop.FlatAppearance.BorderColor = $Theme.btnDangerBorder
 $script:BtnStop.ForeColor = [System.Drawing.Color]::White
+$script:BtnStop.Font = Get-CachedFont 'Segoe UI Semibold' 9 ([System.Drawing.FontStyle]::Regular)
 $script:BtnStop.Enabled = $false
 
 $ctrlPod.Controls.Add($script:BtnStart)
@@ -1766,14 +1813,134 @@ $logFrame = New-Object System.Windows.Forms.Panel
 Enable-DoubleBuffer $logFrame
 $logFrame.Dock = 'Fill'
 $logFrame.BackColor = $Theme.log
-$logFrame.Padding = New-Object System.Windows.Forms.Padding(10, 6, 6, 6)
+$logFrame.Padding = New-Object System.Windows.Forms.Padding(14, 8, 4, 8)
 $logFrame.Add_SizeChanged({ $this.Invalidate() })
 $logFrame.Add_Paint({
     param($s, $e)
     try {
-        $e.Graphics.DrawRectangle((Get-CachedPen $Theme.border 1), 0, 0, ($s.Width - 1), ($s.Height - 1))
+        $g = $e.Graphics
+        $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $w = $s.Width - 1
+        $h = $s.Height - 1
+        if ($w -le 2 -or $h -le 2) { return }
+        $path = Get-RoundedRectPath 0 0 $w $h 6
+        try {
+            $g.DrawPath((Get-CachedPen ([System.Drawing.Color]::FromArgb(38, 38, 48)) 1), $path)
+        } finally { $path.Dispose() }
+        $g.DrawLine((Get-CachedPen ([System.Drawing.Color]::FromArgb(55, 55, 68)) 1), 6, 0, ($w - 6), 0)
     } catch { }
 })
+
+# Slim Modern Dark Scrollbar (Eliminates stark-white Win32 scrollbar)
+$logSb = New-Object System.Windows.Forms.Panel
+Enable-DoubleBuffer $logSb
+$logSb.Width = 10
+$logSb.Dock = [System.Windows.Forms.DockStyle]::Right
+$logSb.BackColor = $Theme.log
+$logSb.Cursor = [System.Windows.Forms.Cursors]::Hand
+
+$logSbState = @{
+    IsDragging = $false
+    IsHovered = $false
+    DragStartY = 0
+    DragStartLine = 0
+}
+$logSb.Tag = $logSbState
+
+$syncLogScroll = {
+    if (-not $script:LogBox -or $script:LogBox.IsDisposed -or -not $logSb -or $logSb.IsDisposed) { return }
+    $logSb.Invalidate()
+}.GetNewClosure()
+$script:SyncLogScroll = $syncLogScroll
+
+$calcLogThumb = {
+    param($sbW, $sbH)
+    if (-not $script:LogBox -or $script:LogBox.IsDisposed -or $sbH -le 10) { return [System.Drawing.Rectangle]::Empty }
+    $tot = [Win32Chrome]::SendMessage($script:LogBox.Handle, 0x00BA, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32()
+    $lineH = [math]::Max(12, $script:LogBox.Font.Height)
+    $vis = [int][math]::Max(1, ($script:LogBox.ClientSize.Height / $lineH))
+    if ($tot -le $vis -or $tot -le 0) { return [System.Drawing.Rectangle]::Empty }
+    $thumbH = [int][math]::Max(24, [math]::Min($sbH, ($vis / $tot * $sbH)))
+    $availH = $sbH - $thumbH
+    $first = [Win32Chrome]::SendMessage($script:LogBox.Handle, 0x00CE, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32()
+    $maxS = [math]::Max(1, ($tot - $vis))
+    $thumbY = if ($maxS -gt 0) { [int]([math]::Min(1.0, ($first / $maxS)) * $availH) } else { 0 }
+    $thumbY = [int][math]::Max(0, [math]::Min($availH, $thumbY))
+    return (New-Object System.Drawing.Rectangle(3, $thumbY, 4, $thumbH))
+}.GetNewClosure()
+
+$logSb.Add_Paint({
+    param($s, $e)
+    try {
+        $tr = & $calcLogThumb $s.Width $s.Height
+        if ($tr.IsEmpty -or $tr.Height -le 0) { return }
+        $g = $e.Graphics
+        $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $col = if ($s.Tag.IsDragging) {
+            [System.Drawing.Color]::FromArgb(255, 115, 29)
+        } elseif ($s.Tag.IsHovered) {
+            [System.Drawing.Color]::FromArgb(113, 113, 122)
+        } else {
+            [System.Drawing.Color]::FromArgb(60, 60, 72)
+        }
+        $brush = Get-CachedBrush $col
+        $path = Get-RoundedRectPath $tr.X $tr.Y $tr.Width $tr.Height 2
+        try { $g.FillPath($brush, $path) } finally { $path.Dispose() }
+    } catch { }
+})
+
+$logSb.Add_MouseEnter({ $this.Tag.IsHovered = $true; $this.Invalidate() })
+$logSb.Add_MouseLeave({ $this.Tag.IsHovered = $false; $this.Invalidate() })
+$logSb.Add_MouseDown({
+    param($s, $e)
+    try {
+        if ($e.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
+            $tr = & $calcLogThumb $s.Width $s.Height
+            $tot = [Win32Chrome]::SendMessage($script:LogBox.Handle, 0x00BA, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32()
+            $lineH = [math]::Max(12, $script:LogBox.Font.Height)
+            $vis = [int][math]::Max(1, ($script:LogBox.ClientSize.Height / $lineH))
+            if ($tr.Height -gt 0 -and $e.Y -ge ($tr.Top - 4) -and $e.Y -le ($tr.Bottom + 4)) {
+                $s.Tag.IsDragging = $true
+                $s.Tag.DragStartY = $e.Y
+                $s.Tag.DragStartLine = [Win32Chrome]::SendMessage($script:LogBox.Handle, 0x00CE, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32()
+                $s.Capture = $true
+            } else {
+                $cur = [Win32Chrome]::SendMessage($script:LogBox.Handle, 0x00CE, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32()
+                $step = if ($tr.Height -gt 0 -and $e.Y -lt $tr.Top) { -$vis } else { $vis }
+                [Win32Chrome]::SendMessage($script:LogBox.Handle, 0x00B6, [IntPtr]::Zero, [IntPtr]$step) | Out-Null
+                $s.Invalidate()
+            }
+        }
+    } catch { }
+})
+$logSb.Add_MouseMove({
+    param($s, $e)
+    try {
+        if ($s.Tag.IsDragging -and $e.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
+            $tot = [Win32Chrome]::SendMessage($script:LogBox.Handle, 0x00BA, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32()
+            $lineH = [math]::Max(12, $script:LogBox.Font.Height)
+            $vis = [int][math]::Max(1, ($script:LogBox.ClientSize.Height / $lineH))
+            $maxS = [math]::Max(1, ($tot - $vis))
+            $availH = [math]::Max(1, ($s.Height - 24))
+            $dY = $e.Y - $s.Tag.DragStartY
+            $dLine = [int](($dY / $availH) * $maxS)
+            $targetLine = [int][math]::Max(0, [math]::Min($maxS, ($s.Tag.DragStartLine + $dLine)))
+            $cur = [Win32Chrome]::SendMessage($script:LogBox.Handle, 0x00CE, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32()
+            $diff = $targetLine - $cur
+            if ($diff -ne 0) {
+                [Win32Chrome]::SendMessage($script:LogBox.Handle, 0x00B6, [IntPtr]::Zero, [IntPtr]$diff) | Out-Null
+                $s.Invalidate()
+            }
+        }
+    } catch { }
+})
+$logSb.Add_MouseUp({
+    param($s, $e)
+    $s.Tag.IsDragging = $false
+    $s.Capture = $false
+    $s.Invalidate()
+})
+
 $script:LogBox = New-Object System.Windows.Forms.RichTextBox
 $script:LogBox.ReadOnly = $true
 $script:LogBox.BackColor = $Theme.log
@@ -1781,9 +1948,18 @@ $script:LogBox.ForeColor = $Theme.textSec
 $script:LogBox.BorderStyle = 'None'
 $script:LogBox.Font = Get-CachedFont $script:MonoFontName 9 ([System.Drawing.FontStyle]::Regular)
 $script:LogBox.WordWrap = $false
-$script:LogBox.ScrollBars = 'Vertical'
+$script:LogBox.ScrollBars = 'None'
 $script:LogBox.Dock = 'Fill'
+$script:LogBox.Add_MouseWheel({
+    param($s, $e)
+    try {
+        $lines = if ($e.Delta -gt 0) { -3 } else { 3 }
+        [Win32Chrome]::SendMessage($s.Handle, 0x00B6, [IntPtr]::Zero, [IntPtr]$lines) | Out-Null
+        if ($script:SyncLogScroll) { & $script:SyncLogScroll }
+    } catch { }
+})
 $logFrame.Controls.Add($script:LogBox)
+$logFrame.Controls.Add($logSb)
 $logInner.Controls.Add($logFrame)
 $logPanel.Controls.Add($logInner)
 $logPanel.Controls.Add($logHead)
@@ -2034,34 +2210,34 @@ function Show-HomePage {
         Enable-DoubleBuffer $chip
         $chip.Size = New-Object System.Drawing.Size(200, 52)
         $chip.Dock = 'Fill'
-        $chip.BackColor = [System.Drawing.Color]::FromArgb(20, 20, 25)
+        $chip.BackColor = [System.Drawing.Color]::FromArgb(17, 17, 22)
         $rightPad = if ($IsLast) { 0 } else { 8 }
         $chip.Margin = New-Object System.Windows.Forms.Padding(0, 0, $rightPad, 0)
-        $chip.Padding = New-Object System.Windows.Forms.Padding(10, 6, 8, 6)
+        $chip.Padding = New-Object System.Windows.Forms.Padding(12, 6, 8, 6)
         $chip.Add_SizeChanged({ $this.Invalidate() })
         $chip.Add_Paint({
             param($s, $e)
             try {
                 $g = $e.Graphics
                 $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-                $path = Get-RoundedRectPath 1 1 ($s.Width - 3) ($s.Height - 3) 6
+                $path = Get-RoundedRectPath 0 0 ($s.Width - 1) ($s.Height - 1) 6
                 try {
-                    $g.FillPath((Get-CachedBrush ([System.Drawing.Color]::FromArgb(20, 20, 25))), $path)
-                    $g.DrawPath((Get-CachedPen ([System.Drawing.Color]::FromArgb(44, 44, 54)) 1), $path)
+                    $g.FillPath((Get-CachedBrush ([System.Drawing.Color]::FromArgb(17, 17, 22))), $path)
+                    # Edgeless subtle contour with ultra-thin divider (rgba(255, 255, 255, 0.05))
+                    $g.DrawPath((Get-CachedPen ([System.Drawing.Color]::FromArgb(13, 255, 255, 255)) 1), $path)
                 } finally { $path.Dispose() }
-                $g.DrawLine((Get-CachedPen ([System.Drawing.Color]::FromArgb(65, 65, 78)) 1), 6, 1, ($s.Width - 7), 1)
             } catch { }
         })
-        $lCap = New-Lbl $Caption ([System.Drawing.Color]::FromArgb(136, 136, 148)) 7.5 14 $true
+        $lCap = New-Lbl $Caption ([System.Drawing.Color]::FromArgb(145, 145, 158)) 7.5 14 $true
         $lCap.AutoSize = $false
-        $lCap.Location = New-Object System.Drawing.Point(10, 7)
-        $lCap.Size = New-Object System.Drawing.Size(182, 14)
+        $lCap.Location = New-Object System.Drawing.Point(12, 7)
+        $lCap.Size = New-Object System.Drawing.Size(180, 14)
         $lCap.Anchor = 'Top,Left,Right'
         $lCap.AutoEllipsis = $true
         $lVal = New-Lbl '-' ([System.Drawing.Color]::FromArgb(244, 244, 248)) 9.75 22 $true
         $lVal.AutoSize = $false
-        $lVal.Location = New-Object System.Drawing.Point(10, 23)
-        $lVal.Size = New-Object System.Drawing.Size(182, 22)
+        $lVal.Location = New-Object System.Drawing.Point(12, 23)
+        $lVal.Size = New-Object System.Drawing.Size(180, 22)
         $lVal.Anchor = 'Top,Left,Right'
         $lVal.AutoEllipsis = $true
         $chip.Controls.Add($lCap)
@@ -2120,15 +2296,23 @@ function Show-HomePage {
     Enable-DoubleBuffer $script:ConnContent
     $script:ConnContent.Location = New-Object System.Drawing.Point(0, 0)
     $script:ConnContent.AutoSize = $false
-    $script:ConnContent.BackColor = $Theme.card
-    $script:ConnContent.Padding = New-Object System.Windows.Forms.Padding(18, 12, 16, 12)
+    $script:ConnContent.BackColor = [System.Drawing.Color]::FromArgb(17, 17, 22)
+    $script:ConnContent.Padding = New-Object System.Windows.Forms.Padding(18, 14, 16, 14)
     $script:ConnContent.Add_SizeChanged({ $this.Invalidate() })
     $script:ConnContent.Add_Paint({
         param($s, $e)
         try {
-            $e.Graphics.DrawRectangle((Get-CachedPen $Theme.border 1), 0, 0, ($s.Width - 1), ($s.Height - 1))
-            $e.Graphics.DrawLine((Get-CachedPen $Theme.borderHi 1), 1, 0, ($s.Width - 2), 0)
-            $e.Graphics.FillRectangle((Get-CachedBrush $Theme.blue), 0, 12, 3, 20)
+            $g = $e.Graphics
+            $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+            $w = $s.Width - 1
+            $h = $s.Height - 1
+            if ($w -le 2 -or $h -le 2) { return }
+            $path = Get-RoundedRectPath 0 0 $w $h 8
+            try {
+                $g.FillPath((Get-CachedBrush ([System.Drawing.Color]::FromArgb(17, 17, 22))), $path)
+                # Edgeless subtle contour with ultra-thin divider (rgba(255, 255, 255, 0.05))
+                $g.DrawPath((Get-CachedPen ([System.Drawing.Color]::FromArgb(13, 255, 255, 255)) 1), $path)
+            } finally { $path.Dispose() }
         } catch { }
     })
     $script:ConnCard.Controls.Add($script:ConnContent)
@@ -2141,7 +2325,7 @@ function Show-HomePage {
     $connTlp = New-Object System.Windows.Forms.TableLayoutPanel
     Enable-DoubleBuffer $connTlp
     $connTlp.SuspendLayout()
-    $connTlp.Location = New-Object System.Drawing.Point(18, 12)
+    $connTlp.Location = New-Object System.Drawing.Point(18, 14)
     $connTlp.AutoSize = $true
     $connTlp.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
     $connTlp.ColumnCount = 1
@@ -2153,7 +2337,7 @@ function Show-HomePage {
     $connTitle.Font = Get-CachedFont 'Segoe UI Semibold' 10.5 ([System.Drawing.FontStyle]::Bold)
     $connTitle.AutoSize = $true
     $connTitle.Anchor = 'Left'
-    $connTitle.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 6)
+    $connTitle.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 8)
     $r = $connTlp.RowCount; $connTlp.RowCount = $r + 1
     $null = $connTlp.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
     $connTlp.Controls.Add($connTitle, 0, $r)
@@ -2164,25 +2348,24 @@ function Show-HomePage {
         $rowP.SuspendLayout()
         $rowP.Anchor = 'Left,Right'
         $rowP.Height = 36
-        $rowP.BackColor = [System.Drawing.Color]::FromArgb(21, 21, 26)
-        $rowP.Margin = New-Object System.Windows.Forms.Padding(0, 2, 0, 2)
-        $rowP.Padding = New-Object System.Windows.Forms.Padding(12, 3, 8, 3)
+        $rowP.BackColor = [System.Drawing.Color]::Transparent
+        $rowP.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 0)
+        $rowP.Padding = New-Object System.Windows.Forms.Padding(12, 2, 8, 2)
         $rowP.ColumnCount = 3
         $null = $rowP.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 184)))
         $null = $rowP.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100)))
         $null = $rowP.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 98)))
         $rowP.RowCount = 1
         $null = $rowP.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100)))
+        $rowP.Add_MouseEnter({ $this.BackColor = [System.Drawing.Color]::FromArgb(26, 26, 33); $this.Invalidate() })
+        $rowP.Add_MouseLeave({ $this.BackColor = [System.Drawing.Color]::Transparent; $this.Invalidate() })
         $rowP.Add_Paint({
             param($s, $e)
             try {
                 $g = $e.Graphics
-                $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-                $path = Get-RoundedRectPath 1 1 ($s.Width - 3) ($s.Height - 3) 5
-                try {
-                    $g.FillPath((Get-CachedBrush ([System.Drawing.Color]::FromArgb(21, 21, 26))), $path)
-                    $g.DrawPath((Get-CachedPen ([System.Drawing.Color]::FromArgb(40, 40, 50)) 1), $path)
-                } finally { $path.Dispose() }
+                # Ultra-thin, low-opacity internal divider (rgba(255, 255, 255, 0.05))
+                $divPen = Get-CachedPen ([System.Drawing.Color]::FromArgb(13, 255, 255, 255)) 1
+                $g.DrawLine($divPen, 12, ($s.Height - 1), ($s.Width - 12), ($s.Height - 1))
             } catch { }
         })
 
@@ -2245,13 +2428,13 @@ function Show-HomePage {
     Add-EndpointRow 'INTERNET (PUBLIC WAN)'    'Your direct public internet IP (requires router UPnP or manual port forwarding).'        'LblConnPub'    'RowConnPub'    'BtnConnPub'    $Theme.dim   $false
     Add-EndpointRow 'ROUTER PORT (UPNP)'       'Automatic router port forwarding status for direct internet connections.'                'LblConnRouter' 'RowConnRouter' 'BtnConnRouter' $Theme.dim   $false
 
-    # Styled Modern Semantic Callout Banner (Low-opacity warm amber with inline glyph)
+    # Styled Modern Semantic Callout Banner (Softened low-opacity warm amber with rounded corners)
     $noteBox = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $noteBox
     $noteBox.Anchor = 'Left,Right'
     $noteBox.AutoSize = $false
     $noteBox.Height = 36
-    $noteBox.BackColor = [System.Drawing.Color]::FromArgb(26, 20, 10)
+    $noteBox.BackColor = [System.Drawing.Color]::Transparent
     $noteBox.Padding = New-Object System.Windows.Forms.Padding(12, 8, 12, 8)
     $noteBox.Margin = New-Object System.Windows.Forms.Padding(0, 8, 0, 4)
     $noteBox.Add_SizeChanged({ $this.Invalidate() })
@@ -2260,32 +2443,31 @@ function Show-HomePage {
         try {
             $g = $e.Graphics
             $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-            $w = $s.Width - 3
-            $h = $s.Height - 3
+            $w = $s.Width - 1
+            $h = $s.Height - 1
             if ($w -le 4 -or $h -le 4) { return }
-            $path = Get-RoundedRectPath 1 1 $w $h 6
+            $path = Get-RoundedRectPath 0 0 $w $h 8
             try {
-                $fillBrush = Get-CachedBrush ([System.Drawing.Color]::FromArgb(28, 22, 12))
-                $borderPen = Get-CachedPen ([System.Drawing.Color]::FromArgb(65, 48, 18)) 1
+                $fillBrush = Get-CachedBrush ([System.Drawing.Color]::FromArgb(20, 245, 158, 11))
+                $borderPen = Get-CachedPen ([System.Drawing.Color]::FromArgb(35, 245, 158, 11)) 1
                 $g.FillPath($fillBrush, $path)
                 $g.DrawPath($borderPen, $path)
             } finally { $path.Dispose() }
 
-            # Subtle inline info indicator glyph
-            $badgeX = 12
+            # Subtle inline info indicator glyph (borderless soft amber circle)
+            $badgeX = 10
             $badgeY = [int](($s.Height - 16) / 2)
-            $badgePath = Get-RoundedRectPath $badgeX $badgeY 16 16 4
+            $badgePath = Get-RoundedRectPath $badgeX $badgeY 16 16 8
             try {
-                $g.FillPath((Get-CachedBrush ([System.Drawing.Color]::FromArgb(48, 36, 16))), $badgePath)
-                $g.DrawPath((Get-CachedPen ([System.Drawing.Color]::FromArgb(120, 90, 30)) 1), $badgePath)
+                $g.FillPath((Get-CachedBrush ([System.Drawing.Color]::FromArgb(38, 245, 158, 11))), $badgePath)
             } finally { $badgePath.Dispose() }
             $fBadge = Get-CachedFont 'Segoe UI' 7.5 ([System.Drawing.FontStyle]::Bold)
             $rBadge = New-Object System.Drawing.Rectangle($badgeX, $badgeY, 16, 16)
-            [System.Windows.Forms.TextRenderer]::DrawText($g, 'i', $fBadge, $rBadge, $Theme.yellow, ([System.Windows.Forms.TextFormatFlags]::HorizontalCenter -bor [System.Windows.Forms.TextFormatFlags]::VerticalCenter))
+            [System.Windows.Forms.TextRenderer]::DrawText($g, 'i', $fBadge, $rBadge, [System.Drawing.Color]::FromArgb(251, 191, 36), ([System.Windows.Forms.TextFormatFlags]::HorizontalCenter -bor [System.Windows.Forms.TextFormatFlags]::VerticalCenter))
         } catch { }
     })
     $script:ConnNoteBox = $noteBox
-    $script:LblConnNote = New-Lbl '' ([System.Drawing.Color]::FromArgb(235, 195, 125)) 8.5 18 $false
+    $script:LblConnNote = New-Lbl '' ([System.Drawing.Color]::FromArgb(245, 215, 160)) 8.5 18 $false
     $script:LblConnNote.Location = New-Object System.Drawing.Point(36, 8)
     $script:LblConnNote.AutoSize = $true
     $noteBox.Controls.Add($script:LblConnNote)
@@ -2333,12 +2515,17 @@ function Refresh-Dashboard {
     if (-not $script:LblStatusBig) { return }
     $conn = $script:State.Conn
     $running = [bool]$script:State.Running
-    $port = if ($script:State -and $script:State.Port) {
+    $port = if ($script:State -and $script:State.Port -and $script:State.Port -gt 0) {
         $script:State.Port
-    } elseif ($conn -and $conn.Port) {
+    } elseif ($conn -and $conn.Port -and $conn.Port -gt 0) {
         $conn.Port
     } else {
-        (Get-ServerPort)
+        $curPort = (Get-ServerPort)
+        if ($script:State) { $script:State.Port = $curPort }
+        $curPort
+    }
+    if ($script:State -and $script:State.Conn -and $port) {
+        $script:State.Conn.Port = $port
     }
     $name = if ($script:State.ServerName) { $script:State.ServerName } else { 'K BNG M Server' }
     $isPrivate = Get-ServerPrivate
@@ -2364,10 +2551,11 @@ function Refresh-Dashboard {
 
     # Context-aware primary CTA styling on Copy Best IP
     if ($script:BtnCopy) {
-        $wantBg = if ($running) { $Theme.btnAct } else { $Theme.btn }
-        if ($script:BtnCopy.BackColor.ToArgb() -ne $wantBg.ToArgb()) {
+        $wantBg = if ($running) { [System.Drawing.Color]::FromArgb(48, 26, 14) } else { $Theme.btn }
+        $wantBorder = if ($running) { [System.Drawing.Color]::FromArgb(140, 255, 115, 29) } else { $Theme.btnBorder }
+        if ($script:BtnCopy.BackColor.ToArgb() -ne $wantBg.ToArgb() -or $script:BtnCopy.FlatAppearance.BorderColor.ToArgb() -ne $wantBorder.ToArgb()) {
             $script:BtnCopy.BackColor = $wantBg
-            $script:BtnCopy.FlatAppearance.BorderColor = if ($running) { $Theme.blue } else { $Theme.border }
+            $script:BtnCopy.FlatAppearance.BorderColor = $wantBorder
             $script:BtnCopy.ForeColor = if ($running) { [System.Drawing.Color]::White } else { $Theme.text }
             $script:BtnCopy.Invalidate()
         }
@@ -2561,6 +2749,7 @@ function Refresh-Dashboard {
     } else {
         $noteChanged = Set-CtrlText $script:LblConnNote "TIP: Do not click your own server in the public BeamMP list from this PC $em always use Direct Connect (127.0.0.1:$port)."
     }
+    if ($script:ConnContent) { $script:ConnContent.Invalidate() }
     if ($layoutChanged -or $noteChanged) {
         Layout-HomePage
     }
@@ -5490,9 +5679,11 @@ function Copy-ConnectionLine {
         Add-Log "[NOTE] Clipboard copy blocked: Sensitive endpoint is masked while Streamer Privacy Mode is active."
         return
     }
-    try { $conn = Get-ConnectionInfo -SkipRouterWan } catch { $conn = $script:State.Conn }
-    if (-not $conn) { $conn = $script:State.Conn }
-    $port = if ($script:State -and $script:State.Port) { $script:State.Port } elseif ($conn -and $conn.Port) { $conn.Port } else { Get-ServerPort }
+    $conn = $script:State.Conn
+    if (-not $conn) {
+        $conn = [pscustomobject]@{ Port = (Get-ServerPort); LAN = (Get-LanIp); Tailscale = ''; Public = ''; Vpn = @(); Cgnat = $false }
+    }
+    $port = if ($script:State -and $script:State.Port -and $script:State.Port -gt 0) { $script:State.Port } elseif ($conn -and $conn.Port) { $conn.Port } else { Get-ServerPort }
     $line = "127.0.0.1:$port"
     if ($conn -and $conn.LAN) { $line = "$($conn.LAN):$port" }
     $vpnLines = @()
@@ -5515,9 +5706,11 @@ function Copy-Invite {
         Add-Log "[NOTE] Clipboard copy blocked: Server invite is protected while Streamer Privacy Mode is active."
         return
     }
-    try { $conn = Get-ConnectionInfo -SkipRouterWan } catch { $conn = $script:State.Conn }
-    if (-not $conn) { $conn = $script:State.Conn }
-    $port = if ($script:State -and $script:State.Port) { $script:State.Port } elseif ($conn -and $conn.Port) { $conn.Port } else { Get-ServerPort }
+    $conn = $script:State.Conn
+    if (-not $conn) {
+        $conn = [pscustomobject]@{ Port = (Get-ServerPort); LAN = (Get-LanIp); Tailscale = ''; Public = ''; Vpn = @(); Cgnat = $false }
+    }
+    $port = if ($script:State -and $script:State.Port -and $script:State.Port -gt 0) { $script:State.Port } elseif ($conn -and $conn.Port) { $conn.Port } else { Get-ServerPort }
     $addr = $null
     if ($conn) {
         $vpnLines = @($conn.Vpn | Where-Object { $_.Ip })

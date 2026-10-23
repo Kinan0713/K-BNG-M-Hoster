@@ -1,3 +1,25 @@
+## v0.7.2.1 - Update 11: Apple-Design UI Modernization, Runspace Latency Optimization & Dynamic Data-Binding Polish
+
+- **Sidebar Navigation Craft & Tactile Elevation:**
+  - **Modern Active Surface Fill**: Eliminated the legacy, harsh thin orange bounding box on the active navigation button; replaced with a subtle semi-transparent accent surface fill (`rgba(255, 115, 29, 0.12)`) and a sharp, solid left-edge indicator bar (`#FF731D`) adhering to Emil Kowalski and Apple Human Interface Guidelines.
+  - **Organically Softened Keyboard Shortcuts**: Stripped the rigid rectangular badge backgrounds behind shortcut indicators (`^H`, `^T`, `^M`, `^V`, `^U`, `^F`); shortcuts now float seamlessly with quiet zinc typography (`#696976`) that gracefully brightens upon hover and active states without visual clutter.
+
+- **Tactile Button & Edgeless Structural Hierarchy:**
+  - **Top Action Row Tactile Overhaul**: Redesigned "Copy Best IP", "Copy Invite", "Diagnose", and "Refresh" with soft-elevated `#1c1c24` surfaces, subtle `rgba(255, 255, 255, 0.08)` translucent perimeter borders, and smooth zero-jitter hover state transitions.
+  - **Edgeless Telemetry KPI Strip**: Stripped high-contrast solid borders and top specular lines from the 4 KPI metric chips ("SERVER NAME", "PORT (UDP/TCP)", "VISIBILITY", "GATEWAY STATUS") in favor of edgeless dark zinc surfaces (`#111116`) with ultra-thin, low-opacity dividers (`rgba(255, 255, 255, 0.05)`).
+  - **Edgeless Direct Connect Matrix**: Eradicated harsh outer bounding strokes around the endpoint routing table, achieving spatial balance through unified surface contrast and hairline internal row dividers (`rgba(255, 255, 255, 0.05)`).
+  - **Semantic Callout Polish**: Softened the warning/info box below the matrix by replacing its stark outline with a low-opacity amber surface fill (`rgba(245, 158, 11, 0.08)`), 8px rounded corners, and a borderless ambient amber indicator glyph.
+  - **Streamer Toggle Precision Shift**: Modernized the top-right "STREAMER: OFF / ON" toggle with distinct pill geometry, smooth tactile switch dot, and vibrant emerald shield color shifting upon activation.
+
+- **Asynchronous Runspace & Gateway Polling Optimization:**
+  - **Instant SSDP Discovery**: Optimized `Get-UpnpControlUrl` to terminate early upon receiving the primary Internet Gateway Device location (reducing discovery wait latency from 6,000ms to <1,800ms) with a 10-minute memory cache, preventing SSDP broadcast floods.
+  - **Multi-Endpoint Public IP Resolver**: Upgraded `Get-PublicIpCached` with multi-endpoint fallback resolution (`api.ipify.org`, `icanhazip.com`, `ifconfig.me`) and a tight 3s timeout with regex IPv4 validation, eliminating cold-start WAN polling stalls.
+  - **Zero UI-Thread Blocking on Copy**: Removed synchronous `Get-ConnectionInfo` execution from "Copy Best IP" and "Copy Invite" button handlers, reading exclusively from the asynchronous state cache for instantaneous, stutter-free clipboard actions.
+
+- **Data-Binding & WinForms Rendering Bug Eradication:**
+  - **Immediate Invalidation on Text Changes**: Enhanced `Set-CtrlText` to invoke deterministic `.Invalidate()` on both target controls and parent containers upon any text or color update, eliminating double-buffered rendering lag where dynamic endpoint changes required manual hover or window resizing.
+  - **Port State Synchronization**: Fixed state race condition where background connection probes could latch stale port values; `$script:State.Port` now enforces authoritative bidirectional synchronization across the KPI metric chip, matrix rows, and clipboard buffers.
+
 ## v0.7.2.0 - Update 10: Advanced Settings Expansion & Streamer Mode Integration
 
 - **Dashboard Modernization & Command Center Craft:**
