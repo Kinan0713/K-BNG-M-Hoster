@@ -1,3 +1,25 @@
+## v0.7.2.3 - Update 13: Input Field Modernization & Material Polish (Server Settings)
+
+- **Soft Boundary Geometry & Recessed Material Fill (`apple-design` & `emil-design-eng`):**
+  - **Rounded Corner Geometry**: Eradicated legacy sharp 90-degree corners across all text inputs in Server Settings ("Server name", "Players / cars", "Description", "Tags", "Search maps", "Game listen port", "Bind IP", "Resource folder", "Update reminder", "Preset name", and FRP fields); upgraded with smooth 6px rounded corner geometry.
+  - **Recessed Dark Material Fill**: Replaced default input backgrounds with a deep recessed `#050508` material fill, cleanly distinguishing interactive regions from the `#111115` card background.
+  - **Subtle Perimeter Stroke**: Replaced stark high-contrast OS borders with ultra-low opacity 1px strokes (`#27272A` / `rgba(255, 255, 255, 0.08)`).
+
+- **Generous Internal Padding & Breathing Room:**
+  - Expanded internal padding across all single-line inputs to `8,5,8,5` and multiline inputs to `8,6,8,6`, eliminating uncomfortably tight text placement against control edges.
+  - Standardized input height to 32px for consistent visual rhythm across the card stack.
+
+- **Tactile Focus & Hover States:**
+  - Integrated dynamic hover feedback transitioning borders to `#3F3F46`.
+  - Implemented seamless focus states transitioning borders to accent blue (`#3B82F6`) with subtle background illumination (`#090910`) and high-contrast caret rendering.
+
+- **Custom Slim Dark Zinc Scrollbar (Description Multiline Overhaul):**
+  - Completely eliminated the bright default Windows system scrollbar on the multiline "Description (optional)" input box.
+  - Implemented a custom dark scrollbar ControlTemplate with a slim 8px width, completely transparent track background, and a 6px rounded dark zinc thumb (`#27272A`, highlighting to `#3F3F46` on hover).
+
+- **Harmonized Players / Cars Layout:**
+  - Redesigned the "Players / cars" inline layout with 84px numeric inputs and generous 20px label separation, ensuring clean vertical alignment and ample breathing room.
+
 ## v0.7.2.2 - Update 12: Structural Edgeless Design Overhaul & Tactile Material Elevation
 
 - **Edgeless Design & Destruction of Legacy Boxes (`apple-design` & `emil-design-eng`):**

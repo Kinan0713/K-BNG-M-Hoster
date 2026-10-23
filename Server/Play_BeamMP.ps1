@@ -24,6 +24,10 @@ elseif ($Mode -eq 'setup') { $Setup = $true }
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName PresentationFramework
+Add-Type -AssemblyName PresentationCore
+Add-Type -AssemblyName WindowsBase
+Add-Type -AssemblyName WindowsFormsIntegration
 try {
     Add-Type -ReferencedAssemblies 'System.Windows.Forms', 'System.Drawing' @"
 using System;
@@ -141,7 +145,7 @@ $script:State = @{
     Frp           = ''
     FrpError      = ''
 }
-$script:AppVersion = '0.7.2.2'
+$script:AppVersion = '0.7.2.3'
 $script:CorePath = Join-Path $PSScriptRoot 'HosterCore.ps1'
 $script:CoreText = "`$script:CorePath = '" + ($script:CorePath -replace "'", "''") + "'`r`n" + (Get-Content -LiteralPath $script:CorePath -Raw)
 $script:PendingAction = $null
@@ -1065,16 +1069,222 @@ function New-ButtonBar {
     return $fl
 }
 
-# A dark inset text box that fits the card look.
+# Modernized Material Input Styling via Native WPF XAML Injection
+$script:WpfInputXaml = @"
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="InputBg" Color="#050508"/>
+    <SolidColorBrush x:Key="InputBorder" Color="#27272A"/>
+    <SolidColorBrush x:Key="InputBorderHover" Color="#3F3F46"/>
+    <SolidColorBrush x:Key="InputBorderFocus" Color="#3B82F6"/>
+    <SolidColorBrush x:Key="InputFg" Color="#F4F4F8"/>
+    <SolidColorBrush x:Key="ScrollThumb" Color="#27272A"/>
+    <SolidColorBrush x:Key="ScrollThumbHover" Color="#3F3F46"/>
+    <SolidColorBrush x:Key="CaretColor" Color="#F4F4F8"/>
+
+    <Style x:Key="DarkScrollThumb" TargetType="{x:Type Thumb}">
+        <Setter Property="OverridesDefaultStyle" Value="true"/>
+        <Setter Property="IsTabStop" Value="false"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Thumb}">
+                    <Border Background="{StaticResource ScrollThumb}" CornerRadius="3"/>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="true">
+                            <Setter Property="Background" Value="{StaticResource ScrollThumbHover}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DarkScrollBar" TargetType="{x:Type ScrollBar}">
+        <Setter Property="OverridesDefaultStyle" Value="true"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Width" Value="8"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ScrollBar}">
+                    <Grid Background="Transparent">
+                        <Track x:Name="PART_Track" IsDirectionReversed="true">
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource DarkScrollThumb}" Width="6" Margin="1,2,1,2"/>
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="ModernTextBox" TargetType="{x:Type TextBox}">
+        <Setter Property="Background" Value="{StaticResource InputBg}"/>
+        <Setter Property="Foreground" Value="{StaticResource InputFg}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource InputBorder}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CaretBrush" Value="{StaticResource CaretColor}"/>
+        <Setter Property="Padding" Value="8,5,8,5"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type TextBox}">
+                    <Border x:Name="border"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6"
+                            SnapsToDevicePixels="True">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Focusable="false"
+                                      HorizontalScrollBarVisibility="{TemplateBinding HorizontalScrollBarVisibility}"
+                                      VerticalScrollBarVisibility="{TemplateBinding VerticalScrollBarVisibility}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="true">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource InputBorderHover}"/>
+                        </Trigger>
+                        <Trigger Property="IsFocused" Value="true">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource InputBorderFocus}"/>
+                            <Setter TargetName="border" Property="Background" Value="#090910"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Resources>
+            <Style TargetType="{x:Type ScrollBar}" BasedOn="{StaticResource DarkScrollBar}"/>
+        </Style.Resources>
+    </Style>
+
+    <Style x:Key="ModernPasswordBox" TargetType="{x:Type PasswordBox}">
+        <Setter Property="Background" Value="{StaticResource InputBg}"/>
+        <Setter Property="Foreground" Value="{StaticResource InputFg}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource InputBorder}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CaretBrush" Value="{StaticResource CaretColor}"/>
+        <Setter Property="Padding" Value="8,5,8,5"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type PasswordBox}">
+                    <Border x:Name="border"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6"
+                            SnapsToDevicePixels="True">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Focusable="false"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Hidden"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="true">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource InputBorderHover}"/>
+                        </Trigger>
+                        <Trigger Property="IsFocused" Value="true">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource InputBorderFocus}"/>
+                            <Setter TargetName="border" Property="Background" Value="#090910"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>
+"@
+try {
+    $script:WpfInputResources = [System.Windows.Markup.XamlReader]::Parse($script:WpfInputXaml)
+} catch {
+    $script:WpfInputResources = $null
+}
+
+# Modernized Material Input Field Generator
 function New-SettingsInput {
-    $t = New-Object System.Windows.Forms.TextBox
-    $t.BackColor = $Theme.bg
-    $t.ForeColor = $Theme.text
-    $t.BorderStyle = 'FixedSingle'
-    $t.Font = Get-CachedFont 'Segoe UI' 9.5
-    $t.Add_GotFocus({ $this.BackColor = $Theme.panel })
-    $t.Add_LostFocus({ $this.BackColor = $Theme.bg })
-    return $t
+    if ($script:WpfInputResources) {
+        $hostCtrl = New-Object System.Windows.Forms.Integration.ElementHost
+        $hostCtrl.BackColor = $Theme.card
+        $hostCtrl.Height = 32
+
+        $tb = New-Object System.Windows.Controls.TextBox
+        $tb.Style = $script:WpfInputResources["ModernTextBox"]
+        $tb.FontSize = 12.5
+        $tb.FontFamily = New-Object System.Windows.Media.FontFamily("Segoe UI")
+        $hostCtrl.Child = $tb
+
+        $hostCtrl | Add-Member -MemberType NoteProperty -Name 'InnerBox' -Value $tb -Force
+        $hostCtrl | Add-Member -MemberType NoteProperty -Name 'IsPassword' -Value $false -Force
+
+        $hostCtrl | Add-Member -MemberType ScriptProperty -Name 'Text' -Value {
+            if ($this.IsPassword) { $this.Child.Password } else { $this.Child.Text }
+        } -SecondValue {
+            param($val)
+            if ($this.IsPassword) {
+                $this.Child.Password = [string]$val
+            } else {
+                $this.Child.Text = [string]$val
+            }
+        } -Force
+
+        $hostCtrl | Add-Member -MemberType ScriptProperty -Name 'Multiline' -Value {
+            if (-not $this.IsPassword) { $this.Child.AcceptsReturn } else { $false }
+        } -SecondValue {
+            param($val)
+            if (-not $this.IsPassword) {
+                $this.Child.AcceptsReturn = [bool]$val
+                $this.Child.TextWrapping = if ($val) { [System.Windows.TextWrapping]::Wrap } else { [System.Windows.TextWrapping]::NoWrap }
+                if ($val) {
+                    $this.Child.VerticalContentAlignment = [System.Windows.VerticalAlignment]::Top
+                    $this.Child.Padding = New-Object System.Windows.Thickness(8, 6, 8, 6)
+                }
+            }
+        } -Force
+
+        $hostCtrl | Add-Member -MemberType ScriptProperty -Name 'ScrollBars' -Value {
+            if (-not $this.IsPassword) { $this.Child.VerticalScrollBarVisibility.ToString() } else { 'None' }
+        } -SecondValue {
+            param($val)
+            if (-not $this.IsPassword -and ($val -eq 'Vertical' -or $val -eq 2)) {
+                $this.Child.VerticalScrollBarVisibility = [System.Windows.Controls.ScrollBarVisibility]::Auto
+            }
+        } -Force
+
+        $hostCtrl | Add-Member -MemberType ScriptProperty -Name 'UseSystemPasswordChar' -Value {
+            $this.IsPassword
+        } -SecondValue {
+            param($val)
+            if ($val -and -not $this.IsPassword) {
+                $curVal = $this.Child.Text
+                $pb = New-Object System.Windows.Controls.PasswordBox
+                $pb.Style = $script:WpfInputResources["ModernPasswordBox"]
+                $pb.FontSize = 12.5
+                $pb.FontFamily = New-Object System.Windows.Media.FontFamily("Segoe UI")
+                $pb.Password = $curVal
+                $this.Child = $pb
+                $this.IsPassword = $true
+            }
+        } -Force
+
+        $hostCtrl | Add-Member -MemberType ScriptMethod -Name 'Add_TextChanged' -Value {
+            param($handler)
+            if (-not $this.IsPassword) {
+                $this.Child.Add_TextChanged($handler)
+            }
+        } -Force
+
+        return $hostCtrl
+    } else {
+        # Fallback for environments where WPF XAML is unavailable
+        $t = New-Object System.Windows.Forms.TextBox
+        $t.BackColor = [System.Drawing.Color]::FromArgb(5, 5, 8)
+        $t.ForeColor = $Theme.text
+        $t.BorderStyle = 'FixedSingle'
+        $t.Font = Get-CachedFont 'Segoe UI' 9.5
+        $t.Add_GotFocus({ $this.BackColor = [System.Drawing.Color]::FromArgb(9, 9, 16) })
+        $t.Add_LostFocus({ $this.BackColor = [System.Drawing.Color]::FromArgb(5, 5, 8) })
+        return $t
+    }
 }
 
 # Deterministically measures and positions every card in the active card stack
@@ -2767,27 +2977,38 @@ function Show-SettingsPage {
     # ---- Server identity ----
     $card = New-Card 'Server identity' 'How your server looks in the BeamMP list.'
     $script:TxtName = New-SettingsInput
-    $script:TxtName.Height = 26
+    $script:TxtName.Height = 32
     Add-Row $card 'Server name:' $script:TxtName
+
     $flRow = New-ButtonBar
     $script:TxtPlayers = New-SettingsInput
-    $script:TxtPlayers.Width = 90
-    $script:TxtPlayers.Height = 26
+    $script:TxtPlayers.Width = 84
+    $script:TxtPlayers.Height = 32
+    $script:TxtPlayers.Margin = New-Object System.Windows.Forms.Padding(0, 0, 8, 0)
+    $lblPlayers = New-Lbl 'players' $Theme.dim 9 32
+    $lblPlayers.Margin = New-Object System.Windows.Forms.Padding(0, 6, 20, 0)
+
     $script:TxtCars = New-SettingsInput
-    $script:TxtCars.Width = 90
-    $script:TxtCars.Height = 26
+    $script:TxtCars.Width = 84
+    $script:TxtCars.Height = 32
+    $script:TxtCars.Margin = New-Object System.Windows.Forms.Padding(0, 0, 8, 0)
+    $lblCars = New-Lbl 'max cars per player' $Theme.dim 9 32
+    $lblCars.Margin = New-Object System.Windows.Forms.Padding(0, 6, 0, 0)
+
     $flRow.Controls.Add($script:TxtPlayers)
-    $flRow.Controls.Add((New-Lbl 'players' $Theme.dim 9 20))
+    $flRow.Controls.Add($lblPlayers)
     $flRow.Controls.Add($script:TxtCars)
-    $flRow.Controls.Add((New-Lbl 'max cars per player' $Theme.dim 9 20))
+    $flRow.Controls.Add($lblCars)
     Add-Row $card 'Players / cars:' $flRow
+
     $script:TxtDescription = New-SettingsInput
     $script:TxtDescription.Multiline = $true
-    $script:TxtDescription.Height = 56
+    $script:TxtDescription.Height = 68
     $script:TxtDescription.ScrollBars = 'Vertical'
     Add-Row $card 'Description (optional):' $script:TxtDescription
+
     $script:TxtTags = New-SettingsInput
-    $script:TxtTags.Height = 26
+    $script:TxtTags.Height = 32
     Add-Row $card 'Tags, comma separated:' $script:TxtTags
     Add-RowNote $card 'Example tags: Freeroam,KBnG,BeamMP - they help players find your server in the list.' $Theme.dim | Out-Null
     $cards += $card
@@ -2848,7 +3069,7 @@ function Show-SettingsPage {
     # ---- Map ----
     $card = New-Card 'Map' 'What everyone plays on - applies on the next server start.'
     $script:TxtMapSearch = New-SettingsInput
-    $script:TxtMapSearch.Height = 26
+    $script:TxtMapSearch.Height = 32
     $script:TxtMapSearch.Add_TextChanged({ Refresh-MapListBox })
     Add-Row $card 'Search maps (type to filter):' $script:TxtMapSearch
     $script:CmbMaps = New-Object System.Windows.Forms.ComboBox
@@ -2965,7 +3186,7 @@ function Show-SettingsPage {
     $flPort.Visible = [bool]$script:AdvancedExpanded
     $script:TxtCustomPort = New-SettingsInput
     $script:TxtCustomPort.Width = 90
-    $script:TxtCustomPort.Height = 26
+    $script:TxtCustomPort.Height = 32
     $flPort.Controls.Add($script:TxtCustomPort)
     $flPort.Controls.Add((New-Lbl 'default: 30814 (TCP + UDP listen port; range: 1024-65535)' $Theme.dim 9 20))
     Add-Row $card 'Game listen port:' $flPort
@@ -2978,7 +3199,7 @@ function Show-SettingsPage {
     $flBind.Visible = [bool]$script:AdvancedExpanded
     $script:TxtBindIp = New-SettingsInput
     $script:TxtBindIp.Width = 160
-    $script:TxtBindIp.Height = 26
+    $script:TxtBindIp.Height = 32
     $flBind.Controls.Add($script:TxtBindIp)
     $flBind.Controls.Add((New-Lbl 'default: :: (dual-stack IPv6/IPv4; or 0.0.0.0 for IPv4)' $Theme.dim 9 20))
     Add-Row $card 'Bind IP address (IP):' $flBind
@@ -2990,7 +3211,7 @@ function Show-SettingsPage {
     $flRes.Visible = [bool]$script:AdvancedExpanded
     $script:TxtResourceFolder = New-SettingsInput
     $script:TxtResourceFolder.Width = 160
-    $script:TxtResourceFolder.Height = 26
+    $script:TxtResourceFolder.Height = 32
     $flRes.Controls.Add($script:TxtResourceFolder)
     $flRes.Controls.Add((New-Lbl 'default: Resources (folder where synced mods reside)' $Theme.dim 9 20))
     Add-Row $card 'Resource folder:' $flRes
@@ -3013,7 +3234,7 @@ function Show-SettingsPage {
     $flRem.Visible = [bool]$script:AdvancedExpanded
     $script:TxtUpdateReminder = New-SettingsInput
     $script:TxtUpdateReminder.Width = 90
-    $script:TxtUpdateReminder.Height = 26
+    $script:TxtUpdateReminder.Height = 32
     $flRem.Controls.Add($script:TxtUpdateReminder)
     $flRem.Controls.Add((New-Lbl 'default: 30s (e.g., 30s, 5min, 1h, 1d)' $Theme.dim 9 20))
     Add-Row $card 'Update reminder frequency:' $flRem
@@ -3027,7 +3248,7 @@ function Show-SettingsPage {
     $preRow = New-ButtonBar
     $script:TxtPresetName = New-SettingsInput
     $script:TxtPresetName.Width = 200
-    $script:TxtPresetName.Height = 26
+    $script:TxtPresetName.Height = 32
     $preRow.Controls.Add($script:TxtPresetName)
     $preRow.Controls.Add((New-Lbl 'or pick one:' $Theme.dim 9 20))
     $script:CmbPresets = New-Object System.Windows.Forms.ComboBox
@@ -3458,17 +3679,17 @@ function Show-NetworkPage([bool]$ForceRefresh = $false) {
     })
     Add-RowFull $card $script:ChkFrp
     $script:TxtFrpServer = New-SettingsInput
-    $script:TxtFrpServer.Height = 26
+    $script:TxtFrpServer.Height = 32
     Add-Row $card 'FRP server address (hostname or IP):' $script:TxtFrpServer
     $frpRow = New-ButtonBar
     $script:TxtFrpPort = New-SettingsInput
     $script:TxtFrpPort.Width = 90
-    $script:TxtFrpPort.Height = 26
+    $script:TxtFrpPort.Height = 32
     $frpRow.Controls.Add($script:TxtFrpPort)
     $frpRow.Controls.Add((New-Lbl 'server port (almost always 7000)' $Theme.dim 9 20))
     Add-Row $card 'FRP server port:' $frpRow
     $script:TxtFrpToken = New-SettingsInput
-    $script:TxtFrpToken.Height = 26
+    $script:TxtFrpToken.Height = 32
     $script:TxtFrpToken.UseSystemPasswordChar = $true
     Add-Row $card 'FRP token (stays masked):' $script:TxtFrpToken
     Add-RowNote $card 'The frpc client is bundled with the app - it is extracted into Server\bin\frpc.exe automatically on first use, nothing to install. The runtime config with your token exists only while the tunnel runs and is deleted when it stops. Toggling saves immediately; the other fields save with the Save settings button on the Settings page. Not sure what address/port/token to type? Press the FRP setup guide button below.' $Theme.yellow | Out-Null
