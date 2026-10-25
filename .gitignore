@@ -48,11 +48,20 @@ Presets/
 # AI Agent, IDE & Editor local folders
 .agents/
 .agent/
+.codex/
+.impeccable/
 .gemini/
 .claude/
 .cursor/
 .vscode/
 .idea/
+skills-lock.json
+
+# Packaging & build artifacts
+Packaging/staging/
+Packaging/payload.zip
+Packaging/Uninstall.exe
+*.pdb
 
 # OS & temporary files
 *.tmp
