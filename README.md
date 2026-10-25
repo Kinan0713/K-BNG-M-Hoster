@@ -4,13 +4,13 @@
 
 **Kinan BeamMP Multiplayer Hoster**
 
-![Version](https://img.shields.io/badge/version-0.7.2.4-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.7.2.5-blue?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey?style=flat-square)
 ![Status](https://img.shields.io/badge/status-active-brightgreen?style=flat-square)
 
 ### The easy way to host a BeamNG.drive server with your friends
 
-**v0.7.2.4 (Zero-Flicker Architecture & Taskbar Branding Pass)**
+**v0.7.2.5 (Standalone Beautiful Installer & Native Setup)**
 
 [**⬇️ Download**](https://github.com/Kinan0713/K-BNG-M-Hoster/releases/latest) &nbsp;·&nbsp; [**▶️ Watch the tutorial**](https://youtu.be/lfS44IkpkBo) &nbsp;·&nbsp; [**💬 Join the Discord**](https://discord.gg/Ga5dpsMaqR)
 

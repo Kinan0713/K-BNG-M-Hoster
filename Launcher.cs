@@ -13,8 +13,8 @@ using System.Windows.Forms;
 [assembly: AssemblyCopyright("Copyright (c) 2026 Kinan - UI/UX by @bomberrie")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
-[assembly: AssemblyVersion("0.7.2.4")]
-[assembly: AssemblyFileVersion("0.7.2.4")]
+[assembly: AssemblyVersion("0.7.2.5")]
+[assembly: AssemblyFileVersion("0.7.2.5")]
 
 namespace KBnGMHoster
 {

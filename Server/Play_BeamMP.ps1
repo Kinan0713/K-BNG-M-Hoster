@@ -1,5 +1,5 @@
 # ========================================================================================
-# K BNG M Hoster v0.7.2.4 - Simplest Edition (GUI)
+# K BNG M Hoster v0.7.2.5 - Simplest Edition (GUI)
 # All logic lives in HosterCore.ps1 (single source of truth). This file is the window.
 # Start_Here.bat / Play_BeamMP.bat only launch this file.
 #
@@ -186,7 +186,7 @@ $script:State = @{
     Frp           = ''
     FrpError      = ''
 }
-$script:AppVersion = '0.7.2.3'
+$script:AppVersion = '0.7.2.5'
 $script:CorePath = Join-Path $PSScriptRoot 'HosterCore.ps1'
 $script:CoreText = "`$script:CorePath = '" + ($script:CorePath -replace "'", "''") + "'`r`n" + (Get-Content -LiteralPath $script:CorePath -Raw)
 $script:PendingAction = $null
@@ -1539,7 +1539,7 @@ function New-PageTop($Page, [string]$Title, [string]$Hint = '') {
 # ---------------------------------------------------------------------------------------
 $script:Form = New-Object System.Windows.Forms.Form
 Enable-DoubleBuffer $script:Form
-$script:Form.Text = 'K BNG M Hoster v0.7.2.4 - by Kinan (@kinan_sx240) & @bomberrie'
+$script:Form.Text = 'K BNG M Hoster v0.7.2.5 - by Kinan (@kinan_sx240) & @bomberrie'
 $script:Form.FormBorderStyle = 'None'
 $script:Form.ShowInTaskbar = $true
 

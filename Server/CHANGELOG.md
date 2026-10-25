@@ -1,3 +1,26 @@
+## v0.7.2.5 - Update 15: Standalone Beautiful Installer (K-BNG-M-Hoster-Setup.exe), Automated Packaging Pipeline & Integrated Uninstaller
+
+- **Standalone Windows Installer (`K-BNG-M-Hoster-Setup.exe`):**
+  - **Zero-Dependency Single Binary**: Bundles the complete application, server binaries, launcher, uninstaller, and assets into a lightweight ~3.7 MB standalone executable. Requires no external setup tools (Inno Setup, WiX, or 7-Zip).
+  - **Beautiful Dark Theme UI**: Built with a modern frameless dark window (`#0c0c10` / `#14141b`), fluid dragging via Win32 `WM_NCLBUTTONDOWN`, high-DPI awareness, and BeamMP orange accent styling.
+  - **Multi-Step Guided Flow**:
+    - **Step 1 (Configuration)**: Customizable install path (`%LocalAppData%\Programs\K-BNG-M-Hoster` per-user standard requiring zero UAC prompts), real-time drive space probe, and customizable shortcut preferences.
+    - **Step 2 (Extraction)**: Real-time progress bar with percentage readout and live file extraction logging running on an asynchronous background thread.
+    - **Step 3 (Completion)**: Emerald success badge and one-click "Launch Now" button.
+  - **Silent Install Support**: Fully supports unattended installation via `/quiet` or `/silent` command-line flags.
+
+- **Native Windows Shell & System Integration:**
+  - **Start Menu & Desktop Shortcuts**: Automatically creates Windows `.lnk` shortcuts with high-DPI icon binding and explicit `AppUserModelID ("Kinan.KBNGMHoster.App")`.
+  - **Windows Installed Apps Registration**: Registers directly in Windows **"Installed Apps" / "Programs and Features"** (`HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\K-BNG-M-Hoster`) with display name, version, publisher, icon, estimated size, and uninstall command.
+
+- **Dedicated Dark-Themed Uninstaller (`Uninstall.exe`):**
+  - **Safe Process Termination**: Automatically terminates running server and launcher processes before removal.
+  - **Data Protection Guard**: "Keep server configuration (ServerConfig.toml) and custom mods" is checked by default so player settings and vehicle/map mods are never deleted accidentally.
+  - **Clean System Removal**: Removes shortcuts, registry keys, and program files, with self-deleting deferred cleanup.
+
+- **Automated Build Scripts (`Build-Installer.ps1` & `build-installer.bat`):**
+  - Single-command build script compiling the entire distribution pipeline from source into `K-BNG-M-Hoster-Setup.exe`.
+
 ## v0.7.2.4 - Update 14: Zero-Flicker Architecture, Native Taskbar Branding & Streamer Privacy Hardening
 
 - **Anti-Flicker Architecture & Atomic Transitions:**
