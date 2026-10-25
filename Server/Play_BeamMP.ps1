@@ -1,5 +1,5 @@
 # ========================================================================================
-# K BNG M Hoster v0.7.2.0 - Simplest Edition (GUI)
+# K BNG M Hoster v0.7.2.4 - Simplest Edition (GUI)
 # All logic lives in HosterCore.ps1 (single source of truth). This file is the window.
 # Start_Here.bat / Play_BeamMP.bat only launch this file.
 #
@@ -41,7 +41,52 @@ public class Win32Chrome {
     [DllImport("user32.dll")] public static extern bool ReleaseCapture();
     [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll")] public static extern bool ShowScrollBar(IntPtr hWnd, int wBar, bool bShow);
+    [DllImport("user32.dll")] public static extern bool RedrawWindow(IntPtr hWnd, IntPtr lprcUpdate, IntPtr hrgnUpdate, uint flags);
+    [DllImport("user32.dll", EntryPoint = "GetWindowLong")] public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+    [DllImport("user32.dll", EntryPoint = "SetWindowLong")] public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
     [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+    [DllImport("shell32.dll", SetLastError = true)] public static extern int SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string AppID);
+
+    public const int WM_SETREDRAW = 0x000B;
+    public const int WM_SETICON = 0x0080;
+    public const int ICON_SMALL = 0;
+    public const int ICON_BIG = 1;
+    public const uint RDW_INVALIDATE = 0x0001;
+    public const uint RDW_ERASE = 0x0004;
+    public const uint RDW_ALLCHILDREN = 0x0080;
+    public const uint RDW_FRAME = 0x0400;
+    public const uint RDW_UPDATENOW = 0x0100;
+
+    public static void Suspend(IntPtr hWnd) {
+        if (hWnd != IntPtr.Zero) {
+            SendMessage(hWnd, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero);
+        }
+    }
+
+    public static void Resume(IntPtr hWnd) {
+        if (hWnd != IntPtr.Zero) {
+            SendMessage(hWnd, WM_SETREDRAW, (IntPtr)1, IntPtr.Zero);
+            RedrawWindow(hWnd, IntPtr.Zero, IntPtr.Zero, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_FRAME | RDW_UPDATENOW);
+        }
+    }
+
+    public static void SetWindowIcon(IntPtr hWnd, IntPtr hIcon) {
+        if (hWnd != IntPtr.Zero && hIcon != IntPtr.Zero) {
+            SendMessage(hWnd, WM_SETICON, (IntPtr)ICON_SMALL, hIcon);
+            SendMessage(hWnd, WM_SETICON, (IntPtr)ICON_BIG, hIcon);
+        }
+    }
+
+    public static void ApplyClipChildren(IntPtr hWnd) {
+        if (hWnd == IntPtr.Zero) return;
+        try {
+            int style = GetWindowLong(hWnd, -16);
+            if ((style & 0x02000000) == 0) {
+                SetWindowLong(hWnd, -16, style | 0x02000000);
+            }
+        } catch { }
+    }
+
     public static void ApplyModernWindow(IntPtr hWnd) {
         try {
             int dark = 1;
@@ -50,6 +95,12 @@ public class Win32Chrome {
             DwmSetWindowAttribute(hWnd, 33, ref round, 4);
             int borderCol = 0x00443530;
             DwmSetWindowAttribute(hWnd, 34, ref borderCol, 4);
+
+            int style = GetWindowLong(hWnd, -16);
+            style |= 0x00020000;
+            style |= 0x00080000;
+            style |= 0x02000000;
+            SetWindowLong(hWnd, -16, style);
         } catch { }
     }
 }
@@ -99,6 +150,7 @@ public class WheelFilter : IMessageFilter {
 } catch { }
 try { [System.Windows.Forms.Application]::AddMessageFilter((New-Object WheelFilter)) } catch { }
 [System.Windows.Forms.Application]::EnableVisualStyles()
+try { [Win32Chrome]::SetCurrentProcessExplicitAppUserModelID('Kinan.KBNGMHoster.App') } catch { }
 
 $ErrorActionPreference = 'SilentlyContinue'
 
@@ -220,8 +272,16 @@ $script:BrushCache = @{}
 $script:DblBufProp = [System.Windows.Forms.Control].GetProperty('DoubleBuffered', [System.Reflection.BindingFlags]'Instance,NonPublic')
 
 function Enable-DoubleBuffer($Ctrl) {
-    if ($Ctrl -and $script:DblBufProp) {
+    if (-not $Ctrl) { return }
+    if ($script:DblBufProp) {
         try { $script:DblBufProp.SetValue($Ctrl, $true, $null) } catch { }
+    }
+    if ($Ctrl.IsHandleCreated) {
+        [Win32Chrome]::ApplyClipChildren($Ctrl.Handle)
+    } else {
+        $Ctrl.Add_HandleCreated({
+            try { [Win32Chrome]::ApplyClipChildren($this.Handle) } catch { }
+        })
     }
 }
 
@@ -839,11 +899,16 @@ function Add-LogBatch([string[]]$Lines) {
                 $pubIp = if ($script:State -and $script:State.Conn) { $script:State.Conn.Public } else { '' }
                 $authKey = Get-ConfigValue 'AuthKey'
                 $extraIps = @()
+                $lanIp = ''
                 if ($script:State -and $script:State.Conn) {
+                    if ($script:State.Conn.LAN) {
+                        $lanIp = $script:State.Conn.LAN
+                        $extraIps += $lanIp
+                    }
                     if ($script:State.Conn.Vpn) { $extraIps += @($script:State.Conn.Vpn | Where-Object { $_.Ip } | ForEach-Object { $_.Ip }) }
                     if ($script:State.Conn.Tailscale) { $extraIps += $script:State.Conn.Tailscale }
                 }
-                $cleanLine = Protect-StreamerText $Line $true $pubIp $authKey $extraIps
+                $cleanLine = Protect-StreamerText $Line $true $pubIp $authKey $extraIps $lanIp
             }
             $script:LogBox.SelectionStart = $script:LogBox.TextLength
             $script:LogBox.SelectionLength = 0
@@ -1298,94 +1363,115 @@ function Update-CardStackLayout {
     if (-not $cards -or -not $cards.Count) { return }
     if ($body.ClientSize.Width -le 50) { return }
 
-    $stackW = [int][math]::Max(340, ($body.ClientSize.Width - 34))
-    $content.SuspendLayout()
+    $hwnd = if ($content.IsHandleCreated) { $content.Handle } else { [IntPtr]::Zero }
+    [Win32Chrome]::Suspend($hwnd)
     try {
-        $curY = 0
-        foreach ($card in $cards) {
-            if (-not $card -or $card.IsDisposed -or -not $card.Visible) { continue }
-            $t = $card.Tag
-            if (-not ($t -is [System.Windows.Forms.TableLayoutPanel])) { continue }
-            $t.SuspendLayout()
-            try {
-                $padH = $card.Padding.Left + $card.Padding.Right
-                $padV = $card.Padding.Top + $card.Padding.Bottom
-                $innerW = [int][math]::Max(240, ($stackW - $padH))
-                $col0W = [int][math]::Min(220, [math]::Max(140, [int]($innerW * 0.34)))
-                $col1W = [int][math]::Max(100, ($innerW - $col0W))
-                if ($t.ColumnStyles.Count -ge 1) { $t.ColumnStyles[0].Width = $col0W }
+        $stackW = [int][math]::Max(340, ($body.ClientSize.Width - 34))
+        $content.SuspendLayout()
+        try {
+            $curY = 0
+            foreach ($card in $cards) {
+                if (-not $card -or $card.IsDisposed -or -not $card.Visible) { continue }
+                $t = $card.Tag
+                if (-not ($t -is [System.Windows.Forms.TableLayoutPanel])) { continue }
+                $t.SuspendLayout()
+                try {
+                    $padH = $card.Padding.Left + $card.Padding.Right
+                    $padV = $card.Padding.Top + $card.Padding.Bottom
+                    $innerW = [int][math]::Max(240, ($stackW - $padH))
+                    $col0W = [int][math]::Min(220, [math]::Max(140, [int]($innerW * 0.34)))
+                    $col1W = [int][math]::Max(100, ($innerW - $col0W))
+                    if ($t.ColumnStyles.Count -ge 1 -and $t.ColumnStyles[0].Width -ne $col0W) {
+                        $t.ColumnStyles[0].Width = $col0W
+                    }
 
-                foreach ($c in $t.Controls) {
-                    $span = $t.GetColumnSpan($c)
-                    $col = $t.GetColumn($c)
-                    $cellW = if ($span -ge 2) { $innerW } elseif ($col -eq 0) { $col0W } else { $col1W }
-                    $availW = [int][math]::Max(80, ($cellW - $c.Margin.Left - $c.Margin.Right - 2))
+                    foreach ($c in $t.Controls) {
+                        $span = $t.GetColumnSpan($c)
+                        $col = $t.GetColumn($c)
+                        $cellW = if ($span -ge 2) { $innerW } elseif ($col -eq 0) { $col0W } else { $col1W }
+                        $availW = [int][math]::Max(80, ($cellW - $c.Margin.Left - $c.Margin.Right - 2))
 
-                    if ($c -is [System.Windows.Forms.Label]) {
-                        $c.AutoSize = $true
-                        $c.MaximumSize = New-Object System.Drawing.Size($availW, 0)
-                    } elseif ($c -is [System.Windows.Forms.CheckBox] -or $c -is [System.Windows.Forms.RadioButton]) {
-                        $c.AutoSize = $true
-                        $c.MaximumSize = New-Object System.Drawing.Size($availW, 0)
-                    } elseif ($c -is [System.Windows.Forms.FlowLayoutPanel]) {
-                        $c.AutoSize = $true
-                        $c.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
-                        $c.WrapContents = $true
-                        $c.MaximumSize = New-Object System.Drawing.Size($availW, 0)
-                        $c.MinimumSize = New-Object System.Drawing.Size($availW, 36)
-                        foreach ($sub in $c.Controls) {
-                            if ($sub -is [System.Windows.Forms.Label] -and $sub.AutoSize) {
-                                $sub.MaximumSize = New-Object System.Drawing.Size([int][math]::Max(60, ($availW - 12)), 0)
+                        if ($c -is [System.Windows.Forms.Label]) {
+                            $c.AutoSize = $true
+                            if ($c.MaximumSize.Width -ne $availW) { $c.MaximumSize = New-Object System.Drawing.Size($availW, 0) }
+                        } elseif ($c -is [System.Windows.Forms.CheckBox] -or $c -is [System.Windows.Forms.RadioButton]) {
+                            $c.AutoSize = $true
+                            if ($c.MaximumSize.Width -ne $availW) { $c.MaximumSize = New-Object System.Drawing.Size($availW, 0) }
+                        } elseif ($c -is [System.Windows.Forms.FlowLayoutPanel]) {
+                            $c.AutoSize = $true
+                            $c.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
+                            $c.WrapContents = $true
+                            if ($c.MaximumSize.Width -ne $availW) { $c.MaximumSize = New-Object System.Drawing.Size($availW, 0) }
+                            if ($c.MinimumSize.Width -ne $availW) { $c.MinimumSize = New-Object System.Drawing.Size($availW, 36) }
+                            foreach ($sub in $c.Controls) {
+                                if ($sub -is [System.Windows.Forms.Label] -and $sub.AutoSize) {
+                                    $subMaxW = [int][math]::Max(60, ($availW - 12))
+                                    if ($sub.MaximumSize.Width -ne $subMaxW) {
+                                        $sub.MaximumSize = New-Object System.Drawing.Size($subMaxW, 0)
+                                    }
+                                }
                             }
+                        } elseif ($c -is [System.Windows.Forms.Panel]) {
+                            if ($c.Width -ne $availW) { $c.Width = $availW }
+                            $pH = 0
+                            foreach ($sub in $c.Controls) {
+                                if ($sub.Dock -eq 'Top') { $pH += $sub.Height }
+                                else { $b = $sub.Bottom + 4; if ($b -gt $pH) { $pH = $b } }
+                            }
+                            if ($pH -gt 0) {
+                                if ($c.Height -ne $pH) { $c.Height = $pH }
+                                if ($c.MinimumSize.Width -ne $availW -or $c.MinimumSize.Height -ne $pH) {
+                                    $c.MinimumSize = New-Object System.Drawing.Size($availW, $pH)
+                                }
+                            }
+                        } elseif ($c -is [System.Windows.Forms.Button]) {
+                            $needW = [System.Windows.Forms.TextRenderer]::MeasureText($c.Text, $c.Font).Width + 24
+                            $btnW = [int][math]::Min($availW, [math]::Max($c.Width, $needW))
+                            if ($c.Width -ne $btnW) { $c.Width = $btnW }
+                        } else {
+                            if ($c.Width -ne $availW) { $c.Width = $availW }
                         }
-                    } elseif ($c -is [System.Windows.Forms.Panel]) {
-                        $c.Width = $availW
-                        $pH = 0
-                        foreach ($sub in $c.Controls) {
-                            if ($sub.Dock -eq 'Top') { $pH += $sub.Height }
-                            else { $b = $sub.Bottom + 4; if ($b -gt $pH) { $pH = $b } }
-                        }
-                        if ($pH -gt 0) {
-                            $c.Height = $pH
-                            $c.MinimumSize = New-Object System.Drawing.Size($availW, $pH)
-                        }
-                    } elseif ($c -is [System.Windows.Forms.Button]) {
-                        $needW = [System.Windows.Forms.TextRenderer]::MeasureText($c.Text, $c.Font).Width + 24
-                        $btnW = [int][math]::Min($availW, [math]::Max($c.Width, $needW))
-                        if ($c.Width -ne $btnW) { $c.Width = $btnW }
-                    } else {
-                        $c.Width = $availW
+                    }
+                    if ($t.Location.X -ne $card.Padding.Left -or $t.Location.Y -ne $card.Padding.Top) {
+                        $t.Location = New-Object System.Drawing.Point($card.Padding.Left, $card.Padding.Top)
+                    }
+                    if ($t.Width -ne $innerW) {
+                        $t.Width = $innerW
+                        $t.MinimumSize = New-Object System.Drawing.Size($innerW, 0)
+                        $t.MaximumSize = New-Object System.Drawing.Size($innerW, 0)
+                    }
+                } finally {
+                    $t.ResumeLayout($false)
+                }
+                $t.PerformLayout()
+                $maxBot = $t.PreferredSize.Height
+                foreach ($c in $t.Controls) {
+                    if ($c.Visible) {
+                        $b = $c.Bottom + $c.Margin.Bottom
+                        if ($b -gt $maxBot) { $maxBot = $b }
                     }
                 }
-                $t.Location = New-Object System.Drawing.Point($card.Padding.Left, $card.Padding.Top)
-                $t.MinimumSize = New-Object System.Drawing.Size($innerW, 0)
-                $t.MaximumSize = New-Object System.Drawing.Size($innerW, 0)
-                $t.Width = $innerW
-            } finally {
-                $t.ResumeLayout($true)
-            }
-            $t.PerformLayout()
-            $maxBot = $t.PreferredSize.Height
-            foreach ($c in $t.Controls) {
-                if ($c.Visible) {
-                    $b = $c.Bottom + $c.Margin.Bottom
-                    if ($b -gt $maxBot) { $maxBot = $b }
+                if ($maxBot -gt 0 -and $t.Height -ne $maxBot) { $t.Height = $maxBot }
+                $neededH = [int]($t.Location.Y + $maxBot + $card.Padding.Bottom + 6)
+                $cardH = [int][math]::Max(($maxBot + $padV + 4), $neededH)
+                if ($card.Location.X -ne 0 -or $card.Location.Y -ne $curY -or $card.Width -ne $stackW -or $card.Height -ne $cardH) {
+                    $card.SetBounds(0, $curY, $stackW, $cardH)
                 }
+                $curY += $cardH + 12
             }
-            if ($maxBot -gt 0) { $t.Height = $maxBot }
-            $neededH = [int]($t.Location.Y + $maxBot + $card.Padding.Bottom + 6)
-            $cardH = [int][math]::Max(($maxBot + $padV + 4), $neededH)
-            $card.Bounds = New-Object System.Drawing.Rectangle(0, $curY, $stackW, $cardH)
-            $curY += $cardH + 12
-        }
-        $curScrollY = if ($script:StackRefs -and $script:StackRefs.ScrollBar) { & $script:StackRefs.ScrollBar.GetScrollY } else { 0 }
-        $content.Location = New-Object System.Drawing.Point(16, (10 - $curScrollY))
-        $content.Size = New-Object System.Drawing.Size($stackW, [int][math]::Max(10, ($curY + 64)))
-        if ($script:StackRefs -and $script:StackRefs.ScrollBar) {
-            & $script:StackRefs.ScrollBar.Sync
+            $curScrollY = if ($script:StackRefs -and $script:StackRefs.ScrollBar) { & $script:StackRefs.ScrollBar.GetScrollY } else { 0 }
+            $wantH = [int][math]::Max(10, ($curY + 64))
+            if ($content.Location.X -ne 16 -or $content.Location.Y -ne (10 - $curScrollY) -or $content.Width -ne $stackW -or $content.Height -ne $wantH) {
+                $content.SetBounds(16, (10 - $curScrollY), $stackW, $wantH)
+            }
+            if ($script:StackRefs -and $script:StackRefs.ScrollBar) {
+                & $script:StackRefs.ScrollBar.Sync
+            }
+        } finally {
+            $content.ResumeLayout($false)
         }
     } finally {
-        $content.ResumeLayout($true)
+        [Win32Chrome]::Resume($hwnd)
     }
 }
 
@@ -1472,8 +1558,26 @@ function New-PageTop($Page, [string]$Title, [string]$Hint = '') {
 # ---------------------------------------------------------------------------------------
 $script:Form = New-Object System.Windows.Forms.Form
 Enable-DoubleBuffer $script:Form
-$script:Form.Text = 'K BNG M Hoster v0.7.2.0 - by Kinan (@kinan_sx240) & @bomberrie'
+$script:Form.Text = 'K BNG M Hoster v0.7.2.4 - by Kinan (@kinan_sx240) & @bomberrie'
 $script:Form.FormBorderStyle = 'None'
+$script:Form.ShowInTaskbar = $true
+
+$icoPath = Join-Path $script:AppDir 'app.ico'
+if (-not (Test-Path -LiteralPath $icoPath)) { $icoPath = Join-Path $script:ServerDir 'app.ico' }
+if (Test-Path -LiteralPath $icoPath) {
+    try {
+        $script:AppIcon = New-Object System.Drawing.Icon($icoPath)
+        $script:Form.Icon = $script:AppIcon
+    } catch { Write-Log "[ICON-ERROR] $($_.Exception.Message)" }
+}
+
+$script:Form.Add_HandleCreated({
+    try {
+        if ($script:AppIcon) {
+            [Win32Chrome]::SetWindowIcon($this.Handle, $script:AppIcon.Handle)
+        }
+    } catch { }
+})
 $script:Form.MinimumSize = New-Object System.Drawing.Size(900, 540)
 $workArea = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
 $initW = [int][math]::Min(1100, [math]::Max(900, ($workArea.Width - 32)))
@@ -1523,43 +1627,64 @@ function Set-StreamerMode([bool]$Enabled) {
         Remove-Item -LiteralPath $streamerFile -Force -ErrorAction SilentlyContinue
     }
 
-    if ($script:BtnHeaderStreamer) {
-        $script:BtnHeaderStreamer.Invalidate()
+    $hwnd = if ($script:Form -and $script:Form.IsHandleCreated) { $script:Form.Handle } else { [IntPtr]::Zero }
+    [Win32Chrome]::Suspend($hwnd)
+    try {
+        if ($script:LogPanel) {
+            $script:LogPanel.Visible = -not $Enabled
+        }
+        if ($script:RowConnLan) {
+            $script:RowConnLan.Visible = -not $Enabled
+        }
+
+        if ($script:BtnHeaderStreamer) {
+            $script:BtnHeaderStreamer.Invalidate()
+        }
+
+        if ($script:ChkStreamerMode -and $script:ChkStreamerMode.Checked -ne $Enabled) {
+            $script:SuppressSettingEvents = $true
+            $script:ChkStreamerMode.Checked = $Enabled
+            $script:SuppressSettingEvents = $false
+        }
+
+        if ($Enabled -and $script:LogBox -and $script:LogBox.Text) {
+            try {
+                $pub = if ($script:State -and $script:State.Conn) { $script:State.Conn.Public } else { '' }
+                $key = Get-ConfigValue 'AuthKey'
+                $extraIps = @()
+                $lan = ''
+                if ($script:State -and $script:State.Conn) {
+                    if ($script:State.Conn.LAN) {
+                        $lan = $script:State.Conn.LAN
+                        $extraIps += $lan
+                    }
+                    if ($script:State.Conn.Vpn) { $extraIps += @($script:State.Conn.Vpn | Where-Object { $_.Ip } | ForEach-Object { $_.Ip }) }
+                    if ($script:State.Conn.Tailscale) { $extraIps += $script:State.Conn.Tailscale }
+                }
+                $clean = Protect-StreamerText $script:LogBox.Text $true $pub $key $extraIps $lan
+                if ($clean -ne $script:LogBox.Text) {
+                    $script:LogBox.SuspendLayout()
+                    $script:LogBox.Text = $clean
+                    $script:LogBox.SelectionStart = $script:LogBox.TextLength
+                    $script:LogBox.ScrollToCaret()
+                    if ($script:SyncLogScroll) { & $script:SyncLogScroll }
+                    $script:LogBox.ResumeLayout($true)
+                }
+            } catch { }
+        }
+
+        Refresh-Dashboard
+        if ($script:VpnRowsWrap) {
+            Refresh-VpnRows
+        }
+        if ($script:PageLayout) {
+            try { & $script:PageLayout } catch { }
+        }
+    } finally {
+        [Win32Chrome]::Resume($hwnd)
     }
 
-    if ($script:ChkStreamerMode -and $script:ChkStreamerMode.Checked -ne $Enabled) {
-        $script:SuppressSettingEvents = $true
-        $script:ChkStreamerMode.Checked = $Enabled
-        $script:SuppressSettingEvents = $false
-    }
-
-    if ($Enabled -and $script:LogBox -and $script:LogBox.Text) {
-        try {
-            $pub = if ($script:State -and $script:State.Conn) { $script:State.Conn.Public } else { '' }
-            $key = Get-ConfigValue 'AuthKey'
-            $extraIps = @()
-            if ($script:State -and $script:State.Conn) {
-                if ($script:State.Conn.Vpn) { $extraIps += @($script:State.Conn.Vpn | Where-Object { $_.Ip } | ForEach-Object { $_.Ip }) }
-                if ($script:State.Conn.Tailscale) { $extraIps += $script:State.Conn.Tailscale }
-            }
-            $clean = Protect-StreamerText $script:LogBox.Text $true $pub $key $extraIps
-            if ($clean -ne $script:LogBox.Text) {
-                $script:LogBox.SuspendLayout()
-                $script:LogBox.Text = $clean
-                $script:LogBox.SelectionStart = $script:LogBox.TextLength
-                $script:LogBox.ScrollToCaret()
-                if ($script:SyncLogScroll) { & $script:SyncLogScroll }
-                $script:LogBox.ResumeLayout($true)
-            }
-        } catch { }
-    }
-
-    Refresh-Dashboard
-    if ($script:VpnRowsWrap) {
-        Refresh-VpnRows
-    }
-
-    Add-Log "[INFO] Streamer Privacy Mode $(if ($Enabled) { 'ENABLED (WAN IP, AuthKey & user paths masked)' } else { 'DISABLED (Standard display)' })"
+    Add-Log "[INFO] Streamer Privacy Mode $(if ($Enabled) { 'ENABLED (Console & Home WiFi/LAN hidden; WAN IP, AuthKey & user paths masked)' } else { 'DISABLED (Standard display)' })"
 }
 
 function Toggle-StreamerMode {
@@ -1706,7 +1831,7 @@ $script:BtnHeaderStreamer.Width = 142
 $script:BtnHeaderStreamer.Height = 26
 $script:BtnHeaderStreamer.BackColor = [System.Drawing.Color]::Transparent
 $script:BtnHeaderStreamer.Cursor = [System.Windows.Forms.Cursors]::Hand
-$script:Tip.SetToolTip($script:BtnHeaderStreamer, 'Streamer Privacy Mode: Click to toggle real-time masking of WAN IP, AuthKey, and personal file paths.')
+$script:Tip.SetToolTip($script:BtnHeaderStreamer, 'Streamer Privacy Mode: Click to toggle. Automatically hides the Activity Console drawer and Home WiFi/LAN address, and masks WAN IP, AuthKey, and personal file paths.')
 $script:BtnHeaderStreamer.Add_Click({ Toggle-StreamerMode })
 $script:BtnHeaderStreamer.Add_MouseEnter({ $this.AccessibleDescription = 'hover'; $this.Invalidate() })
 $script:BtnHeaderStreamer.Add_MouseLeave({ $this.AccessibleDescription = ''; $this.Invalidate() })
@@ -1995,10 +2120,14 @@ $statusBar.Controls.Add($resizeGrip)
 
 # ---------------- Log panel (console drawer above status bar) ----------------
 $logPanel = New-Object System.Windows.Forms.Panel
+$script:LogPanel = $logPanel
 Enable-DoubleBuffer $logPanel
 $logPanel.Dock = 'Bottom'
 $logPanel.Height = 166
 $logPanel.BackColor = $Theme.bg
+if ($script:StreamerMode) {
+    $logPanel.Visible = $false
+}
 $logHead = New-Object System.Windows.Forms.Panel
 Enable-DoubleBuffer $logHead
 $logHead.Dock = 'Top'
@@ -2219,8 +2348,10 @@ $script:ExtraStackRefs = $null
 
 function Switch-ContentPage($NewPage) {
     if (-not $NewPage) { return }
-    $script:Content.SuspendLayout()
+    $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+    [Win32Chrome]::Suspend($hwnd)
     try {
+        $script:Content.SuspendLayout()
         foreach ($c in @($script:Content.Controls)) {
             if ($c -ne $NewPage -and $c.Visible) {
                 $c.Visible = $false
@@ -2231,11 +2362,12 @@ function Switch-ContentPage($NewPage) {
         }
         $NewPage.Visible = $true
         $NewPage.BringToFront()
+        $script:Content.ResumeLayout($false)
+        if ($script:PageLayout) {
+            try { & $script:PageLayout } catch { }
+        }
     } finally {
-        $script:Content.ResumeLayout($true)
-    }
-    if ($script:PageLayout) {
-        try { & $script:PageLayout } catch { }
+        [Win32Chrome]::Resume($hwnd)
     }
 }
 
@@ -2265,6 +2397,8 @@ $script:Form.Add_Resize({
 # ---------------------------------------------------------------------------------------
 function Layout-HomePage {
     if (-not $script:HomePagePanel -or $script:HomePagePanel.IsDisposed) { return }
+    $hwnd = if ($script:HomePagePanel.IsHandleCreated) { $script:HomePagePanel.Handle } else { [IntPtr]::Zero }
+    [Win32Chrome]::Suspend($hwnd)
     try {
         $hpPadH = if ($script:HomePagePanel -and $script:HomePagePanel.Padding) {
             ($script:HomePagePanel.Padding.Left + $script:HomePagePanel.Padding.Right)
@@ -2328,15 +2462,24 @@ function Layout-HomePage {
             if ($script:HomeScrollBar) { & $script:HomeScrollBar.Sync }
         }
     } catch { Write-Log "[LAYOUT-ERROR] HOME $($_.Exception.Message)" }
+    finally {
+        [Win32Chrome]::Resume($hwnd)
+    }
 }
 
 function Show-HomePage {
     Set-ActiveNav $script:BtnHome
     $script:PageLayout = { Layout-HomePage }
     if ($script:HomePagePanel -and -not $script:HomePagePanel.IsDisposed) {
-        Switch-ContentPage $script:HomePagePanel
-        Refresh-Dashboard
-        Layout-HomePage
+        $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+        [Win32Chrome]::Suspend($hwnd)
+        try {
+            Switch-ContentPage $script:HomePagePanel
+            Refresh-Dashboard
+            Layout-HomePage
+        } finally {
+            [Win32Chrome]::Resume($hwnd)
+        }
         return
     }
     $p = New-Object System.Windows.Forms.Panel
@@ -2606,6 +2749,9 @@ function Show-HomePage {
 
     Add-EndpointRow "YOU  $dot  HOST PC"        'Use this loopback address in BeamNG on THIS computer to join your own server.'            'LblConnThis'   'RowConnThis'   'BtnConnThis'   $Theme.text  $false
     Add-EndpointRow 'HOME WIFI / LAN'          'Share this address with players connected to the same home WiFi or router.'              'LblConnLan'    'RowConnLan'    'BtnConnLan'    $Theme.text  $false
+    if ($script:StreamerMode -and $script:RowConnLan) {
+        $script:RowConnLan.Visible = $false
+    }
     Add-EndpointRow 'PUBLIC TUNNEL'            'Shareable tunnel address (FRP or Playit.gg) - friends can join without port forwarding.' 'LblConnTunnel' 'RowConnTunnel' 'BtnConnTunnel' $Theme.blue  $true
     Add-EndpointRow 'VIRTUAL LAN (VPN)'        'For friends connected to the same Radmin VPN, ZeroTier, or Hamachi network.'             'LblConnVpn'    'RowConnVpn'    'BtnConnVpn'    $Theme.green $false
     Add-EndpointRow 'TAILSCALE MESH'           'For friends connected to your Tailscale mesh network.'                                   'LblConnTail'   'RowConnTail'   'BtnConnTail'   $Theme.blue  $false
@@ -2803,11 +2949,17 @@ function Refresh-Dashboard {
     Set-RowBtn $script:BtnConnThis 'Copy IP' "127.0.0.1:$port"
 
     # 2. Local LAN (Home WiFi)
-    if ($conn -and $conn.LAN) {
+    if ($script:StreamerMode) {
+        if ($script:RowConnLan -and $script:RowConnLan.Visible) { $script:RowConnLan.Visible = $false; $layoutChanged = $true }
+        [void](Set-CtrlText $script:LblConnLan "$bul  ***.***.***.***:$port   (Same WiFi / Router - Hidden in Streamer Mode)" $Theme.dim)
+        Set-RowBtn $script:BtnConnLan 'Protected' '__STREAMER_BLOCKED__'
+    } elseif ($conn -and $conn.LAN) {
+        if ($script:RowConnLan -and -not $script:RowConnLan.Visible) { $script:RowConnLan.Visible = $true; $layoutChanged = $true }
         $lanCol = if ($running) { $Theme.green } else { $Theme.text }
         [void](Set-CtrlText $script:LblConnLan "$bul  $($conn.LAN):$port   (Same WiFi / Router)" $lanCol)
         Set-RowBtn $script:BtnConnLan 'Copy IP' "$($conn.LAN):$port"
     } else {
+        if ($script:RowConnLan -and -not $script:RowConnLan.Visible) { $script:RowConnLan.Visible = $true; $layoutChanged = $true }
         [void](Set-CtrlText $script:LblConnLan "$hol  Detecting local network adapter..." $Theme.dim)
         Set-RowBtn $script:BtnConnLan 'Detect' '__REFRESH__'
     }
@@ -2947,10 +3099,15 @@ function Show-SettingsPage {
     $script:PageLayout = { Update-CardStackLayout }
     if ($script:SettingsPagePanel -and -not $script:SettingsPagePanel.IsDisposed) {
         $script:StackRefs = $script:SettingsStackRefs
-        Switch-ContentPage $script:SettingsPagePanel
-        Refresh-SettingsFields
-        Refresh-Dashboard
-        Update-CardStackLayout
+        $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+        [Win32Chrome]::Suspend($hwnd)
+        try {
+            Switch-ContentPage $script:SettingsPagePanel
+            Refresh-SettingsFields
+            Update-CardStackLayout
+        } finally {
+            [Win32Chrome]::Resume($hwnd)
+        }
         return
     }
     $p = New-Object System.Windows.Forms.Panel
@@ -3148,7 +3305,7 @@ function Show-SettingsPage {
     # ---- Streamer Privacy Mode ----
     $card = New-Card 'Streamer Privacy Mode' 'Mask sensitive data during live broadcasting and recording.'
     $script:ChkStreamerMode = New-Object System.Windows.Forms.CheckBox
-    $script:ChkStreamerMode.Text = 'Enable Streamer Privacy Mode (instantly redacts WAN IP, AuthKey, and Windows usernames)'
+    $script:ChkStreamerMode.Text = 'Enable Streamer Privacy Mode (hides console & home WiFi/LAN; redacts WAN IP, AuthKey)'
     $script:ChkStreamerMode.ForeColor = $Theme.green
     $script:ChkStreamerMode.BackColor = $Theme.card
     $script:ChkStreamerMode.Font = $rFont95
@@ -3159,7 +3316,7 @@ function Show-SettingsPage {
         Set-StreamerMode $this.Checked
     })
     Add-RowFull $card $script:ChkStreamerMode
-    Add-RowNote $card 'When active, WAN IPs, server keys, and local user file paths are replaced with *** across the Dashboard, Network tab, and Activity Console. A quick toggle is also always available in the top-right header.' $Theme.dim | Out-Null
+    Add-RowNote $card 'When active, the Activity Console drawer and Home WiFi/LAN endpoint are completely hidden, and WAN IPs, server keys, and local user file paths are replaced with *** across the Dashboard and Network tabs. A quick toggle is also always available in the top-right header.' $Theme.dim | Out-Null
     $cards += $card
 
     # ---- Advanced Server Settings (Collapsible Accordion) ----
@@ -3171,10 +3328,16 @@ function Show-SettingsPage {
         $script:AdvancedExpanded = -not [bool]$script:AdvancedExpanded
         $script:BtnToggleAdvanced.Text = if ($script:AdvancedExpanded) { 'v  Hide Advanced Settings' } else { '>  Show Advanced Settings (5 options)' }
         $script:BtnToggleAdvanced.ForeColor = if ($script:AdvancedExpanded) { $Theme.blue } else { [System.Drawing.Color]::White }
-        foreach ($ctrl in $script:AdvancedControls) {
-            $ctrl.Visible = $script:AdvancedExpanded
+        $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+        [Win32Chrome]::Suspend($hwnd)
+        try {
+            foreach ($ctrl in $script:AdvancedControls) {
+                $ctrl.Visible = $script:AdvancedExpanded
+            }
+            Update-CardStackLayout
+        } finally {
+            [Win32Chrome]::Resume($hwnd)
         }
-        Update-CardStackLayout
     }
     $script:BtnToggleAdvanced.Size = New-Object System.Drawing.Size(260, 32)
     $script:BtnToggleAdvanced.BackColor = $Theme.panel
@@ -3275,18 +3438,24 @@ function Show-SettingsPage {
     Add-RowNote $card 'Presets are saved privately in the Server\Presets folder - they are not uploaded anywhere. Loading a preset restarts the server if it is running.' $Theme.dim | Out-Null
     $cards += $card
 
-    & $script:MountCards $cards $stack.Content
-    $p.ResumeLayout($false)
-    $script:SettingsStackRefs = $script:StackRefs
-    $script:SettingsPagePanel = $p
-    Switch-ContentPage $p
-    $script:SuppressSettingEvents = $true
-    $script:ChkLock.Checked = (Test-StaticIpLocked)
-    $script:SuppressSettingEvents = $false
-    Refresh-SettingsFields
-    Refresh-MapCombo
-    Refresh-PresetCombo
-    Refresh-Dashboard
+    $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+    [Win32Chrome]::Suspend($hwnd)
+    try {
+        & $script:MountCards $cards $stack.Content
+        $p.ResumeLayout($false)
+        $script:SettingsStackRefs = $script:StackRefs
+        $script:SettingsPagePanel = $p
+        Switch-ContentPage $p
+        $script:SuppressSettingEvents = $true
+        $script:ChkLock.Checked = (Test-StaticIpLocked)
+        $script:SuppressSettingEvents = $false
+        Refresh-SettingsFields
+        Refresh-MapCombo
+        Refresh-PresetCombo
+        Update-CardStackLayout
+    } finally {
+        [Win32Chrome]::Resume($hwnd)
+    }
 }
 
 function Get-AllConfigValues {
@@ -3646,9 +3815,15 @@ function Show-NetworkPage([bool]$ForceRefresh = $false) {
     $script:PageLayout = { Update-CardStackLayout }
     if (-not $ForceRefresh -and $script:NetworkPagePanel -and -not $script:NetworkPagePanel.IsDisposed) {
         $script:StackRefs = $script:NetworkStackRefs
-        Switch-ContentPage $script:NetworkPagePanel
-        Refresh-FrpFields
-        Update-CardStackLayout
+        $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+        [Win32Chrome]::Suspend($hwnd)
+        try {
+            Switch-ContentPage $script:NetworkPagePanel
+            Refresh-FrpFields
+            Update-CardStackLayout
+        } finally {
+            [Win32Chrome]::Resume($hwnd)
+        }
         return
     }
     $p = New-Object System.Windows.Forms.Panel
@@ -3915,8 +4090,14 @@ function Show-FixPage {
     Set-ActiveNav $script:BtnFix
     $script:PageLayout = { Layout-FixRows }
     if ($script:FixPagePanel -and -not $script:FixPagePanel.IsDisposed) {
-        Switch-ContentPage $script:FixPagePanel
-        & $script:PageLayout
+        $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+        [Win32Chrome]::Suspend($hwnd)
+        try {
+            Switch-ContentPage $script:FixPagePanel
+            & $script:PageLayout
+        } finally {
+            [Win32Chrome]::Resume($hwnd)
+        }
         return
     }
     $p = New-Object System.Windows.Forms.Panel
@@ -4381,9 +4562,15 @@ function Show-ModsPage {
     Set-ActiveNav $script:BtnMods
     $script:PageLayout = { Layout-Mods }
     if ($script:ModsPagePanel -and -not $script:ModsPagePanel.IsDisposed) {
-        Switch-ContentPage $script:ModsPagePanel
-        & $script:PageLayout
-        Populate-ModLists
+        $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+        [Win32Chrome]::Suspend($hwnd)
+        try {
+            Switch-ContentPage $script:ModsPagePanel
+            & $script:PageLayout
+            Populate-ModLists
+        } finally {
+            [Win32Chrome]::Resume($hwnd)
+        }
         return
     }
     $p = New-Object System.Windows.Forms.Panel
@@ -4614,8 +4801,14 @@ function Show-TransferPage {
     $script:PageLayout = { Update-CardStackLayout }
     if ($script:TransferPagePanel -and -not $script:TransferPagePanel.IsDisposed) {
         $script:StackRefs = $script:TransferStackRefs
-        Switch-ContentPage $script:TransferPagePanel
-        Update-CardStackLayout
+        $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+        [Win32Chrome]::Suspend($hwnd)
+        try {
+            Switch-ContentPage $script:TransferPagePanel
+            Update-CardStackLayout
+        } finally {
+            [Win32Chrome]::Resume($hwnd)
+        }
         return
     }
     $p = New-Object System.Windows.Forms.Panel
@@ -4932,7 +5125,13 @@ function Show-GuidePage {
     Set-ActiveNav $script:BtnMore
     $script:PageLayout = $null
     if ($script:GuidePagePanel -and -not $script:GuidePagePanel.IsDisposed) {
-        Switch-ContentPage $script:GuidePagePanel
+        $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+        [Win32Chrome]::Suspend($hwnd)
+        try {
+            Switch-ContentPage $script:GuidePagePanel
+        } finally {
+            [Win32Chrome]::Resume($hwnd)
+        }
         return
     }
     $p = New-Object System.Windows.Forms.Panel
@@ -5090,9 +5289,15 @@ function Show-ExtraPage {
     $script:PageLayout = { Update-CardStackLayout }
     if ($script:ExtraPagePanel -and -not $script:ExtraPagePanel.IsDisposed) {
         $script:StackRefs = $script:ExtraStackRefs
-        Switch-ContentPage $script:ExtraPagePanel
-        Refresh-WinRows
-        Update-CardStackLayout
+        $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+        [Win32Chrome]::Suspend($hwnd)
+        try {
+            Switch-ContentPage $script:ExtraPagePanel
+            Refresh-WinRows
+            Update-CardStackLayout
+        } finally {
+            [Win32Chrome]::Resume($hwnd)
+        }
         return
     }
     $p = New-Object System.Windows.Forms.Panel
@@ -5955,7 +6160,23 @@ Say "Diagnosis ready."
 
 function Show-DiagResult {
     if ($script:State.Diag) {
-        [System.Windows.Forms.MessageBox]::Show($script:State.Diag, 'Problem diagnosis', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
+        $diagText = $script:State.Diag
+        if ($script:StreamerMode -and (Get-Command 'Protect-StreamerText' -ErrorAction SilentlyContinue)) {
+            $pub = if ($script:State -and $script:State.Conn) { $script:State.Conn.Public } else { '' }
+            $key = Get-ConfigValue 'AuthKey'
+            $extraIps = @()
+            $lan = ''
+            if ($script:State -and $script:State.Conn) {
+                if ($script:State.Conn.LAN) {
+                    $lan = $script:State.Conn.LAN
+                    $extraIps += $lan
+                }
+                if ($script:State.Conn.Vpn) { $extraIps += @($script:State.Conn.Vpn | Where-Object { $_.Ip } | ForEach-Object { $_.Ip }) }
+                if ($script:State.Conn.Tailscale) { $extraIps += $script:State.Conn.Tailscale }
+            }
+            $diagText = Protect-StreamerText $diagText $true $pub $key $extraIps $lan
+        }
+        [System.Windows.Forms.MessageBox]::Show($diagText, 'Problem diagnosis', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
         $script:State.Diag = ''
     }
 }

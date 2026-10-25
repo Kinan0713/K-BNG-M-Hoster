@@ -88,7 +88,8 @@ function Protect-StreamerText {
         [bool]$Active = $false,
         [string]$PublicIp = '',
         [string]$AuthKey = '',
-        [string[]]$ExtraIps = @()
+        [string[]]$ExtraIps = @(),
+        [string]$LanIp = ''
     )
     if (-not $Text -or -not $Active) { return $Text }
     $res = $Text
@@ -100,6 +101,9 @@ function Protect-StreamerText {
     $res = $res -replace '(?i)(FRPToken\s*=\s*["''])[^\r\n"'']+(["''])', '$1********$2'
     if ($PublicIp -and $PublicIp -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') {
         $res = $res.Replace($PublicIp, '***.***.***.***')
+    }
+    if ($LanIp -and $LanIp -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') {
+        $res = $res.Replace($LanIp, '***.***.***.***')
     }
     if ($ExtraIps) {
         foreach ($eip in $ExtraIps) {

@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 [assembly: AssemblyTitle("K BNG M Hoster")]
@@ -12,16 +13,21 @@ using System.Windows.Forms;
 [assembly: AssemblyCopyright("Copyright (c) 2026 Kinan - UI/UX by @bomberrie")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
-[assembly: AssemblyVersion("0.7.2.3")]
-[assembly: AssemblyFileVersion("0.7.2.3")]
+[assembly: AssemblyVersion("0.7.2.4")]
+[assembly: AssemblyFileVersion("0.7.2.4")]
 
 namespace KBnGMHoster
 {
     static class Launcher
     {
+        [DllImport("shell32.dll", SetLastError = true)]
+        public static extern int SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string AppID);
+
         [STAThread]
         static void Main(string[] args)
         {
+            try { SetCurrentProcessExplicitAppUserModelID("Kinan.KBNGMHoster.App"); } catch { }
+
             string appDir = AppDomain.CurrentDomain.BaseDirectory;
             string scriptPath = Path.Combine(appDir, "Server", "Play_BeamMP.ps1");
 

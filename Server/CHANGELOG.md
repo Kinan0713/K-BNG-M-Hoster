@@ -1,3 +1,24 @@
+## v0.7.2.4 - Update 14: Zero-Flicker Architecture, Native Taskbar Branding & Streamer Privacy Hardening
+
+- **Anti-Flicker Architecture & Atomic Transitions:**
+  - **Window & Container Hardware Clipping (`WS_CLIPCHILDREN`)**: Enforced native `WS_CLIPCHILDREN (0x02000000)` across `$script:Form` and all container panels, stopping parents from painting backgrounds underneath child controls during updates.
+  - **Atomic Redraw Suspension (`WM_SETREDRAW` / `RedrawWindow`)**: Integrated `[Win32Chrome]::Suspend` and `Resume` around tab navigation (`Switch-ContentPage`), card stack measurements (`Update-CardStackLayout`), home layout recalculations (`Layout-HomePage`), streamer mode state toggles, and accordion expansion. Windows buffers all changes off-screen and blits the finished frame in a single atomic composite pass.
+  - **Delta-Only Geometry Updates**: Guarded control bounds and dimensions (`SetBounds`) to only execute when values actually differ from current layout geometry, preventing redundant paint cycles.
+
+- **Native Application Taskbar Icon & AppUserModelID Branding:**
+  - **Explicit AppID Isolation**: Initialized `SetCurrentProcessExplicitAppUserModelID("Kinan.KBNGMHoster.App")` across both `Launcher.cs` and `Play_BeamMP.ps1`, completely detaching the application from the generic Windows PowerShell taskbar grouping.
+  - **Multi-Resolution Icon Binding**: Loaded `app.ico` into `$script:Form.Icon` and directly dispatched Win32 `WM_SETICON` (`ICON_SMALL` & `ICON_BIG`), displaying the official high-DPI emblem icon on the Windows Taskbar, Alt-Tab switcher, and window title bar.
+  - **Taskbar Minimize/Restore Support**: Stamped `WS_MINIMIZEBOX (0x00020000)` and `WS_SYSMENU (0x00080000)` on the custom dark frameless window styles, enabling natural Windows taskbar click-to-minimize and restore behaviors.
+
+- **Streamer Privacy Mode Console Drawer Collapse:**
+  - **Seamless Full-Height Workspace**: When Streamer Privacy Mode is toggled on, the 166px bottom Activity Console drawer (`$logPanel`) is completely hidden (`Visible = $false`), seamlessly giving all vertical space back to the dashboard content canvas without layout jitter.
+  - **Instant Drawer Restoration**: Disabling Streamer Mode immediately restores the console drawer (`Visible = $true`) with its smooth scrolling and controls intact.
+
+- **Complete Home WiFi / LAN Masking & Row Hiding:**
+  - **Matrix Row Hiding**: The "HOME WIFI / LAN" direct connect row is automatically collapsed and hidden from the Direct Connect Matrix when Streamer Mode is active, preventing accidental broadcast of local network topology.
+  - **Endpoint Copy Protection**: When Streamer Mode is active, LAN endpoint copy buttons are set to `'Protected'` (`__STREAMER_BLOCKED__`), blocking clipboard exposure.
+  - **Multi-Vector LAN IP Redaction**: Updated `Protect-StreamerText` in `HosterCore.ps1` to accept and sanitize the active LAN IP (`$LanIp`), ensuring local WiFi/router IPs (`192.168.x.x`, `10.x.x.x`) are masked with `***.***.***.***` across live log streaming, log history refreshes, and diagnosis report popups.
+
 ## v0.7.2.3 - Update 13: Input Field Modernization, Material Polish & Native Standalone Launcher Executable
 
 - **Native Standalone Executable Launcher (`K-BNG-M-Hoster.exe`):**
