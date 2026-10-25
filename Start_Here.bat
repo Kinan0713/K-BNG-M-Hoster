@@ -1,13 +1,16 @@
 @echo off
-title K BNG M Hoster v0.7.1.1
-:: START HERE - just double-click this file. That's all you ever need to do.
-:: Everything else lives in the "Server" folder - you never need to open it.
+title K BNG M Hoster v0.7.2.3
+:: START HERE - just double-click K-BNG-M-Hoster.exe or this file. That's all you need to do.
+if exist "%~dp0K-BNG-M-Hoster.exe" (
+    start "" "%~dp0K-BNG-M-Hoster.exe" %*
+    exit /b 0
+)
 if not exist "%~dp0Server\Play_BeamMP.ps1" (
     echo.
     echo   ERROR: Server\Play_BeamMP.ps1 was not found.
     echo   Did you run this file from inside the zip?
-    echo   First extract the whole folder from the zip, then double-click
-    echo   Start_Here.bat again.
+    echo   First extract the whole folder from the zip, then run
+    echo   K-BNG-M-Hoster.exe or Start_Here.bat again.
     echo.
     pause
     exit /b 1

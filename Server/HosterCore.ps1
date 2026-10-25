@@ -62,6 +62,7 @@ function Initialize-HosterPaths {
     # Older ServerConfig.toml files lack the [FRP] section - add it once,
     # idempotently, so every FRP feature has sane defaults from the start.
     Initialize-FrpConfigSection
+    Initialize-MiscConfigSection
 
     # One-time binary setup: frpc.exe ships inside Server\bin\frp_*.zip and is
     # extracted automatically on first run - the user never touches any file.
@@ -78,6 +79,48 @@ function Initialize-HosterPaths {
 # ---------------------------------------------------------------------------------------
 # HELPERS
 # ---------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------
+# STREAMER PRIVACY MODE ENGINE
+# ---------------------------------------------------------------------------------------
+function Protect-StreamerText {
+    param(
+        [string]$Text,
+        [bool]$Active = $false,
+        [string]$PublicIp = '',
+        [string]$AuthKey = '',
+        [string[]]$ExtraIps = @(),
+        [string]$LanIp = ''
+    )
+    if (-not $Text -or -not $Active) { return $Text }
+    $res = $Text
+    if ($AuthKey -and $AuthKey.Length -ge 4 -and $AuthKey -ne '0') {
+        $res = $res.Replace($AuthKey, '********************************')
+    }
+    $res = $res -replace '(?i)(AuthKey\s*=\s*["''])[A-Za-z0-9_-]{8,}(["''])', '$1********************************$2'
+    $res = $res -replace '(?i)(BEAMMP_AUTHKEY=)[A-Za-z0-9_-]{8,}', '$1********************************'
+    $res = $res -replace '(?i)(FRPToken\s*=\s*["''])[^\r\n"'']+(["''])', '$1********$2'
+    if ($PublicIp -and $PublicIp -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') {
+        $res = $res.Replace($PublicIp, '***.***.***.***')
+    }
+    if ($LanIp -and $LanIp -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') {
+        $res = $res.Replace($LanIp, '***.***.***.***')
+    }
+    if ($ExtraIps) {
+        foreach ($eip in $ExtraIps) {
+            if ($eip -and $eip.Length -ge 7 -and $eip -ne '127.0.0.1') {
+                $res = $res.Replace($eip, '***.***.***.***')
+            }
+        }
+    }
+    $res = [regex]::Replace($res, '\b(?!(?:10|127|192\.168|172\.(?:1[6-9]|2[0-9]|3[01]))\.)\d{1,3}(?:\.\d{1,3}){3}\b', '***.***.***.***')
+    $userProf = $env:USERPROFILE
+    if ($userProf) {
+        $res = $res.Replace($userProf, 'C:\Users\***')
+    }
+    $res = $res -replace '(?i)[A-Za-z]:\\Users\\[^\s\\/]+', 'C:\Users\***'
+    return $res
+}
+
 function Write-Log([string]$Message) {
     $logDir = $script:ServerDir + 'Logs'
     if (-not (Test-Path -LiteralPath $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
@@ -236,12 +279,12 @@ function Update-Config {
 }
 
 # Reads any key from ServerConfig.toml as a plain string (quotes stripped).
-function Get-ConfigValue([string]$Key) {
+function Get-ConfigValue([string]$Key, [string]$Default = '') {
     $cfgPath = $script:RootDir + 'ServerConfig.toml'
-    if (-not (Test-Path -LiteralPath $cfgPath)) { return '' }
+    if (-not (Test-Path -LiteralPath $cfgPath)) { return $Default }
     $m = Select-String -LiteralPath $cfgPath -Pattern ("^\s*" + [regex]::Escape($Key) + "\s*=\s*(.+?)\s*$") | Select-Object -First 1
     if ($m) { return $m.Matches[0].Groups[1].Value.Trim().Trim('"') }
-    return ''
+    return $Default
 }
 
 # Normalizes any value into TOML-ready text: booleans -> true/false, numbers
@@ -273,6 +316,29 @@ function Set-ServerConfig {
     $lines = @(Get-Content -LiteralPath $cfgPath)
     $remaining = @($Values.Keys)
     $out = @()
+    $sectionMap = @{
+        'ImScaredOfUpdates'    = 'Misc'
+        'UpdateReminderTime'   = 'Misc'
+        'FRPEnabled'           = 'FRP'
+        'FRPServerAddress'     = 'FRP'
+        'FRPServerPort'        = 'FRP'
+        'FRPToken'             = 'FRP'
+        'Port'                 = 'General'
+        'AuthKey'              = 'General'
+        'AllowGuests'          = 'General'
+        'LogChat'              = 'General'
+        'Debug'                = 'General'
+        'IP'                   = 'General'
+        'Private'              = 'General'
+        'InformationPacket'    = 'General'
+        'Name'                 = 'General'
+        'Tags'                 = 'General'
+        'MaxCars'              = 'General'
+        'MaxPlayers'           = 'General'
+        'Map'                  = 'General'
+        'Description'          = 'General'
+        'ResourceFolder'       = 'General'
+    }
     foreach ($line in $lines) {
         $written = $false
         foreach ($key in $Values.Keys) {
@@ -285,9 +351,47 @@ function Set-ServerConfig {
         }
         if (-not $written) { $out += $line }
     }
-    foreach ($key in $remaining) {
-        if ($null -eq $Values[$key]) { continue }
-        $out += "$key = $(ConvertTo-TomlValue $Values[$key])"
+    if ($remaining.Count -gt 0) {
+        $remBySection = @{}
+        foreach ($k in $remaining) {
+            if ($null -eq $Values[$k]) { continue }
+            $sec = if ($sectionMap.ContainsKey($k)) { $sectionMap[$k] } else { 'General' }
+            if (-not $remBySection.ContainsKey($sec)) { $remBySection[$sec] = @() }
+            $remBySection[$sec] += $k
+        }
+        $finalOut = @()
+        $curSection = 'General'
+        $insertedSections = @{}
+        foreach ($line in $out) {
+            if ($line -match '^\s*\[([^\]]+)\]') {
+                $newSec = $Matches[1].Trim()
+                if ($remBySection.ContainsKey($curSection) -and -not $insertedSections.ContainsKey($curSection)) {
+                    foreach ($rk in $remBySection[$curSection]) {
+                        $finalOut += "$rk = $(ConvertTo-TomlValue $Values[$rk])"
+                    }
+                    $insertedSections[$curSection] = $true
+                }
+                $curSection = $newSec
+            }
+            $finalOut += $line
+        }
+        if ($remBySection.ContainsKey($curSection) -and -not $insertedSections.ContainsKey($curSection)) {
+            foreach ($rk in $remBySection[$curSection]) {
+                $finalOut += "$rk = $(ConvertTo-TomlValue $Values[$rk])"
+            }
+            $insertedSections[$curSection] = $true
+        }
+        foreach ($sec in $remBySection.Keys) {
+            if (-not $insertedSections.ContainsKey($sec)) {
+                $finalOut += ""
+                $finalOut += ("[" + $sec + "]")
+                foreach ($rk in $remBySection[$sec]) {
+                    $finalOut += "$rk = $(ConvertTo-TomlValue $Values[$rk])"
+                }
+                $insertedSections[$sec] = $true
+            }
+        }
+        $out = $finalOut
     }
     try {
         Set-Content -LiteralPath $cfgPath -Value $out -Encoding UTF8 -ErrorAction Stop
@@ -1202,9 +1306,15 @@ function Start-PlayitAgent {
 # ---------------------------------------------------------------------------------------
 # UPnP
 # ---------------------------------------------------------------------------------------
+$script:CachedUpnpControl = $null
+$script:CachedUpnpTime = $null
+
 function Get-UpnpControlUrl {
+    if ($script:CachedUpnpControl -and $script:CachedUpnpTime -and ((Get-Date) - $script:CachedUpnpTime).TotalMinutes -lt 10) {
+        return $script:CachedUpnpControl
+    }
     $client = New-Object System.Net.Sockets.UdpClient
-    $client.Client.ReceiveTimeout = 2000
+    $client.Client.ReceiveTimeout = 1500
     # Bind to the LAN interface so VPN adapters (Radmin/Tailscale/ZeroTier...)
     # cannot hijack the SSDP multicast - without this the router never hears us
     # and UPnP "does not work" even though it is enabled in the router.
@@ -1219,19 +1329,22 @@ function Get-UpnpControlUrl {
     try {
         $client.Send($bytes, $bytes.Length, $endpoint) | Out-Null
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        while ($sw.ElapsedMilliseconds -lt 6000) {
+        while ($sw.ElapsedMilliseconds -lt 1800) {
             try {
                 $resp = $client.Receive([ref]$endpoint)
                 $text = [System.Text.Encoding]::ASCII.GetString($resp)
                 $locLine = $text -split "`r?`n" | Where-Object { $_ -match '^LOCATION:\s*(.+)$' } | Select-Object -First 1
-                if ($locLine -and $locLine -match '^LOCATION:\s*(.+)$') { $locations[$Matches[1].Trim()] = $true }
+                if ($locLine -and $locLine -match '^LOCATION:\s*(.+)$') {
+                    $locations[$Matches[1].Trim()] = $true
+                    break
+                }
             } catch { break }
         }
     } catch { }
     $client.Close()
     foreach ($url in $locations.Keys) {
         try {
-            $xml = [xml](Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5).Content
+            $xml = [xml](Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 3).Content
             foreach ($svc in $xml.SelectNodes('//*[local-name()="service"]')) {
                 $stNode = $svc.SelectSingleNode('*[local-name()="serviceType"]')
                 $cuNode = $svc.SelectSingleNode('*[local-name()="controlURL"]')
@@ -1243,7 +1356,10 @@ function Get-UpnpControlUrl {
                     if ($ctrl -match '^/') { $ctrl = ($url -replace '^(https?://[^/]+).*$', '$1') + $ctrl }
                     else { $ctrl = $url.Substring(0, $url.LastIndexOf('/') + 1) + $ctrl }
                 }
-                return @{ ServiceType = $st; ControlUrl = $ctrl }
+                $res = @{ ServiceType = $st; ControlUrl = $ctrl }
+                $script:CachedUpnpControl = $res
+                $script:CachedUpnpTime = Get-Date
+                return $res
             }
         } catch { }
     }
@@ -1341,10 +1457,17 @@ function Get-PublicIpCached {
         } catch { }
     }
     $public = ''
-    try {
-        $public = (Invoke-RestMethod -Uri 'https://api.ipify.org' -TimeoutSec 8).ToString().Trim()
-        if ($public) { @{ ip = $public; checked = (Get-Date).ToString('o') } | ConvertTo-Json | Set-Content -LiteralPath $cache }
-    } catch { }
+    $endpoints = @('https://api.ipify.org', 'https://icanhazip.com', 'https://ifconfig.me/ip')
+    foreach ($ep in $endpoints) {
+        try {
+            $resp = (Invoke-RestMethod -Uri $ep -TimeoutSec 3).ToString().Trim()
+            if ($resp -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') {
+                $public = $resp
+                @{ ip = $public; checked = (Get-Date).ToString('o') } | ConvertTo-Json | Set-Content -LiteralPath $cache
+                break
+            }
+        } catch { }
+    }
     return $public
 }
 
@@ -2064,6 +2187,43 @@ function Initialize-FrpBinary {
 
 # Makes sure ServerConfig.toml has the four [FRP] keys. Older configs get them
 # appended under their own [FRP] table; existing values are never touched.
+# Makes sure ServerConfig.toml has the [Misc] section and its default keys.
+function Initialize-MiscConfigSection {
+    $cfgPath = $script:RootDir + 'ServerConfig.toml'
+    if (-not (Test-Path -LiteralPath $cfgPath)) { return }
+    try {
+        $lines = @(Get-Content -LiteralPath $cfgPath)
+        $has = @{}
+        foreach ($ln in $lines) {
+            foreach ($k in @('ImScaredOfUpdates', 'UpdateReminderTime')) {
+                if ($ln -match ('^\s*' + [regex]::Escape($k) + '\s*=')) { $has[$k] = $true }
+            }
+        }
+        if ($has.Count -eq 2) { return }
+        $out = @($lines)
+        $hasMiscHeader = $false
+        foreach ($ln in $lines) {
+            if ($ln -match '^\s*\[Misc\]') { $hasMiscHeader = $true; break }
+        }
+        if (-not $hasMiscHeader) {
+            $out += ''
+            $out += '[Misc]'
+            $out += '# Hides the periodic update message which notifies you of a new server version.'
+            $out += '# Specifies the time between update reminders (e.g. 30s, 5min, 1h, 1d).'
+        }
+        if (-not $has.ContainsKey('ImScaredOfUpdates')) {
+            $out += 'ImScaredOfUpdates = false'
+        }
+        if (-not $has.ContainsKey('UpdateReminderTime')) {
+            $out += 'UpdateReminderTime = "30s"'
+        }
+        Set-Content -LiteralPath $cfgPath -Value $out -Encoding UTF8
+        Write-Log "ServerConfig.toml upgraded with the [Misc] section"
+    } catch {
+        Write-Log "[Misc] Config upgrade failed: $($_.Exception.Message)"
+    }
+}
+
 function Initialize-FrpConfigSection {
     $cfgPath = $script:RootDir + 'ServerConfig.toml'
     if (-not (Test-Path -LiteralPath $cfgPath)) { return }

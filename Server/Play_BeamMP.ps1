@@ -1,5 +1,5 @@
 # ========================================================================================
-# K BNG M Hoster v0.7.1.1 - Simplest Edition (GUI)
+# K BNG M Hoster v0.7.2.5 - Simplest Edition (GUI)
 # All logic lives in HosterCore.ps1 (single source of truth). This file is the window.
 # Start_Here.bat / Play_BeamMP.bat only launch this file.
 #
@@ -24,6 +24,10 @@ elseif ($Mode -eq 'setup') { $Setup = $true }
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName PresentationFramework
+Add-Type -AssemblyName PresentationCore
+Add-Type -AssemblyName WindowsBase
+Add-Type -AssemblyName WindowsFormsIntegration
 try {
     Add-Type -ReferencedAssemblies 'System.Windows.Forms', 'System.Drawing' @"
 using System;
@@ -37,7 +41,42 @@ public class Win32Chrome {
     [DllImport("user32.dll")] public static extern bool ReleaseCapture();
     [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll")] public static extern bool ShowScrollBar(IntPtr hWnd, int wBar, bool bShow);
+    [DllImport("user32.dll")] public static extern bool RedrawWindow(IntPtr hWnd, IntPtr lprcUpdate, IntPtr hrgnUpdate, uint flags);
+    [DllImport("user32.dll", EntryPoint = "GetWindowLong")] public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+    [DllImport("user32.dll", EntryPoint = "SetWindowLong")] public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
     [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+    [DllImport("shell32.dll", SetLastError = true)] public static extern int SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string AppID);
+
+    public const int WM_SETREDRAW = 0x000B;
+    public const int WM_SETICON = 0x0080;
+    public const int ICON_SMALL = 0;
+    public const int ICON_BIG = 1;
+    public const uint RDW_INVALIDATE = 0x0001;
+    public const uint RDW_ERASE = 0x0004;
+    public const uint RDW_ALLCHILDREN = 0x0080;
+    public const uint RDW_FRAME = 0x0400;
+    public const uint RDW_UPDATENOW = 0x0100;
+
+    public static void Suspend(IntPtr hWnd) {
+        if (hWnd != IntPtr.Zero) {
+            SendMessage(hWnd, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero);
+        }
+    }
+
+    public static void Resume(IntPtr hWnd) {
+        if (hWnd != IntPtr.Zero) {
+            SendMessage(hWnd, WM_SETREDRAW, (IntPtr)1, IntPtr.Zero);
+            RedrawWindow(hWnd, IntPtr.Zero, IntPtr.Zero, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_FRAME | RDW_UPDATENOW);
+        }
+    }
+
+    public static void SetWindowIcon(IntPtr hWnd, IntPtr hIcon) {
+        if (hWnd != IntPtr.Zero && hIcon != IntPtr.Zero) {
+            SendMessage(hWnd, WM_SETICON, (IntPtr)ICON_SMALL, hIcon);
+            SendMessage(hWnd, WM_SETICON, (IntPtr)ICON_BIG, hIcon);
+        }
+    }
+
     public static void ApplyModernWindow(IntPtr hWnd) {
         try {
             int dark = 1;
@@ -46,24 +85,50 @@ public class Win32Chrome {
             DwmSetWindowAttribute(hWnd, 33, ref round, 4);
             int borderCol = 0x00443530;
             DwmSetWindowAttribute(hWnd, 34, ref borderCol, 4);
+
+            int style = GetWindowLong(hWnd, -16);
+            style |= 0x00020000;
+            style |= 0x00080000;
+            SetWindowLong(hWnd, -16, style);
         } catch { }
     }
 }
 public class WheelFilter : IMessageFilter {
     public static Control TargetViewport;
+    public static Control ScopeControl;
     public static Action<int> ScrollCallback;
 
     public bool PreFilterMessage(ref Message m) {
         if (m.Msg == 0x020A) {
-            if (TargetViewport != null && !TargetViewport.IsDisposed && TargetViewport.Visible) {
-                Point pt = Cursor.Position;
-                Rectangle rect = TargetViewport.RectangleToScreen(TargetViewport.ClientRectangle);
-                if (rect.Contains(pt)) {
-                    int delta = (short)((m.WParam.ToInt64() >> 16) & 0xFFFF);
-                    if (ScrollCallback != null) {
-                        ScrollCallback(delta);
-                        return true;
+            if (TargetViewport != null && !TargetViewport.IsDisposed && TargetViewport.Visible && ScrollCallback != null) {
+                Control check = (ScopeControl != null && !ScopeControl.IsDisposed && ScopeControl.Visible) ? ScopeControl : TargetViewport;
+                
+                Control target = Control.FromHandle(m.HWnd);
+                if (target == null) {
+                    try { target = Control.FromChildHandle(m.HWnd); } catch { }
+                }
+
+                if (target is ListBox || target is RichTextBox) {
+                    if (target != TargetViewport && !TargetViewport.Contains(target)) {
+                        return false;
                     }
+                }
+
+                bool isOver = false;
+                if (target != null && (target == check || check.Contains(target) || TargetViewport.Contains(target))) {
+                    isOver = true;
+                } else {
+                    try {
+                        Point pt = Cursor.Position;
+                        Rectangle rect = check.RectangleToScreen(check.ClientRectangle);
+                        if (rect.Contains(pt)) isOver = true;
+                    } catch { }
+                }
+
+                if (isOver) {
+                    int delta = (short)((m.WParam.ToInt64() >> 16) & 0xFFFF);
+                    ScrollCallback(delta);
+                    return true;
                 }
             }
         }
@@ -74,6 +139,7 @@ public class WheelFilter : IMessageFilter {
 } catch { }
 try { [System.Windows.Forms.Application]::AddMessageFilter((New-Object WheelFilter)) } catch { }
 [System.Windows.Forms.Application]::EnableVisualStyles()
+try { [Win32Chrome]::SetCurrentProcessExplicitAppUserModelID('Kinan.KBNGMHoster.App') } catch { }
 
 $ErrorActionPreference = 'SilentlyContinue'
 
@@ -120,7 +186,7 @@ $script:State = @{
     Frp           = ''
     FrpError      = ''
 }
-$script:AppVersion = '0.7.1.1'
+$script:AppVersion = '0.7.2.5'
 $script:CorePath = Join-Path $PSScriptRoot 'HosterCore.ps1'
 $script:CoreText = "`$script:CorePath = '" + ($script:CorePath -replace "'", "''") + "'`r`n" + (Get-Content -LiteralPath $script:CorePath -Raw)
 $script:PendingAction = $null
@@ -168,9 +234,12 @@ $Theme = @{
     red              = [System.Drawing.Color]::FromArgb(251, 113, 133) # Brake-Light Crimson (#FB7185)
     yellow           = [System.Drawing.Color]::FromArgb(251, 191, 36)  # Warm Caution Amber (#FBBF24)
 
-    # Interactive Button Tokens
-    btn              = [System.Drawing.Color]::FromArgb(39, 39, 46)    # Resting gunmetal control (#27272E)
-    btnHov           = [System.Drawing.Color]::FromArgb(54, 54, 64)    # Hover elevation (#363640)
+    # Interactive Button Tokens - Modernized Tactile Palette (#1c1c24 soft-elevated)
+    btn              = [System.Drawing.Color]::FromArgb(28, 28, 36)    # Soft-elevated dark zinc (#1C1C24)
+    btnHov           = [System.Drawing.Color]::FromArgb(38, 38, 48)    # Hover luminance elevation (#262630)
+    btnBorder        = [System.Drawing.Color]::FromArgb(48, 48, 58)    # Translucent subtle border (rgba(255,255,255,0.08))
+    btnBorderHov     = [System.Drawing.Color]::FromArgb(72, 72, 86)    # Hover specular edge (rgba(255,255,255,0.18))
+    btnDown          = [System.Drawing.Color]::FromArgb(22, 22, 28)    # Pressed tactile inset (#16161C)
     btnAct           = [System.Drawing.Color]::FromArgb(62, 31, 16)    # Active racing-orange bronze surface (#3E1F10)
     btnSuccess       = [System.Drawing.Color]::FromArgb(16, 118, 84)   # Emerald action fill (#107654)
     btnSuccessHov    = [System.Drawing.Color]::FromArgb(21, 148, 105)  # Emerald action hover (#159469)
@@ -230,8 +299,18 @@ function Get-CachedBrush([System.Drawing.Color]$Color) {
 function Set-CtrlText($Ctrl, [string]$Text, $ForeColor = $null) {
     if (-not $Ctrl) { return $false }
     $changed = $false
-    if ($Ctrl.Text -cne $Text) { $Ctrl.Text = $Text; $changed = $true }
-    if ($null -ne $ForeColor -and $Ctrl.ForeColor -ne $ForeColor) { $Ctrl.ForeColor = $ForeColor; $changed = $true }
+    if ($Ctrl.Text -cne $Text) {
+        $Ctrl.Text = $Text
+        $changed = $true
+    }
+    if ($null -ne $ForeColor -and $Ctrl.ForeColor.ToArgb() -ne $ForeColor.ToArgb()) {
+        $Ctrl.ForeColor = $ForeColor
+        $changed = $true
+    }
+    if ($changed) {
+        $Ctrl.Invalidate()
+        if ($Ctrl.Parent) { $Ctrl.Parent.Invalidate() }
+    }
     return $changed
 }
 
@@ -255,9 +334,9 @@ function New-Btn([string]$Text, [string]$Tip, [scriptblock]$OnClick) {
     $b.UseMnemonic = $false
     $b.FlatStyle = 'Flat'
     $b.FlatAppearance.BorderSize = 0
-    $b.FlatAppearance.BorderColor = $Theme.border
+    $b.FlatAppearance.BorderColor = $Theme.btnBorder
     $b.FlatAppearance.MouseOverBackColor = $Theme.btnHov
-    $b.FlatAppearance.MouseDownBackColor = $Theme.surface
+    $b.FlatAppearance.MouseDownBackColor = $Theme.btnDown
     $b.BackColor = $Theme.btn
     $b.ForeColor = $Theme.text
     $b.Font = $script:DefaultBtnFont
@@ -310,76 +389,143 @@ function New-Btn([string]$Text, [string]$Tip, [scriptblock]$OnClick) {
             $isNav = ($s.AccessibleRole -eq [System.Windows.Forms.AccessibleRole]::MenuItem)
             $isActiveNav = ($s.AccessibleName -eq 'nav-active')
             $state = $s.AccessibleDescription
+            $isStartBtn = ($script:BtnStart -and $s -eq $script:BtnStart)
+            $isStopBtn = ($script:BtnStop -and $s -eq $script:BtnStop)
 
-            if (-not $s.Enabled) {
-                $fillCol = if ($isNav) { [System.Drawing.Color]::FromArgb(20, 20, 24) } else { [System.Drawing.Color]::FromArgb(24, 24, 29) }
-                $borderCol = if ($isNav) { [System.Drawing.Color]::FromArgb(30, 30, 36) } else { [System.Drawing.Color]::FromArgb(36, 36, 44) }
-                $textCol = $Theme.muted
+            if ($isNav) {
+                # Sidebar Navigation: Defined interactive surfaces with subtle border, 6px corner radius, and glowing active selection
+                if ($isActiveNav) {
+                    # Active State Harmony: Warm accent fill with luminous accent border
+                    $fillCol = [System.Drawing.Color]::FromArgb(34, 255, 115, 29)
+                    $borderCol = [System.Drawing.Color]::FromArgb(96, 255, 115, 29)
+                    $textCol = [System.Drawing.Color]::White
+                } elseif ($state -eq 'hover') {
+                    # Hover State: Subtle surface brightening with crisp translucent highlight border
+                    $fillCol = [System.Drawing.Color]::FromArgb(24, 24, 32)
+                    $borderCol = [System.Drawing.Color]::FromArgb(44, 255, 255, 255)
+                    $textCol = [System.Drawing.Color]::White
+                } elseif ($state -eq 'down') {
+                    # Down State: Tactile depression
+                    $fillCol = [System.Drawing.Color]::FromArgb(19, 19, 25)
+                    $borderCol = [System.Drawing.Color]::FromArgb(34, 255, 255, 255)
+                    $textCol = [System.Drawing.Color]::White
+                } else {
+                    # Inactive Idle State: Subtle #111115 surface lift with ultra-subtle border (rgba(255, 255, 255, 0.08))
+                    $fillCol = [System.Drawing.Color]::FromArgb(17, 17, 21)
+                    $borderCol = [System.Drawing.Color]::FromArgb(20, 255, 255, 255)
+                    $textCol = $Theme.textSec
+                }
+
+                $navW = $s.Width - 3
+                $navH = $s.Height - 3
+                if ($navW -gt 4 -and $navH -gt 4) {
+                    $navPath = Get-RoundedRectPath 1 1 $navW $navH 6
+                    try {
+                        $g.FillPath((Get-CachedBrush $fillCol), $navPath)
+                        if ($borderCol.A -gt 0) {
+                            $g.DrawPath((Get-CachedPen $borderCol 1), $navPath)
+                        }
+                    } finally {
+                        $navPath.Dispose()
+                    }
+                }
+
+                $flags = [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::SingleLine -bor [System.Windows.Forms.TextFormatFlags]::EndEllipsis -bor [System.Windows.Forms.TextFormatFlags]::NoPrefix -bor [System.Windows.Forms.TextFormatFlags]::Left
+                $rightReserve = if ($s.Name) { 48 } else { 16 }
+                $rect = New-Object System.Drawing.Rectangle(14, 0, ($s.Width - $rightReserve), $s.Height)
+                [System.Windows.Forms.TextRenderer]::DrawText($g, $s.Text, $s.Font, $rect, $textCol, $flags)
+
+                # Keyboard shortcut text floating cleanly inside with zero border and zero background box
+                if ($s.Name) {
+                    $kw = 36
+                    $kh = $s.Height
+                    $kx = $s.Width - $kw - 14
+                    $rKey = New-Object System.Drawing.Rectangle($kx, 0, $kw, $kh)
+                    $kFg = if ($isActiveNav) { [System.Drawing.Color]::FromArgb(255, 180, 125) } elseif ($state -eq 'hover') { [System.Drawing.Color]::FromArgb(185, 185, 198) } else { [System.Drawing.Color]::FromArgb(100, 100, 115) }
+                    $kFlags = [System.Windows.Forms.TextFormatFlags]::Right -bor [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::SingleLine
+                    [System.Windows.Forms.TextRenderer]::DrawText($g, $s.Name, $script:NavKeyFont, $rKey, $kFg, $kFlags)
+                }
             } else {
-                if ($isNav) {
-                    if ($isActiveNav) {
-                        $fillCol = $Theme.btnAct
-                        $borderCol = $Theme.accentDim
-                        $textCol = [System.Drawing.Color]::White
-                    } elseif ($state -eq 'down') {
-                        $fillCol = $Theme.surface
-                        $borderCol = $Theme.borderHi
-                        $textCol = [System.Drawing.Color]::White
-                    } elseif ($state -eq 'hover') {
-                        $fillCol = [System.Drawing.Color]::FromArgb(34, 34, 41)
-                        $borderCol = $Theme.borderHi
-                        $textCol = [System.Drawing.Color]::White
+                # Action Buttons & Primary Controls: Layered Material Elevation over #09090b canvas
+                if (-not $s.Enabled) {
+                    if ($isStopBtn) {
+                        $fillCol = [System.Drawing.Color]::FromArgb(16, 16, 21)
+                        $borderCol = [System.Drawing.Color]::FromArgb(28, 28, 36)
+                        $textCol = [System.Drawing.Color]::FromArgb(90, 90, 104)
+                    } elseif ($isStartBtn) {
+                        $fillCol = [System.Drawing.Color]::FromArgb(20, 20, 26)
+                        $borderCol = [System.Drawing.Color]::FromArgb(34, 34, 42)
+                        $textCol = $Theme.muted
                     } else {
-                        $fillCol = [System.Drawing.Color]::FromArgb(23, 23, 27)
-                        $borderCol = [System.Drawing.Color]::FromArgb(33, 33, 40)
-                        $textCol = $Theme.textSec
+                        $fillCol = [System.Drawing.Color]::FromArgb(18, 18, 23)
+                        $borderCol = [System.Drawing.Color]::FromArgb(28, 28, 36)
+                        $textCol = $Theme.muted
                     }
                 } else {
-                    $fillCol = if ($state -eq 'down') { $s.FlatAppearance.MouseDownBackColor } elseif ($state -eq 'hover') { $s.FlatAppearance.MouseOverBackColor } else { $s.BackColor }
-                    $borderCol = if ($state -eq 'hover') { $Theme.blue } else { $s.FlatAppearance.BorderColor }
-                    $textCol = $s.ForeColor
+                    if ($isStartBtn) {
+                        $fillCol = if ($state -eq 'down') { [System.Drawing.Color]::FromArgb(12, 100, 70) } elseif ($state -eq 'hover') { [System.Drawing.Color]::FromArgb(20, 150, 105) } else { [System.Drawing.Color]::FromArgb(16, 128, 90) }
+                        $borderCol = if ($state -eq 'hover') { [System.Drawing.Color]::FromArgb(52, 211, 153) } else { [System.Drawing.Color]::FromArgb(40, 180, 125) }
+                        $textCol = [System.Drawing.Color]::White
+                    } elseif ($isStopBtn) {
+                        $fillCol = if ($state -eq 'down') { [System.Drawing.Color]::FromArgb(115, 18, 40) } elseif ($state -eq 'hover') { [System.Drawing.Color]::FromArgb(180, 32, 65) } else { [System.Drawing.Color]::FromArgb(148, 24, 52) }
+                        $borderCol = if ($state -eq 'hover') { [System.Drawing.Color]::FromArgb(251, 113, 133) } else { [System.Drawing.Color]::FromArgb(244, 63, 94) }
+                        $textCol = [System.Drawing.Color]::White
+                    } else {
+                        # Elevated #1c1c24 material button
+                        if ($state -eq 'down') {
+                            $fillCol = [System.Drawing.Color]::FromArgb(20, 20, 26)
+                            $borderCol = [System.Drawing.Color]::FromArgb(35, 255, 255, 255)
+                            $textCol = [System.Drawing.Color]::White
+                        } elseif ($state -eq 'hover') {
+                            $fillCol = [System.Drawing.Color]::FromArgb(36, 36, 48)
+                            $borderCol = [System.Drawing.Color]::FromArgb(48, 255, 255, 255)
+                            $textCol = [System.Drawing.Color]::White
+                        } else {
+                            $fillCol = [System.Drawing.Color]::FromArgb(28, 28, 36)
+                            $borderCol = [System.Drawing.Color]::FromArgb(26, 255, 255, 255)
+                            $textCol = [System.Drawing.Color]::FromArgb(235, 235, 245)
+                        }
+                    }
                 }
-            }
 
-            $path = Get-RoundedRectPath 1 1 $w $h 6
-            try {
-                $g.FillPath((Get-CachedBrush $fillCol), $path)
-                $g.DrawPath((Get-CachedPen $borderCol 1), $path)
-            } finally {
-                $path.Dispose()
-            }
+                $btnW = $s.Width - 3
+                $btnH = $s.Height - 4
+                if ($btnW -gt 4 -and $btnH -gt 4) {
+                    if ($state -eq 'down' -or -not $s.Enabled) {
+                        # Depressed / disabled: shadow collapses
+                        $bodyY = if ($state -eq 'down') { 2 } else { 1 }
+                        $bodyPath = Get-RoundedRectPath 1 $bodyY $btnW $btnH 6
+                        try {
+                            $g.FillPath((Get-CachedBrush $fillCol), $bodyPath)
+                            if ($borderCol.A -gt 0) { $g.DrawPath((Get-CachedPen $borderCol 1), $bodyPath) }
+                        } finally { $bodyPath.Dispose() }
+                    } else {
+                        # Layered Material Elevation: tight blur, low-opacity drop shadows lifting button off canvas
+                        $ambAlpha = if ($state -eq 'hover') { 44 } else { 32 }
+                        $conAlpha = if ($state -eq 'hover') { 82 } else { 58 }
 
-            if ($isNav -and $isActiveNav) {
-                $g.FillRectangle((Get-CachedBrush $Theme.blue), 2, 8, 3, ($s.Height - 16))
-            }
+                        $sh1 = Get-RoundedRectPath 1 3 $btnW $btnH 7
+                        try { $g.FillPath((Get-CachedBrush ([System.Drawing.Color]::FromArgb($ambAlpha, 0, 0, 0))), $sh1) } finally { $sh1.Dispose() }
 
-            $flags = [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::SingleLine -bor [System.Windows.Forms.TextFormatFlags]::EndEllipsis -bor [System.Windows.Forms.TextFormatFlags]::NoPrefix
-            if ($isNav) {
-                $flags = $flags -bor [System.Windows.Forms.TextFormatFlags]::Left
-                $rightReserve = if ($s.Name) { 46 } else { 18 }
-                $rect = New-Object System.Drawing.Rectangle(14, 0, ($s.Width - $rightReserve), $s.Height)
-            } else {
-                $flags = $flags -bor [System.Windows.Forms.TextFormatFlags]::HorizontalCenter
-                $rect = New-Object System.Drawing.Rectangle(4, 0, ($s.Width - 8), $s.Height)
-            }
-            [System.Windows.Forms.TextRenderer]::DrawText($g, $s.Text, $s.Font, $rect, $textCol, $flags)
+                        $sh2 = Get-RoundedRectPath 1 2 $btnW $btnH 6
+                        try { $g.FillPath((Get-CachedBrush ([System.Drawing.Color]::FromArgb($conAlpha, 0, 0, 0))), $sh2) } finally { $sh2.Dispose() }
 
-            if ($isNav -and $s.Name) {
-                $kw = 26
-                $kh = 16
-                $kx = $s.Width - $kw - 9
-                $ky = [int](($s.Height - $kh) / 2)
-                $kPath = Get-RoundedRectPath $kx $ky $kw $kh 4
-                try {
-                    $kBg = if ($isActiveNav) { [System.Drawing.Color]::FromArgb(44, 22, 12) } else { [System.Drawing.Color]::FromArgb(18, 18, 22) }
-                    $kBd = if ($isActiveNav) { $Theme.accentDim } else { [System.Drawing.Color]::FromArgb(38, 38, 46) }
-                    $kFg = if ($isActiveNav) { $Theme.blue } else { $Theme.muted }
-                    $g.FillPath((Get-CachedBrush $kBg), $kPath)
-                    $g.DrawPath((Get-CachedPen $kBd 1), $kPath)
-                    $rKey = New-Object System.Drawing.Rectangle($kx, $ky, $kw, $kh)
-                    $kFlags = [System.Windows.Forms.TextFormatFlags]::HorizontalCenter -bor [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::SingleLine
-                    [System.Windows.Forms.TextRenderer]::DrawText($g, $s.Name, $script:NavKeyFont, $rKey, $kFg, $kFlags)
-                } finally { $kPath.Dispose() }
+                        $bodyPath = Get-RoundedRectPath 1 1 $btnW $btnH 6
+                        try {
+                            $g.FillPath((Get-CachedBrush $fillCol), $bodyPath)
+                            if ($borderCol.A -gt 0) { $g.DrawPath((Get-CachedPen $borderCol 1), $bodyPath) }
+                        } finally { $bodyPath.Dispose() }
+
+                        # Top specular catch-light line for physical surface sheen
+                        $catchAlpha = if ($isStartBtn -or $isStopBtn) { 60 } elseif ($state -eq 'hover') { 45 } else { 30 }
+                        $g.DrawLine((Get-CachedPen ([System.Drawing.Color]::FromArgb($catchAlpha, 255, 255, 255)) 1), 6, 2, ($s.Width - 7), 2)
+                    }
+                }
+
+                $rectY = if ($state -eq 'down') { 1 } else { 0 }
+                $flags = [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::SingleLine -bor [System.Windows.Forms.TextFormatFlags]::EndEllipsis -bor [System.Windows.Forms.TextFormatFlags]::NoPrefix -bor [System.Windows.Forms.TextFormatFlags]::HorizontalCenter
+                $rect = New-Object System.Drawing.Rectangle(4, $rectY, ($s.Width - 8), ($s.Height - 3))
+                [System.Windows.Forms.TextRenderer]::DrawText($g, $s.Text, $s.Font, $rect, $textCol, $flags)
             }
         } catch { }
     })
@@ -396,13 +542,9 @@ function Set-ActiveNav($ActiveBtn) {
         if ($nb.AccessibleName -ne $wantName) {
             $nb.AccessibleName = $wantName
             if ($nb -eq $ActiveBtn) {
-                $nb.BackColor = $Theme.btnAct
                 $nb.ForeColor = [System.Drawing.Color]::White
-                $nb.FlatAppearance.BorderColor = $Theme.blue
             } else {
-                $nb.BackColor = $Theme.btn
-                $nb.ForeColor = $Theme.text
-                $nb.FlatAppearance.BorderColor = $Theme.border
+                $nb.ForeColor = $Theme.textSec
             }
             $nb.Invalidate()
         }
@@ -414,7 +556,7 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
 
     $sb = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $sb
-    $sb.Width = 10
+    $sb.Width = 12
     $sb.Dock = [System.Windows.Forms.DockStyle]::Right
     $sb.BackColor = $Theme.bg
     $sb.Cursor = [System.Windows.Forms.Cursors]::Hand
@@ -422,6 +564,7 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
     $baseOffsetY = if ($ContentPanel) { $ContentPanel.Location.Y } else { 0 }
     $st = @{
         ScrollY = 0
+        DeltaAccum = 0.0
         IsDragging = $false
         DragStartY = 0
         DragStartScrollY = 0
@@ -451,6 +594,7 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
             if (-not $Viewport -or $Viewport.IsDisposed -or -not $ContentPanel -or $ContentPanel.IsDisposed) { return }
             $fnH = $st.GetContentHeight
             $totH = if ($fnH -is [scriptblock]) { & $fnH } else { 0 }
+            if ($totH -le 0 -and $ContentPanel -and -not $ContentPanel.IsDisposed) { $totH = $ContentPanel.Height }
             $vH = $Viewport.ClientSize.Height
             $maxS = [math]::Max(0, ($totH - $vH))
             $clamped = [math]::Max(0, [math]::Min($maxS, $newY))
@@ -463,14 +607,25 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
 
     $onDelta = {
         param([int]$delta)
-        $step = [int](($delta / 120) * 48)
-        & $setScroll ($st.ScrollY - $step)
+        $lines = 3
+        try {
+            $lines = [System.Windows.Forms.SystemInformation]::MouseWheelScrollLines
+            if ($lines -le 0) { $lines = 3 }
+        } catch { $lines = 3 }
+        $pixelsPerDetent = [math]::Max(24, [math]::Min(120, ($lines * 16)))
+        $st.DeltaAccum += (($delta / 120.0) * $pixelsPerDetent)
+        $step = [int]$st.DeltaAccum
+        if ($step -ne 0) {
+            $st.DeltaAccum -= $step
+            & $setScroll ($st.ScrollY - $step)
+        }
     }.GetNewClosure()
 
     $calcThumb = {
         param($tag, [int]$sbHeight)
         $fnH = $tag.GetContentHeight
         $totH = if ($fnH -is [scriptblock]) { & $fnH } else { 0 }
+        if ($totH -le 0 -and $tag.ContentPanel -and -not $tag.ContentPanel.IsDisposed) { $totH = $tag.ContentPanel.Height }
         $vH = if ($tag.Viewport) { $tag.Viewport.ClientSize.Height } else { 0 }
         if ($totH -le $vH -or $vH -le 0) { return [System.Drawing.Rectangle]::Empty }
         $thumbH = [int][math]::Max(32, [math]::Min($sbHeight, ($vH / $totH * $sbHeight)))
@@ -478,7 +633,7 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
         $sRange = $totH - $vH
         $thumbY = if ($sRange -gt 0) { [int]($tag.ScrollY / $sRange * $availH) } else { 0 }
         $thumbY = [int][math]::Max(0, [math]::Min($availH, $thumbY))
-        return (New-Object System.Drawing.Rectangle(2, $thumbY, 6, $thumbH))
+        return (New-Object System.Drawing.Rectangle(2, $thumbY, 8, $thumbH))
     }.GetNewClosure()
     $st.CalcThumb = $calcThumb
 
@@ -510,7 +665,7 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
             $tag = $s.Tag
             if ($e.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
                 $tr = & $tag.CalcThumb $tag $s.Height
-                if ($tr.Height -gt 0 -and $e.Y -ge ($tr.Top - 3) -and $e.Y -le ($tr.Bottom + 3)) {
+                if ($tr.Height -gt 0 -and $e.Y -ge ($tr.Top - 6) -and $e.Y -le ($tr.Bottom + 6)) {
                     $tag.IsDragging = $true
                     $tag.DragStartY = $e.Y
                     $tag.DragStartScrollY = $tag.ScrollY
@@ -540,6 +695,7 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
                 }
                 $fnH = $tag.GetContentHeight
                 $totH = if ($fnH -is [scriptblock]) { & $fnH } else { 0 }
+                if ($totH -le 0 -and $tag.ContentPanel -and -not $tag.ContentPanel.IsDisposed) { $totH = $tag.ContentPanel.Height }
                 $vH = if ($tag.Viewport) { $tag.Viewport.ClientSize.Height } else { 0 }
                 $tH = $s.Height
                 $thumbH = [int][math]::Max(32, [math]::Min($tH, ($vH / $totH * $tH)))
@@ -573,6 +729,7 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
         try {
             $fnH = $GetContentHeight
             $totH = if ($fnH -is [scriptblock]) { & $fnH } else { 0 }
+            if ($totH -le 0 -and $ContentPanel -and -not $ContentPanel.IsDisposed) { $totH = $ContentPanel.Height }
             $vH = $Viewport.ClientSize.Height
             $needScroll = ($totH -gt $vH)
             if ($sb.Visible -ne $needScroll) { $sb.Visible = $needScroll }
@@ -588,6 +745,7 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
                 }
             }
             [WheelFilter]::TargetViewport = $Viewport
+            [WheelFilter]::ScopeControl = if ($Parent -and $Parent.Parent) { $Parent.Parent } else { $Parent }
             [WheelFilter]::ScrollCallback = $onDelta
         } catch { }
     }.GetNewClosure()
@@ -599,6 +757,46 @@ function Attach-ModernScrollBar($Parent, $Viewport, $ContentPanel, $GetContentHe
             if ($sb -and $sb.Tag -and $sb.Tag.Sync) { & $sb.Tag.Sync }
         } catch { }
     }.GetNewClosure())
+
+    # Touch and mouse drag panning for touchscreens & trackpads
+    $panState = @{
+        IsPanning = $false
+        StartY = 0
+        StartScrollY = 0
+    }
+    $onPanDown = {
+        param($s, $e)
+        if ($e.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
+            $panState.IsPanning = $true
+            $panState.StartY = [System.Windows.Forms.Cursor]::Position.Y
+            $panState.StartScrollY = $st.ScrollY
+        }
+    }.GetNewClosure()
+    $onPanMove = {
+        param($s, $e)
+        if ($panState.IsPanning -and ($e.Button -eq [System.Windows.Forms.MouseButtons]::Left)) {
+            $curY = [System.Windows.Forms.Cursor]::Position.Y
+            $diff = $curY - $panState.StartY
+            if ([math]::Abs($diff) -ge 4) {
+                & $setScroll ($panState.StartScrollY - $diff)
+            }
+        }
+    }.GetNewClosure()
+    $onPanUp = {
+        param($s, $e)
+        $panState.IsPanning = $false
+    }.GetNewClosure()
+
+    if ($Viewport) {
+        $Viewport.Add_MouseDown($onPanDown)
+        $Viewport.Add_MouseMove($onPanMove)
+        $Viewport.Add_MouseUp($onPanUp)
+    }
+    if ($ContentPanel) {
+        $ContentPanel.Add_MouseDown($onPanDown)
+        $ContentPanel.Add_MouseMove($onPanMove)
+        $ContentPanel.Add_MouseUp($onPanUp)
+    }
 
     $Parent.Controls.Add($sb)
     $Viewport.BringToFront()
@@ -677,6 +875,22 @@ function Add-LogBatch([string[]]$Lines) {
         $ts = (Get-Date -Format 'HH:mm:ss') + '  '
         foreach ($Line in $Lines) {
             if (-not $Line) { continue }
+            $cleanLine = $Line
+            if ($script:StreamerMode -and (Get-Command 'Protect-StreamerText' -ErrorAction SilentlyContinue)) {
+                $pubIp = if ($script:State -and $script:State.Conn) { $script:State.Conn.Public } else { '' }
+                $authKey = Get-ConfigValue 'AuthKey'
+                $extraIps = @()
+                $lanIp = ''
+                if ($script:State -and $script:State.Conn) {
+                    if ($script:State.Conn.LAN) {
+                        $lanIp = $script:State.Conn.LAN
+                        $extraIps += $lanIp
+                    }
+                    if ($script:State.Conn.Vpn) { $extraIps += @($script:State.Conn.Vpn | Where-Object { $_.Ip } | ForEach-Object { $_.Ip }) }
+                    if ($script:State.Conn.Tailscale) { $extraIps += $script:State.Conn.Tailscale }
+                }
+                $cleanLine = Protect-StreamerText $Line $true $pubIp $authKey $extraIps $lanIp
+            }
             $script:LogBox.SelectionStart = $script:LogBox.TextLength
             $script:LogBox.SelectionLength = 0
             $script:LogBox.SelectionColor = $Theme.muted
@@ -695,7 +909,7 @@ function Add-LogBatch([string[]]$Lines) {
             $script:LogBox.SelectionStart = $script:LogBox.TextLength
             $script:LogBox.SelectionLength = 0
             $script:LogBox.SelectionColor = $lineCol
-            $script:LogBox.AppendText($Line + [Environment]::NewLine)
+            $script:LogBox.AppendText($cleanLine + [Environment]::NewLine)
         }
         if ($script:LogBox.Lines.Count -gt 520) {
             $script:LogBox.Select(0, $script:LogBox.GetFirstCharIndexFromLine(40))
@@ -705,6 +919,7 @@ function Add-LogBatch([string[]]$Lines) {
         }
         $script:LogBox.SelectionStart = $script:LogBox.TextLength
         $script:LogBox.ScrollToCaret()
+        if ($script:SyncLogScroll) { & $script:SyncLogScroll }
     } finally {
         $script:LogBox.ResumeLayout()
     }
@@ -900,16 +1115,222 @@ function New-ButtonBar {
     return $fl
 }
 
-# A dark inset text box that fits the card look.
+# Modernized Material Input Styling via Native WPF XAML Injection
+$script:WpfInputXaml = @"
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="InputBg" Color="#050508"/>
+    <SolidColorBrush x:Key="InputBorder" Color="#27272A"/>
+    <SolidColorBrush x:Key="InputBorderHover" Color="#3F3F46"/>
+    <SolidColorBrush x:Key="InputBorderFocus" Color="#3B82F6"/>
+    <SolidColorBrush x:Key="InputFg" Color="#F4F4F8"/>
+    <SolidColorBrush x:Key="ScrollThumb" Color="#27272A"/>
+    <SolidColorBrush x:Key="ScrollThumbHover" Color="#3F3F46"/>
+    <SolidColorBrush x:Key="CaretColor" Color="#F4F4F8"/>
+
+    <Style x:Key="DarkScrollThumb" TargetType="{x:Type Thumb}">
+        <Setter Property="OverridesDefaultStyle" Value="true"/>
+        <Setter Property="IsTabStop" Value="false"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Thumb}">
+                    <Border Background="{StaticResource ScrollThumb}" CornerRadius="3"/>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="true">
+                            <Setter Property="Background" Value="{StaticResource ScrollThumbHover}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DarkScrollBar" TargetType="{x:Type ScrollBar}">
+        <Setter Property="OverridesDefaultStyle" Value="true"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Width" Value="8"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ScrollBar}">
+                    <Grid Background="Transparent">
+                        <Track x:Name="PART_Track" IsDirectionReversed="true">
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource DarkScrollThumb}" Width="6" Margin="1,2,1,2"/>
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="ModernTextBox" TargetType="{x:Type TextBox}">
+        <Setter Property="Background" Value="{StaticResource InputBg}"/>
+        <Setter Property="Foreground" Value="{StaticResource InputFg}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource InputBorder}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CaretBrush" Value="{StaticResource CaretColor}"/>
+        <Setter Property="Padding" Value="8,5,8,5"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type TextBox}">
+                    <Border x:Name="border"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6"
+                            SnapsToDevicePixels="True">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Focusable="false"
+                                      HorizontalScrollBarVisibility="{TemplateBinding HorizontalScrollBarVisibility}"
+                                      VerticalScrollBarVisibility="{TemplateBinding VerticalScrollBarVisibility}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="true">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource InputBorderHover}"/>
+                        </Trigger>
+                        <Trigger Property="IsFocused" Value="true">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource InputBorderFocus}"/>
+                            <Setter TargetName="border" Property="Background" Value="#090910"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Resources>
+            <Style TargetType="{x:Type ScrollBar}" BasedOn="{StaticResource DarkScrollBar}"/>
+        </Style.Resources>
+    </Style>
+
+    <Style x:Key="ModernPasswordBox" TargetType="{x:Type PasswordBox}">
+        <Setter Property="Background" Value="{StaticResource InputBg}"/>
+        <Setter Property="Foreground" Value="{StaticResource InputFg}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource InputBorder}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CaretBrush" Value="{StaticResource CaretColor}"/>
+        <Setter Property="Padding" Value="8,5,8,5"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type PasswordBox}">
+                    <Border x:Name="border"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6"
+                            SnapsToDevicePixels="True">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Focusable="false"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Hidden"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="true">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource InputBorderHover}"/>
+                        </Trigger>
+                        <Trigger Property="IsFocused" Value="true">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource InputBorderFocus}"/>
+                            <Setter TargetName="border" Property="Background" Value="#090910"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>
+"@
+try {
+    $script:WpfInputResources = [System.Windows.Markup.XamlReader]::Parse($script:WpfInputXaml)
+} catch {
+    $script:WpfInputResources = $null
+}
+
+# Modernized Material Input Field Generator
 function New-SettingsInput {
-    $t = New-Object System.Windows.Forms.TextBox
-    $t.BackColor = $Theme.bg
-    $t.ForeColor = $Theme.text
-    $t.BorderStyle = 'FixedSingle'
-    $t.Font = Get-CachedFont 'Segoe UI' 9.5
-    $t.Add_GotFocus({ $this.BackColor = $Theme.panel })
-    $t.Add_LostFocus({ $this.BackColor = $Theme.bg })
-    return $t
+    if ($script:WpfInputResources) {
+        $hostCtrl = New-Object System.Windows.Forms.Integration.ElementHost
+        $hostCtrl.BackColor = $Theme.card
+        $hostCtrl.Height = 32
+
+        $tb = New-Object System.Windows.Controls.TextBox
+        $tb.Style = $script:WpfInputResources["ModernTextBox"]
+        $tb.FontSize = 12.5
+        $tb.FontFamily = New-Object System.Windows.Media.FontFamily("Segoe UI")
+        $hostCtrl.Child = $tb
+
+        $hostCtrl | Add-Member -MemberType NoteProperty -Name 'InnerBox' -Value $tb -Force
+        $hostCtrl | Add-Member -MemberType NoteProperty -Name 'IsPassword' -Value $false -Force
+
+        $hostCtrl | Add-Member -MemberType ScriptProperty -Name 'Text' -Value {
+            if ($this.IsPassword) { $this.Child.Password } else { $this.Child.Text }
+        } -SecondValue {
+            param($val)
+            if ($this.IsPassword) {
+                $this.Child.Password = [string]$val
+            } else {
+                $this.Child.Text = [string]$val
+            }
+        } -Force
+
+        $hostCtrl | Add-Member -MemberType ScriptProperty -Name 'Multiline' -Value {
+            if (-not $this.IsPassword) { $this.Child.AcceptsReturn } else { $false }
+        } -SecondValue {
+            param($val)
+            if (-not $this.IsPassword) {
+                $this.Child.AcceptsReturn = [bool]$val
+                $this.Child.TextWrapping = if ($val) { [System.Windows.TextWrapping]::Wrap } else { [System.Windows.TextWrapping]::NoWrap }
+                if ($val) {
+                    $this.Child.VerticalContentAlignment = [System.Windows.VerticalAlignment]::Top
+                    $this.Child.Padding = New-Object System.Windows.Thickness(8, 6, 8, 6)
+                }
+            }
+        } -Force
+
+        $hostCtrl | Add-Member -MemberType ScriptProperty -Name 'ScrollBars' -Value {
+            if (-not $this.IsPassword) { $this.Child.VerticalScrollBarVisibility.ToString() } else { 'None' }
+        } -SecondValue {
+            param($val)
+            if (-not $this.IsPassword -and ($val -eq 'Vertical' -or $val -eq 2)) {
+                $this.Child.VerticalScrollBarVisibility = [System.Windows.Controls.ScrollBarVisibility]::Auto
+            }
+        } -Force
+
+        $hostCtrl | Add-Member -MemberType ScriptProperty -Name 'UseSystemPasswordChar' -Value {
+            $this.IsPassword
+        } -SecondValue {
+            param($val)
+            if ($val -and -not $this.IsPassword) {
+                $curVal = $this.Child.Text
+                $pb = New-Object System.Windows.Controls.PasswordBox
+                $pb.Style = $script:WpfInputResources["ModernPasswordBox"]
+                $pb.FontSize = 12.5
+                $pb.FontFamily = New-Object System.Windows.Media.FontFamily("Segoe UI")
+                $pb.Password = $curVal
+                $this.Child = $pb
+                $this.IsPassword = $true
+            }
+        } -Force
+
+        $hostCtrl | Add-Member -MemberType ScriptMethod -Name 'Add_TextChanged' -Value {
+            param($handler)
+            if (-not $this.IsPassword) {
+                $this.Child.Add_TextChanged($handler)
+            }
+        } -Force
+
+        return $hostCtrl
+    } else {
+        # Fallback for environments where WPF XAML is unavailable
+        $t = New-Object System.Windows.Forms.TextBox
+        $t.BackColor = [System.Drawing.Color]::FromArgb(5, 5, 8)
+        $t.ForeColor = $Theme.text
+        $t.BorderStyle = 'FixedSingle'
+        $t.Font = Get-CachedFont 'Segoe UI' 9.5
+        $t.Add_GotFocus({ $this.BackColor = [System.Drawing.Color]::FromArgb(9, 9, 16) })
+        $t.Add_LostFocus({ $this.BackColor = [System.Drawing.Color]::FromArgb(5, 5, 8) })
+        return $t
+    }
 }
 
 # Deterministically measures and positions every card in the active card stack
@@ -923,89 +1344,115 @@ function Update-CardStackLayout {
     if (-not $cards -or -not $cards.Count) { return }
     if ($body.ClientSize.Width -le 50) { return }
 
-    $stackW = [int][math]::Max(340, ($body.ClientSize.Width - 34))
-    $content.SuspendLayout()
+    $hwnd = if ($content.IsHandleCreated) { $content.Handle } else { [IntPtr]::Zero }
+    [Win32Chrome]::Suspend($hwnd)
     try {
-        $curY = 0
-        foreach ($card in $cards) {
-            if (-not $card -or $card.IsDisposed) { continue }
-            $t = $card.Tag
-            if (-not ($t -is [System.Windows.Forms.TableLayoutPanel])) { continue }
-            $t.SuspendLayout()
-            try {
-                $padH = $card.Padding.Left + $card.Padding.Right
-                $padV = $card.Padding.Top + $card.Padding.Bottom
-                $innerW = [int][math]::Max(240, ($stackW - $padH))
-                $col0W = [int][math]::Min(220, [math]::Max(140, [int]($innerW * 0.34)))
-                $col1W = [int][math]::Max(100, ($innerW - $col0W))
-                if ($t.ColumnStyles.Count -ge 1) { $t.ColumnStyles[0].Width = $col0W }
+        $stackW = [int][math]::Max(340, ($body.ClientSize.Width - 34))
+        $content.SuspendLayout()
+        try {
+            $curY = 0
+            foreach ($card in $cards) {
+                if (-not $card -or $card.IsDisposed -or -not $card.Visible) { continue }
+                $t = $card.Tag
+                if (-not ($t -is [System.Windows.Forms.TableLayoutPanel])) { continue }
+                $t.SuspendLayout()
+                try {
+                    $padH = $card.Padding.Left + $card.Padding.Right
+                    $padV = $card.Padding.Top + $card.Padding.Bottom
+                    $innerW = [int][math]::Max(240, ($stackW - $padH))
+                    $col0W = [int][math]::Min(220, [math]::Max(140, [int]($innerW * 0.34)))
+                    $col1W = [int][math]::Max(100, ($innerW - $col0W))
+                    if ($t.ColumnStyles.Count -ge 1 -and $t.ColumnStyles[0].Width -ne $col0W) {
+                        $t.ColumnStyles[0].Width = $col0W
+                    }
 
-                foreach ($c in $t.Controls) {
-                    $span = $t.GetColumnSpan($c)
-                    $col = $t.GetColumn($c)
-                    $cellW = if ($span -ge 2) { $innerW } elseif ($col -eq 0) { $col0W } else { $col1W }
-                    $availW = [int][math]::Max(80, ($cellW - $c.Margin.Left - $c.Margin.Right - 2))
+                    foreach ($c in $t.Controls) {
+                        $span = $t.GetColumnSpan($c)
+                        $col = $t.GetColumn($c)
+                        $cellW = if ($span -ge 2) { $innerW } elseif ($col -eq 0) { $col0W } else { $col1W }
+                        $availW = [int][math]::Max(80, ($cellW - $c.Margin.Left - $c.Margin.Right - 2))
 
-                    if ($c -is [System.Windows.Forms.Label]) {
-                        $c.AutoSize = $true
-                        $c.MaximumSize = New-Object System.Drawing.Size($availW, 0)
-                    } elseif ($c -is [System.Windows.Forms.CheckBox] -or $c -is [System.Windows.Forms.RadioButton]) {
-                        $c.AutoSize = $true
-                        $c.MaximumSize = New-Object System.Drawing.Size($availW, 0)
-                    } elseif ($c -is [System.Windows.Forms.FlowLayoutPanel]) {
-                        $c.AutoSize = $true
-                        $c.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
-                        $c.WrapContents = $true
-                        $c.MaximumSize = New-Object System.Drawing.Size($availW, 0)
-                        $c.MinimumSize = New-Object System.Drawing.Size($availW, 36)
-                        foreach ($sub in $c.Controls) {
-                            if ($sub -is [System.Windows.Forms.Label] -and $sub.AutoSize) {
-                                $sub.MaximumSize = New-Object System.Drawing.Size([int][math]::Max(60, ($availW - 12)), 0)
+                        if ($c -is [System.Windows.Forms.Label]) {
+                            $c.AutoSize = $true
+                            if ($c.MaximumSize.Width -ne $availW) { $c.MaximumSize = New-Object System.Drawing.Size($availW, 0) }
+                        } elseif ($c -is [System.Windows.Forms.CheckBox] -or $c -is [System.Windows.Forms.RadioButton]) {
+                            $c.AutoSize = $true
+                            if ($c.MaximumSize.Width -ne $availW) { $c.MaximumSize = New-Object System.Drawing.Size($availW, 0) }
+                        } elseif ($c -is [System.Windows.Forms.FlowLayoutPanel]) {
+                            $c.AutoSize = $true
+                            $c.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
+                            $c.WrapContents = $true
+                            if ($c.MaximumSize.Width -ne $availW) { $c.MaximumSize = New-Object System.Drawing.Size($availW, 0) }
+                            if ($c.MinimumSize.Width -ne $availW) { $c.MinimumSize = New-Object System.Drawing.Size($availW, 36) }
+                            foreach ($sub in $c.Controls) {
+                                if ($sub -is [System.Windows.Forms.Label] -and $sub.AutoSize) {
+                                    $subMaxW = [int][math]::Max(60, ($availW - 12))
+                                    if ($sub.MaximumSize.Width -ne $subMaxW) {
+                                        $sub.MaximumSize = New-Object System.Drawing.Size($subMaxW, 0)
+                                    }
+                                }
                             }
+                        } elseif ($c -is [System.Windows.Forms.Panel]) {
+                            if ($c.Width -ne $availW) { $c.Width = $availW }
+                            $pH = 0
+                            foreach ($sub in $c.Controls) {
+                                if ($sub.Dock -eq 'Top') { $pH += $sub.Height }
+                                else { $b = $sub.Bottom + 4; if ($b -gt $pH) { $pH = $b } }
+                            }
+                            if ($pH -gt 0) {
+                                if ($c.Height -ne $pH) { $c.Height = $pH }
+                                if ($c.MinimumSize.Width -ne $availW -or $c.MinimumSize.Height -ne $pH) {
+                                    $c.MinimumSize = New-Object System.Drawing.Size($availW, $pH)
+                                }
+                            }
+                        } elseif ($c -is [System.Windows.Forms.Button]) {
+                            $needW = [System.Windows.Forms.TextRenderer]::MeasureText($c.Text, $c.Font).Width + 24
+                            $btnW = [int][math]::Min($availW, [math]::Max($c.Width, $needW))
+                            if ($c.Width -ne $btnW) { $c.Width = $btnW }
+                        } else {
+                            if ($c.Width -ne $availW) { $c.Width = $availW }
                         }
-                    } elseif ($c -is [System.Windows.Forms.Panel]) {
-                        $c.Width = $availW
-                        $pH = 0
-                        foreach ($sub in $c.Controls) {
-                            if ($sub.Dock -eq 'Top') { $pH += $sub.Height }
-                            else { $b = $sub.Bottom + 4; if ($b -gt $pH) { $pH = $b } }
-                        }
-                        if ($pH -gt 0) { $c.Height = $pH }
-                    } elseif ($c -is [System.Windows.Forms.Button]) {
-                        $needW = [System.Windows.Forms.TextRenderer]::MeasureText($c.Text, $c.Font).Width + 24
-                        $btnW = [int][math]::Min($availW, [math]::Max($c.Width, $needW))
-                        if ($c.Width -ne $btnW) { $c.Width = $btnW }
-                    } else {
-                        $c.Width = $availW
+                    }
+                    if ($t.Location.X -ne $card.Padding.Left -or $t.Location.Y -ne $card.Padding.Top) {
+                        $t.Location = New-Object System.Drawing.Point($card.Padding.Left, $card.Padding.Top)
+                    }
+                    if ($t.Width -ne $innerW) {
+                        $t.Width = $innerW
+                        $t.MinimumSize = New-Object System.Drawing.Size($innerW, 0)
+                        $t.MaximumSize = New-Object System.Drawing.Size($innerW, 0)
+                    }
+                } finally {
+                    $t.ResumeLayout($false)
+                }
+                $t.PerformLayout()
+                $maxBot = $t.PreferredSize.Height
+                foreach ($c in $t.Controls) {
+                    if ($c.Visible) {
+                        $b = $c.Bottom + $c.Margin.Bottom
+                        if ($b -gt $maxBot) { $maxBot = $b }
                     }
                 }
-                $t.Location = New-Object System.Drawing.Point($card.Padding.Left, $card.Padding.Top)
-                $t.MinimumSize = New-Object System.Drawing.Size($innerW, 0)
-                $t.MaximumSize = New-Object System.Drawing.Size($innerW, 0)
-                $t.Width = $innerW
-            } finally {
-                $t.ResumeLayout($true)
-            }
-            $t.PerformLayout()
-            $maxBot = $t.PreferredSize.Height
-            foreach ($c in $t.Controls) {
-                if ($c.Visible) {
-                    $b = $c.Bottom + $c.Margin.Bottom
-                    if ($b -gt $maxBot) { $maxBot = $b }
+                if ($maxBot -gt 0 -and $t.Height -ne $maxBot) { $t.Height = $maxBot }
+                $neededH = [int]($t.Location.Y + $maxBot + $card.Padding.Bottom + 6)
+                $cardH = [int][math]::Max(($maxBot + $padV + 4), $neededH)
+                if ($card.Location.X -ne 0 -or $card.Location.Y -ne $curY -or $card.Width -ne $stackW -or $card.Height -ne $cardH) {
+                    $card.SetBounds(0, $curY, $stackW, $cardH)
                 }
+                $curY += $cardH + 12
             }
-            $cardH = $maxBot + $padV + 4
-            $card.Bounds = New-Object System.Drawing.Rectangle(0, $curY, $stackW, $cardH)
-            $curY += $cardH + 12
-        }
-        $curScrollY = if ($script:StackRefs -and $script:StackRefs.ScrollBar) { & $script:StackRefs.ScrollBar.GetScrollY } else { 0 }
-        $content.Location = New-Object System.Drawing.Point(16, (10 - $curScrollY))
-        $content.Size = New-Object System.Drawing.Size($stackW, [int][math]::Max(10, ($curY + 8)))
-        if ($script:StackRefs -and $script:StackRefs.ScrollBar) {
-            & $script:StackRefs.ScrollBar.Sync
+            $curScrollY = if ($script:StackRefs -and $script:StackRefs.ScrollBar) { & $script:StackRefs.ScrollBar.GetScrollY } else { 0 }
+            $wantH = [int][math]::Max(10, ($curY + 64))
+            if ($content.Location.X -ne 16 -or $content.Location.Y -ne (10 - $curScrollY) -or $content.Width -ne $stackW -or $content.Height -ne $wantH) {
+                $content.SetBounds(16, (10 - $curScrollY), $stackW, $wantH)
+            }
+            if ($script:StackRefs -and $script:StackRefs.ScrollBar) {
+                & $script:StackRefs.ScrollBar.Sync
+            }
+        } finally {
+            $content.ResumeLayout($false)
         }
     } finally {
-        $content.ResumeLayout($true)
+        [Win32Chrome]::Resume($hwnd)
     }
 }
 
@@ -1028,7 +1475,7 @@ function New-CardStack($Page) {
     $body.Controls.Add($content)
     $body.Tag = $content
 
-    $sbObj = Attach-ModernScrollBar $wrap $body $content { if ($script:StackRefs -and $script:StackRefs.Content) { $script:StackRefs.Content.Height } else { 0 } }
+    $sbObj = Attach-ModernScrollBar $wrap $body $content { if ($content -and -not $content.IsDisposed) { $content.Height } else { 0 } }.GetNewClosure()
     $wrap.Controls.Add($body)
     $body.BringToFront()
 
@@ -1092,10 +1539,31 @@ function New-PageTop($Page, [string]$Title, [string]$Hint = '') {
 # ---------------------------------------------------------------------------------------
 $script:Form = New-Object System.Windows.Forms.Form
 Enable-DoubleBuffer $script:Form
-$script:Form.Text = 'K BNG M Hoster v0.7.1.1 - by Kinan (@kinan_sx240) & @bomberrie'
+$script:Form.Text = 'K BNG M Hoster v0.7.2.5 - by Kinan (@kinan_sx240) & @bomberrie'
 $script:Form.FormBorderStyle = 'None'
-$script:Form.Size = New-Object System.Drawing.Size(1100, 760)
-$script:Form.MinimumSize = New-Object System.Drawing.Size(980, 680)
+$script:Form.ShowInTaskbar = $true
+
+$icoPath = Join-Path $script:AppDir 'app.ico'
+if (-not (Test-Path -LiteralPath $icoPath)) { $icoPath = Join-Path $script:ServerDir 'app.ico' }
+if (Test-Path -LiteralPath $icoPath) {
+    try {
+        $script:AppIcon = New-Object System.Drawing.Icon($icoPath)
+        $script:Form.Icon = $script:AppIcon
+    } catch { Write-Log "[ICON-ERROR] $($_.Exception.Message)" }
+}
+
+$script:Form.Add_HandleCreated({
+    try {
+        if ($script:AppIcon) {
+            [Win32Chrome]::SetWindowIcon($this.Handle, $script:AppIcon.Handle)
+        }
+    } catch { }
+})
+$script:Form.MinimumSize = New-Object System.Drawing.Size(900, 540)
+$workArea = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+$initW = [int][math]::Min(1100, [math]::Max(900, ($workArea.Width - 32)))
+$initH = [int][math]::Min(760, [math]::Max(540, ($workArea.Height - 32)))
+$script:Form.Size = New-Object System.Drawing.Size($initW, $initH)
 $script:Form.StartPosition = 'CenterScreen'
 $script:Form.BackColor = $Theme.bg
 $script:Form.ForeColor = $Theme.text
@@ -1114,6 +1582,8 @@ $stopIcon = [char]0x25A0
 
 $script:IsMaximized = $false
 $script:RestoreBounds = $script:Form.Bounds
+$script:StreamerMode = (Test-Path -LiteralPath ($script:ServerDir + '.streamer'))
+$script:AdvancedExpanded = $false
 
 $script:DragWindowHandler = {
     param($s, $e)
@@ -1123,6 +1593,83 @@ $script:DragWindowHandler = {
             [Win32Chrome]::SendMessage($script:Form.Handle, 0x00A1, [IntPtr]2, [IntPtr]0) | Out-Null
         } catch { }
     }
+}
+
+
+# ---------------------------------------------------------------------------------------
+# STREAMER PRIVACY MODE DISPATCHER
+# ---------------------------------------------------------------------------------------
+function Set-StreamerMode([bool]$Enabled) {
+    $script:StreamerMode = $Enabled
+    $streamerFile = $script:ServerDir + '.streamer'
+    if ($Enabled) {
+        Set-Content -LiteralPath $streamerFile -Value '1' -ErrorAction SilentlyContinue
+    } else {
+        Remove-Item -LiteralPath $streamerFile -Force -ErrorAction SilentlyContinue
+    }
+
+    $hwnd = if ($script:Form -and $script:Form.IsHandleCreated) { $script:Form.Handle } else { [IntPtr]::Zero }
+    [Win32Chrome]::Suspend($hwnd)
+    try {
+        if ($script:LogPanel) {
+            $script:LogPanel.Visible = -not $Enabled
+        }
+        if ($script:RowConnLan) {
+            $script:RowConnLan.Visible = -not $Enabled
+        }
+
+        if ($script:BtnHeaderStreamer) {
+            $script:BtnHeaderStreamer.Invalidate()
+        }
+
+        if ($script:ChkStreamerMode -and $script:ChkStreamerMode.Checked -ne $Enabled) {
+            $script:SuppressSettingEvents = $true
+            $script:ChkStreamerMode.Checked = $Enabled
+            $script:SuppressSettingEvents = $false
+        }
+
+        if ($Enabled -and $script:LogBox -and $script:LogBox.Text) {
+            try {
+                $pub = if ($script:State -and $script:State.Conn) { $script:State.Conn.Public } else { '' }
+                $key = Get-ConfigValue 'AuthKey'
+                $extraIps = @()
+                $lan = ''
+                if ($script:State -and $script:State.Conn) {
+                    if ($script:State.Conn.LAN) {
+                        $lan = $script:State.Conn.LAN
+                        $extraIps += $lan
+                    }
+                    if ($script:State.Conn.Vpn) { $extraIps += @($script:State.Conn.Vpn | Where-Object { $_.Ip } | ForEach-Object { $_.Ip }) }
+                    if ($script:State.Conn.Tailscale) { $extraIps += $script:State.Conn.Tailscale }
+                }
+                $clean = Protect-StreamerText $script:LogBox.Text $true $pub $key $extraIps $lan
+                if ($clean -ne $script:LogBox.Text) {
+                    $script:LogBox.SuspendLayout()
+                    $script:LogBox.Text = $clean
+                    $script:LogBox.SelectionStart = $script:LogBox.TextLength
+                    $script:LogBox.ScrollToCaret()
+                    if ($script:SyncLogScroll) { & $script:SyncLogScroll }
+                    $script:LogBox.ResumeLayout($true)
+                }
+            } catch { }
+        }
+
+        Refresh-Dashboard
+        if ($script:VpnRowsWrap) {
+            Refresh-VpnRows
+        }
+        if ($script:PageLayout) {
+            try { & $script:PageLayout } catch { }
+        }
+    } finally {
+        [Win32Chrome]::Resume($hwnd)
+    }
+
+    Add-Log "[INFO] Streamer Privacy Mode $(if ($Enabled) { 'ENABLED (Console & Home WiFi/LAN hidden; WAN IP, AuthKey & user paths masked)' } else { 'DISABLED (Standard display)' })"
+}
+
+function Toggle-StreamerMode {
+    Set-StreamerMode (-not [bool]$script:StreamerMode)
 }
 
 function Toggle-MaximizeWindow {
@@ -1189,7 +1736,7 @@ $script:LblVersionChip.Add_Paint({
         $e.Graphics.DrawRectangle((Get-CachedPen $Theme.accentDim 1), 0, 0, ($s.Width - 1), ($s.Height - 1))
     } catch { }
 })
-$chipText = New-Lbl 'v0.7.1' $Theme.blue 8 18 $true
+$chipText = New-Lbl 'v0.7.2' $Theme.blue 8 18 $true
 $chipText.AutoSize = $false
 $chipText.Size = New-Object System.Drawing.Size(48, 18)
 $chipText.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
@@ -1202,12 +1749,13 @@ $script:LblSubtitle.AutoSize = $false
 $script:LblSubtitle.AutoEllipsis = $true
 $script:LblSubtitle.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
 $script:LblSubtitle.Location = New-Object System.Drawing.Point(220, 9)
-$script:LblSubtitle.Size = New-Object System.Drawing.Size(600, 20)
+$script:LblSubtitle.Size = New-Object System.Drawing.Size(460, 20)
 $script:LblSubtitle.Add_MouseDown($script:DragWindowHandler)
 $script:LblSubtitle.Add_DoubleClick({ Toggle-MaximizeWindow })
 $titleBar.Add_Resize({
     if ($script:LblSubtitle) {
-        $script:LblSubtitle.Width = [int][math]::Max(60, ($this.ClientSize.Width - 220 - 146))
+        $reserved = (46 * 3) + 142 + 24
+        $script:LblSubtitle.Width = [int][math]::Max(60, ($this.ClientSize.Width - 220 - $reserved))
     }
 })
 
@@ -1257,6 +1805,71 @@ function New-WindowCtrlBtn([string]$Kind, [string]$TipText, [scriptblock]$OnClic
     return $p
 }
 
+$script:BtnHeaderStreamer = New-Object System.Windows.Forms.Panel
+Enable-DoubleBuffer $script:BtnHeaderStreamer
+$script:BtnHeaderStreamer.Dock = 'Right'
+$script:BtnHeaderStreamer.Width = 142
+$script:BtnHeaderStreamer.Height = 26
+$script:BtnHeaderStreamer.BackColor = [System.Drawing.Color]::Transparent
+$script:BtnHeaderStreamer.Cursor = [System.Windows.Forms.Cursors]::Hand
+$script:Tip.SetToolTip($script:BtnHeaderStreamer, 'Streamer Privacy Mode: Click to toggle. Automatically hides the Activity Console drawer and Home WiFi/LAN address, and masks WAN IP, AuthKey, and personal file paths.')
+$script:BtnHeaderStreamer.Add_Click({ Toggle-StreamerMode })
+$script:BtnHeaderStreamer.Add_MouseEnter({ $this.AccessibleDescription = 'hover'; $this.Invalidate() })
+$script:BtnHeaderStreamer.Add_MouseLeave({ $this.AccessibleDescription = ''; $this.Invalidate() })
+$script:BtnHeaderStreamer.Add_MouseDown({ $this.AccessibleDescription = 'down'; $this.Invalidate() })
+$script:BtnHeaderStreamer.Add_MouseUp({ $this.AccessibleDescription = 'hover'; $this.Invalidate() })
+$script:BtnHeaderStreamer.Add_Paint({
+    param($s, $e)
+    try {
+        $g = $e.Graphics
+        $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+        $active = [bool]$script:StreamerMode
+        $hov = ($s.AccessibleDescription -eq 'hover')
+        $down = ($s.AccessibleDescription -eq 'down')
+
+        $pillW = $s.Width - 12
+        $pillH = 24
+        $pillX = 6
+        $pillY = [int](($s.Height - $pillH) / 2)
+
+        if ($active) {
+            # Modern Emerald Shield Activation with distinct color-shift surface
+            $bgCol = if ($down) { [System.Drawing.Color]::FromArgb(45, 12, 100, 70) } elseif ($hov) { [System.Drawing.Color]::FromArgb(50, 16, 140, 95) } else { [System.Drawing.Color]::FromArgb(35, 16, 128, 88) }
+            $borderCol = if ($hov) { [System.Drawing.Color]::FromArgb(100, 52, 211, 153) } else { [System.Drawing.Color]::FromArgb(65, 52, 211, 153) }
+            $thumbCol = [System.Drawing.Color]::FromArgb(52, 211, 153)
+            $textCol = [System.Drawing.Color]::FromArgb(52, 211, 153)
+            $statusText = 'STREAMER: ON'
+        } else {
+            # Soft-elevated #1c1c24 dark zinc surface with subtle translucent border
+            $bgCol = if ($down) { [System.Drawing.Color]::FromArgb(18, 18, 24) } elseif ($hov) { [System.Drawing.Color]::FromArgb(32, 32, 42) } else { [System.Drawing.Color]::FromArgb(24, 24, 32) }
+            $borderCol = if ($hov) { [System.Drawing.Color]::FromArgb(45, 255, 255, 255) } else { [System.Drawing.Color]::FromArgb(20, 255, 255, 255) }
+            $thumbCol = if ($hov) { [System.Drawing.Color]::FromArgb(150, 150, 165) } else { [System.Drawing.Color]::FromArgb(100, 100, 115) }
+            $textCol = if ($hov) { [System.Drawing.Color]::FromArgb(225, 225, 235) } else { [System.Drawing.Color]::FromArgb(150, 150, 165) }
+            $statusText = 'STREAMER: OFF'
+        }
+
+        $path = Get-RoundedRectPath $pillX $pillY $pillW $pillH 12
+        try {
+            $g.FillPath((Get-CachedBrush $bgCol), $path)
+            $g.DrawPath((Get-CachedPen $borderCol 1), $path)
+        } finally { $path.Dispose() }
+
+        # Tactile switch indicator dot
+        $dotSz = 8
+        $dotX = $pillX + 8
+        $dotY = $pillY + [int](($pillH - $dotSz) / 2)
+        $g.FillEllipse((Get-CachedBrush $thumbCol), $dotX, $dotY, $dotSz, $dotSz)
+        if ($active) {
+            $g.FillEllipse((Get-CachedBrush [System.Drawing.Color]::White), ($dotX + 2), ($dotY + 2), 4, 4)
+        }
+
+        $fBtn = Get-CachedFont 'Segoe UI Semibold' 8 ([System.Drawing.FontStyle]::Bold)
+        $rText = New-Object System.Drawing.Rectangle(($dotX + $dotSz + 7), $pillY, ($pillW - $dotSz - 16), $pillH)
+        [System.Windows.Forms.TextRenderer]::DrawText($g, $statusText, $fBtn, $rText, $textCol, ([System.Windows.Forms.TextFormatFlags]::Left -bor [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::NoPrefix))
+    } catch { }
+})
+
 $script:BtnWinMin   = New-WindowCtrlBtn 'min'   'Minimize window'          { $script:Form.WindowState = 'Minimized' }
 $script:BtnWinMax   = New-WindowCtrlBtn 'max'   'Maximize / Restore (F11 for Fullscreen)' { Toggle-MaximizeWindow }
 $script:BtnWinClose = New-WindowCtrlBtn 'close' 'Close K BNG M Hoster'     { $script:Form.Close() }
@@ -1264,6 +1877,7 @@ $script:BtnWinClose = New-WindowCtrlBtn 'close' 'Close K BNG M Hoster'     { $sc
 $titleBar.Controls.Add($titleBrand)
 $titleBar.Controls.Add($script:LblVersionChip)
 $titleBar.Controls.Add($script:LblSubtitle)
+$titleBar.Controls.Add($script:BtnHeaderStreamer)
 $titleBar.Controls.Add($script:BtnWinMin)
 $titleBar.Controls.Add($script:BtnWinMax)
 $titleBar.Controls.Add($script:BtnWinClose)
@@ -1282,17 +1896,26 @@ $sidebar.Add_Paint({
     } catch { }
 })
 
-# Server Control Pod inside sidebar
+# Server Control Pod inside sidebar (Tactile elevated pod container)
 $ctrlPod = New-Object System.Windows.Forms.Panel
 Enable-DoubleBuffer $ctrlPod
 $ctrlPod.BackColor = $Theme.card
 $ctrlPod.Location = New-Object System.Drawing.Point(12, 14)
-$ctrlPod.Size = New-Object System.Drawing.Size(200, 94)
+$ctrlPod.Size = New-Object System.Drawing.Size(200, 96)
 $ctrlPod.Add_Paint({
     param($s, $e)
     try {
-        $e.Graphics.DrawRectangle((Get-CachedPen $Theme.border 1), 0, 0, ($s.Width - 1), ($s.Height - 1))
-        $e.Graphics.DrawLine((Get-CachedPen $Theme.borderHi 1), 1, 0, ($s.Width - 2), 0)
+        $g = $e.Graphics
+        $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $w = $s.Width - 1
+        $h = $s.Height - 1
+        if ($w -le 2 -or $h -le 2) { return }
+        $path = Get-RoundedRectPath 0 0 $w $h 8
+        try {
+            $g.FillPath((Get-CachedBrush ([System.Drawing.Color]::FromArgb(18, 18, 23))), $path)
+            $g.DrawPath((Get-CachedPen ([System.Drawing.Color]::FromArgb(38, 38, 48)) 1), $path)
+        } finally { $path.Dispose() }
+        $g.DrawLine((Get-CachedPen ([System.Drawing.Color]::FromArgb(55, 55, 68)) 1), 8, 0, ($w - 8), 0)
     } catch { }
 })
 
@@ -1307,11 +1930,12 @@ $script:BtnStart.Font = Get-CachedFont 'Segoe UI Semibold' 10 ([System.Drawing.F
 
 $script:BtnStop = New-Btn "$stopIcon  Stop Server" 'Stop the running server. Closing the launcher window also stops it. (Ctrl+X)' { Stop-ServerFlow }
 $script:BtnStop.Location = New-Object System.Drawing.Point(10, 54)
-$script:BtnStop.Size = New-Object System.Drawing.Size(180, 30)
+$script:BtnStop.Size = New-Object System.Drawing.Size(180, 32)
 $script:BtnStop.BackColor = $Theme.btnDanger
 $script:BtnStop.FlatAppearance.MouseOverBackColor = $Theme.btnDangerHov
 $script:BtnStop.FlatAppearance.BorderColor = $Theme.btnDangerBorder
 $script:BtnStop.ForeColor = [System.Drawing.Color]::White
+$script:BtnStop.Font = Get-CachedFont 'Segoe UI Semibold' 9 ([System.Drawing.FontStyle]::Regular)
 $script:BtnStop.Enabled = $false
 
 $ctrlPod.Controls.Add($script:BtnStart)
@@ -1328,8 +1952,8 @@ function New-SidebarNavBtn([string]$Text, [string]$Tip, [scriptblock]$OnClick, [
     $b = New-Btn $Text $Tip $OnClick
     $b.AccessibleRole = [System.Windows.Forms.AccessibleRole]::MenuItem
     if ($Shortcut) { $b.Name = $Shortcut }
-    $b.Location = New-Object System.Drawing.Point(12, $Y)
-    $b.Size = New-Object System.Drawing.Size(200, 34)
+    $b.Location = New-Object System.Drawing.Point(10, $Y)
+    $b.Size = New-Object System.Drawing.Size(204, 34)
     $sidebar.Controls.Add($b)
     return $b
 }
@@ -1477,10 +2101,14 @@ $statusBar.Controls.Add($resizeGrip)
 
 # ---------------- Log panel (console drawer above status bar) ----------------
 $logPanel = New-Object System.Windows.Forms.Panel
+$script:LogPanel = $logPanel
 Enable-DoubleBuffer $logPanel
 $logPanel.Dock = 'Bottom'
 $logPanel.Height = 166
 $logPanel.BackColor = $Theme.bg
+if ($script:StreamerMode) {
+    $logPanel.Visible = $false
+}
 $logHead = New-Object System.Windows.Forms.Panel
 Enable-DoubleBuffer $logHead
 $logHead.Dock = 'Top'
@@ -1526,14 +2154,134 @@ $logFrame = New-Object System.Windows.Forms.Panel
 Enable-DoubleBuffer $logFrame
 $logFrame.Dock = 'Fill'
 $logFrame.BackColor = $Theme.log
-$logFrame.Padding = New-Object System.Windows.Forms.Padding(10, 6, 6, 6)
+$logFrame.Padding = New-Object System.Windows.Forms.Padding(14, 8, 4, 8)
 $logFrame.Add_SizeChanged({ $this.Invalidate() })
 $logFrame.Add_Paint({
     param($s, $e)
     try {
-        $e.Graphics.DrawRectangle((Get-CachedPen $Theme.border 1), 0, 0, ($s.Width - 1), ($s.Height - 1))
+        $g = $e.Graphics
+        $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $w = $s.Width - 1
+        $h = $s.Height - 1
+        if ($w -le 2 -or $h -le 2) { return }
+        $path = Get-RoundedRectPath 0 0 $w $h 6
+        try {
+            $g.DrawPath((Get-CachedPen ([System.Drawing.Color]::FromArgb(38, 38, 48)) 1), $path)
+        } finally { $path.Dispose() }
+        $g.DrawLine((Get-CachedPen ([System.Drawing.Color]::FromArgb(55, 55, 68)) 1), 6, 0, ($w - 6), 0)
     } catch { }
 })
+
+# Slim Modern Dark Scrollbar (Eliminates stark-white Win32 scrollbar)
+$logSb = New-Object System.Windows.Forms.Panel
+Enable-DoubleBuffer $logSb
+$logSb.Width = 10
+$logSb.Dock = [System.Windows.Forms.DockStyle]::Right
+$logSb.BackColor = $Theme.log
+$logSb.Cursor = [System.Windows.Forms.Cursors]::Hand
+
+$logSbState = @{
+    IsDragging = $false
+    IsHovered = $false
+    DragStartY = 0
+    DragStartLine = 0
+}
+$logSb.Tag = $logSbState
+
+$syncLogScroll = {
+    if (-not $script:LogBox -or $script:LogBox.IsDisposed -or -not $logSb -or $logSb.IsDisposed) { return }
+    $logSb.Invalidate()
+}.GetNewClosure()
+$script:SyncLogScroll = $syncLogScroll
+
+$calcLogThumb = {
+    param($sbW, $sbH)
+    if (-not $script:LogBox -or $script:LogBox.IsDisposed -or $sbH -le 10) { return [System.Drawing.Rectangle]::Empty }
+    $tot = [Win32Chrome]::SendMessage($script:LogBox.Handle, 0x00BA, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32()
+    $lineH = [math]::Max(12, $script:LogBox.Font.Height)
+    $vis = [int][math]::Max(1, ($script:LogBox.ClientSize.Height / $lineH))
+    if ($tot -le $vis -or $tot -le 0) { return [System.Drawing.Rectangle]::Empty }
+    $thumbH = [int][math]::Max(24, [math]::Min($sbH, ($vis / $tot * $sbH)))
+    $availH = $sbH - $thumbH
+    $first = [Win32Chrome]::SendMessage($script:LogBox.Handle, 0x00CE, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32()
+    $maxS = [math]::Max(1, ($tot - $vis))
+    $thumbY = if ($maxS -gt 0) { [int]([math]::Min(1.0, ($first / $maxS)) * $availH) } else { 0 }
+    $thumbY = [int][math]::Max(0, [math]::Min($availH, $thumbY))
+    return (New-Object System.Drawing.Rectangle(3, $thumbY, 4, $thumbH))
+}.GetNewClosure()
+
+$logSb.Add_Paint({
+    param($s, $e)
+    try {
+        $tr = & $calcLogThumb $s.Width $s.Height
+        if ($tr.IsEmpty -or $tr.Height -le 0) { return }
+        $g = $e.Graphics
+        $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $col = if ($s.Tag.IsDragging) {
+            [System.Drawing.Color]::FromArgb(255, 115, 29)
+        } elseif ($s.Tag.IsHovered) {
+            [System.Drawing.Color]::FromArgb(113, 113, 122)
+        } else {
+            [System.Drawing.Color]::FromArgb(60, 60, 72)
+        }
+        $brush = Get-CachedBrush $col
+        $path = Get-RoundedRectPath $tr.X $tr.Y $tr.Width $tr.Height 2
+        try { $g.FillPath($brush, $path) } finally { $path.Dispose() }
+    } catch { }
+})
+
+$logSb.Add_MouseEnter({ $this.Tag.IsHovered = $true; $this.Invalidate() })
+$logSb.Add_MouseLeave({ $this.Tag.IsHovered = $false; $this.Invalidate() })
+$logSb.Add_MouseDown({
+    param($s, $e)
+    try {
+        if ($e.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
+            $tr = & $calcLogThumb $s.Width $s.Height
+            $tot = [Win32Chrome]::SendMessage($script:LogBox.Handle, 0x00BA, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32()
+            $lineH = [math]::Max(12, $script:LogBox.Font.Height)
+            $vis = [int][math]::Max(1, ($script:LogBox.ClientSize.Height / $lineH))
+            if ($tr.Height -gt 0 -and $e.Y -ge ($tr.Top - 4) -and $e.Y -le ($tr.Bottom + 4)) {
+                $s.Tag.IsDragging = $true
+                $s.Tag.DragStartY = $e.Y
+                $s.Tag.DragStartLine = [Win32Chrome]::SendMessage($script:LogBox.Handle, 0x00CE, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32()
+                $s.Capture = $true
+            } else {
+                $cur = [Win32Chrome]::SendMessage($script:LogBox.Handle, 0x00CE, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32()
+                $step = if ($tr.Height -gt 0 -and $e.Y -lt $tr.Top) { -$vis } else { $vis }
+                [Win32Chrome]::SendMessage($script:LogBox.Handle, 0x00B6, [IntPtr]::Zero, [IntPtr]$step) | Out-Null
+                $s.Invalidate()
+            }
+        }
+    } catch { }
+})
+$logSb.Add_MouseMove({
+    param($s, $e)
+    try {
+        if ($s.Tag.IsDragging -and $e.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
+            $tot = [Win32Chrome]::SendMessage($script:LogBox.Handle, 0x00BA, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32()
+            $lineH = [math]::Max(12, $script:LogBox.Font.Height)
+            $vis = [int][math]::Max(1, ($script:LogBox.ClientSize.Height / $lineH))
+            $maxS = [math]::Max(1, ($tot - $vis))
+            $availH = [math]::Max(1, ($s.Height - 24))
+            $dY = $e.Y - $s.Tag.DragStartY
+            $dLine = [int](($dY / $availH) * $maxS)
+            $targetLine = [int][math]::Max(0, [math]::Min($maxS, ($s.Tag.DragStartLine + $dLine)))
+            $cur = [Win32Chrome]::SendMessage($script:LogBox.Handle, 0x00CE, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32()
+            $diff = $targetLine - $cur
+            if ($diff -ne 0) {
+                [Win32Chrome]::SendMessage($script:LogBox.Handle, 0x00B6, [IntPtr]::Zero, [IntPtr]$diff) | Out-Null
+                $s.Invalidate()
+            }
+        }
+    } catch { }
+})
+$logSb.Add_MouseUp({
+    param($s, $e)
+    $s.Tag.IsDragging = $false
+    $s.Capture = $false
+    $s.Invalidate()
+})
+
 $script:LogBox = New-Object System.Windows.Forms.RichTextBox
 $script:LogBox.ReadOnly = $true
 $script:LogBox.BackColor = $Theme.log
@@ -1541,9 +2289,18 @@ $script:LogBox.ForeColor = $Theme.textSec
 $script:LogBox.BorderStyle = 'None'
 $script:LogBox.Font = Get-CachedFont $script:MonoFontName 9 ([System.Drawing.FontStyle]::Regular)
 $script:LogBox.WordWrap = $false
-$script:LogBox.ScrollBars = 'Vertical'
+$script:LogBox.ScrollBars = 'None'
 $script:LogBox.Dock = 'Fill'
+$script:LogBox.Add_MouseWheel({
+    param($s, $e)
+    try {
+        $lines = if ($e.Delta -gt 0) { -3 } else { 3 }
+        [Win32Chrome]::SendMessage($s.Handle, 0x00B6, [IntPtr]::Zero, [IntPtr]$lines) | Out-Null
+        if ($script:SyncLogScroll) { & $script:SyncLogScroll }
+    } catch { }
+})
 $logFrame.Controls.Add($script:LogBox)
+$logFrame.Controls.Add($logSb)
 $logInner.Controls.Add($logFrame)
 $logPanel.Controls.Add($logInner)
 $logPanel.Controls.Add($logHead)
@@ -1572,8 +2329,10 @@ $script:ExtraStackRefs = $null
 
 function Switch-ContentPage($NewPage) {
     if (-not $NewPage) { return }
-    $script:Content.SuspendLayout()
+    $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+    [Win32Chrome]::Suspend($hwnd)
     try {
+        $script:Content.SuspendLayout()
         foreach ($c in @($script:Content.Controls)) {
             if ($c -ne $NewPage -and $c.Visible) {
                 $c.Visible = $false
@@ -1584,11 +2343,12 @@ function Switch-ContentPage($NewPage) {
         }
         $NewPage.Visible = $true
         $NewPage.BringToFront()
-    } finally {
         $script:Content.ResumeLayout($true)
-    }
-    if ($script:PageLayout) {
-        try { & $script:PageLayout } catch { }
+        if ($script:PageLayout) {
+            try { & $script:PageLayout } catch { }
+        }
+    } finally {
+        [Win32Chrome]::Resume($hwnd)
     }
 }
 
@@ -1631,7 +2391,7 @@ function Layout-HomePage {
         } else {
             844
         }
-        $cardW = [int][math]::Max(320, $cardW)
+        $cardW = [int][math]::Max(480, $cardW)
 
         if ($script:StatusCard -and $script:StatusTlp) {
             $stPadH = $script:StatusCard.Padding.Left + $script:StatusCard.Padding.Right
@@ -1660,10 +2420,10 @@ function Layout-HomePage {
             $connPadV = $script:ConnContent.Padding.Top + $script:ConnContent.Padding.Bottom
             $connInnerW = [int][math]::Max(240, ($connW - $connPadH))
             if ($script:LblConnNote -and $script:ConnNoteBox) {
-                $noteInnerW = [int][math]::Max(180, ($connInnerW - 26))
+                $noteInnerW = [int][math]::Max(180, ($connInnerW - 54))
                 $script:LblConnNote.MaximumSize = New-Object System.Drawing.Size($noteInnerW, 0)
                 $script:ConnNoteBox.Width = $connInnerW
-                $script:ConnNoteBox.Height = [int][math]::Max(30, ($script:LblConnNote.PreferredSize.Height + 14))
+                $script:ConnNoteBox.Height = [int][math]::Max(38, ($script:LblConnNote.PreferredSize.Height + 18))
             }
             if ($script:ConnVpnFlow) {
                 $script:ConnVpnFlow.MaximumSize = New-Object System.Drawing.Size($connInnerW, 0)
@@ -1687,40 +2447,40 @@ function Show-HomePage {
     Set-ActiveNav $script:BtnHome
     $script:PageLayout = { Layout-HomePage }
     if ($script:HomePagePanel -and -not $script:HomePagePanel.IsDisposed) {
-        Switch-ContentPage $script:HomePagePanel
-        Refresh-Dashboard
-        Layout-HomePage
+        $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+        [Win32Chrome]::Suspend($hwnd)
+        try {
+            Switch-ContentPage $script:HomePagePanel
+            Refresh-Dashboard
+            Layout-HomePage
+        } finally {
+            [Win32Chrome]::Resume($hwnd)
+        }
         return
     }
     $p = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $p
     $p.SuspendLayout()
     $p.Dock = 'Fill'
+    if ($script:Content -and $script:Content.ClientSize.Width -gt 200) {
+        $p.Size = $script:Content.ClientSize
+    } else {
+        $p.Size = New-Object System.Drawing.Size(844, 520)
+    }
     $p.BackColor = $Theme.bg
-    $p.Padding = New-Object System.Windows.Forms.Padding(16, 12, 16, 6)
-
-    # Hero Status Card (top) with Quick Action Bar + Full-Width KPI Metric Grid
+    $p.Padding = New-Object System.Windows.Forms.Padding(16, 12, 16, 6)    # Hero Status Header (top) with Quick Action Bar + Full-Width KPI Metric Grid (Edgeless - Zero Outer Border)
     $script:StatusCard = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $script:StatusCard
     $script:StatusCard.Dock = 'Top'
     $script:StatusCard.AutoSize = $false
-    $script:StatusCard.Height = 128
-    $script:StatusCard.BackColor = $Theme.card
-    $script:StatusCard.Padding = New-Object System.Windows.Forms.Padding(18, 10, 16, 10)
+    $script:StatusCard.Height = 138
+    $script:StatusCard.BackColor = $Theme.bg
+    $script:StatusCard.Padding = New-Object System.Windows.Forms.Padding(0, 4, 0, 8)
     $script:StatusCard.Add_SizeChanged({ $this.Invalidate() })
-    $script:StatusCard.Add_Paint({
-        param($s, $e)
-        try {
-            $e.Graphics.DrawRectangle((Get-CachedPen $Theme.border 1), 0, 0, ($s.Width - 1), ($s.Height - 1))
-            $e.Graphics.DrawLine((Get-CachedPen $Theme.borderHi 1), 4, 0, ($s.Width - 2), 0)
-            $barCol = if ($script:State.Running) { $Theme.green } elseif ($script:State.FrpError) { $Theme.red } else { $Theme.blue }
-            $e.Graphics.FillRectangle((Get-CachedBrush $barCol), 0, 0, 4, $s.Height)
-        } catch { }
-    })
     $stTlp = New-Object System.Windows.Forms.TableLayoutPanel
     Enable-DoubleBuffer $stTlp
     $stTlp.SuspendLayout()
-    $stTlp.Location = New-Object System.Drawing.Point(18, 10)
+    $stTlp.Location = New-Object System.Drawing.Point(0, 4)
     $stTlp.AutoSize = $true
     $stTlp.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
     $stTlp.ColumnCount = 2
@@ -1729,11 +2489,11 @@ function Show-HomePage {
     $script:StatusTlp = $stTlp
     $script:StatusCard.Controls.Add($stTlp)
 
-    $script:LblStatusBig = New-Lbl "$([char]0x25CF)  SERVER STANDBY" $Theme.yellow 13.5 28 $true
+    $script:LblStatusBig = New-Lbl "$([char]0x25CF)  SERVER STANDBY" $Theme.yellow 13 28 $true
     $script:LblStatusBig.AutoSize = $true
     $script:LblStatusBig.Anchor = 'Left'
-    $script:LblStatusBig.Margin = New-Object System.Windows.Forms.Padding(0, 2, 12, 2)
-    $script:LblStatusBig.Font = Get-CachedFont 'Segoe UI Semibold' 13.5 ([System.Drawing.FontStyle]::Bold)
+    $script:LblStatusBig.Margin = New-Object System.Windows.Forms.Padding(0, 0, 14, 0)
+    $script:LblStatusBig.Font = Get-CachedFont 'Segoe UI Semibold' 13 ([System.Drawing.FontStyle]::Bold)
     $r = $stTlp.RowCount; $stTlp.RowCount = $r + 1
     $null = $stTlp.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
     $stTlp.Controls.Add($script:LblStatusBig, 0, $r)
@@ -1742,67 +2502,65 @@ function Show-HomePage {
     Enable-DoubleBuffer $btnBar
     $btnBar.AutoSize = $true
     $btnBar.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
-    $btnBar.WrapContents = $true
+    $btnBar.WrapContents = $false
     $btnBar.FlowDirection = [System.Windows.Forms.FlowDirection]::LeftToRight
     $btnBar.Anchor = 'Right'
     $btnBar.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 0)
     $btnBar.Padding = New-Object System.Windows.Forms.Padding(0, 0, 0, 0)
     $script:BtnCopy = New-Btn 'Copy Best IP' 'Copy the best address for your friends to the clipboard (FRP > LAN > VPN > Tailscale > internet). (Ctrl+C)' { Copy-ConnectionLine }
-    $script:BtnCopy.Size = New-Object System.Drawing.Size(112, 30)
+    $script:BtnCopy.Size = New-Object System.Drawing.Size(110, 30)
+    $script:BtnCopy.Margin = New-Object System.Windows.Forms.Padding(5, 0, 0, 0)
     $script:BtnInvite = New-Btn 'Copy Invite' 'Copy a ready-made invite message (address + how to connect) to paste to your friends. Perfect for a private server.' { Copy-Invite }
-    $script:BtnInvite.Size = New-Object System.Drawing.Size(126, 30)
+    $script:BtnInvite.Size = New-Object System.Drawing.Size(106, 30)
+    $script:BtnInvite.Margin = New-Object System.Windows.Forms.Padding(5, 0, 0, 0)
     $script:BtnDiag = New-Btn 'Diagnose' 'Run a full live diagnosis and show a plain-language report of any problem. (Ctrl+D)' { Run-Diagnose }
-    $script:BtnDiag.Size = New-Object System.Drawing.Size(90, 30)
+    $script:BtnDiag.Size = New-Object System.Drawing.Size(86, 30)
+    $script:BtnDiag.Margin = New-Object System.Windows.Forms.Padding(5, 0, 0, 0)
     $script:BtnRefreshHome = New-Btn 'Refresh' 'Re-check every address and the server status right now. (The page also refreshes by itself every few seconds while the server runs.)' { Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$State.Conn = Get-ConnectionInfo`nSay ""Addresses refreshed."" " 'live' }
     $script:BtnRefreshHome.Size = New-Object System.Drawing.Size(80, 30)
-    $script:BtnRefreshHome.Margin = New-Object System.Windows.Forms.Padding(3, 3, 0, 3)
+    $script:BtnRefreshHome.Margin = New-Object System.Windows.Forms.Padding(5, 0, 0, 0)
     $btnBar.Controls.Add($script:BtnCopy)
     $btnBar.Controls.Add($script:BtnInvite)
     $btnBar.Controls.Add($script:BtnDiag)
     $btnBar.Controls.Add($script:BtnRefreshHome)
     $stTlp.Controls.Add($btnBar, 1, $r)
 
-    # Full-Width 4-Column KPI Metric Grid (SERVER | PORT | VISIBILITY | GATEWAY)
+    # Full-Width 4-Column KPI Metric Grid (SERVER | PORT | VISIBILITY | GATEWAY) - Pure Space & Typography (No Boxes)
     $kpiGrid = New-Object System.Windows.Forms.TableLayoutPanel
     Enable-DoubleBuffer $kpiGrid
     $kpiGrid.SuspendLayout()
     $kpiGrid.Anchor = 'Left,Right'
-    $kpiGrid.Height = 44
-    $kpiGrid.Margin = New-Object System.Windows.Forms.Padding(0, 6, 0, 4)
+    $kpiGrid.Height = 50
+    $kpiGrid.Margin = New-Object System.Windows.Forms.Padding(0, 10, 0, 4)
     $kpiGrid.ColumnCount = 4
     $kpiGrid.RowCount = 1
-    $null = $kpiGrid.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 28)))
-    $null = $kpiGrid.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 18)))
-    $null = $kpiGrid.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 24)))
-    $null = $kpiGrid.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 30)))
+    $null = $kpiGrid.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 23)))
+    $null = $kpiGrid.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 20)))
+    $null = $kpiGrid.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 26)))
+    $null = $kpiGrid.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 31)))
     $null = $kpiGrid.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100)))
 
     function New-KpiChip([int]$ColIdx, [string]$Caption, [string]$VarName, [bool]$IsLast = $false) {
         $chip = New-Object System.Windows.Forms.Panel
         Enable-DoubleBuffer $chip
-        $chip.Size = New-Object System.Drawing.Size(200, 44)
+        $chip.Size = New-Object System.Drawing.Size(200, 50)
         $chip.Dock = 'Fill'
-        $chip.BackColor = $Theme.panel
-        $rightPad = if ($IsLast) { 0 } else { 8 }
+        $chip.BackColor = [System.Drawing.Color]::Transparent
+        $rightPad = if ($IsLast) { 0 } else { 12 }
         $chip.Margin = New-Object System.Windows.Forms.Padding(0, 0, $rightPad, 0)
+        $chip.Padding = New-Object System.Windows.Forms.Padding(0, 2, 4, 2)
         $chip.Add_SizeChanged({ $this.Invalidate() })
-        $chip.Add_Paint({
-            param($s, $e)
-            try {
-                $e.Graphics.DrawRectangle((Get-CachedPen $Theme.border 1), 0, 0, ($s.Width - 1), ($s.Height - 1))
-                $e.Graphics.DrawLine((Get-CachedPen $Theme.borderHi 1), 1, 0, ($s.Width - 2), 0)
-            } catch { }
-        })
-        $lCap = New-Lbl $Caption $Theme.muted 7.25 13 $true
+        # Edgeless design: zero borders, pure margin/padding and high-contrast typography
+        $lCap = New-Lbl $Caption ([System.Drawing.Color]::FromArgb(140, 140, 154)) 7.5 14 $true
         $lCap.AutoSize = $false
-        $lCap.Location = New-Object System.Drawing.Point(10, 5)
-        $lCap.Size = New-Object System.Drawing.Size(180, 13)
+        $lCap.Location = New-Object System.Drawing.Point(0, 4)
+        $lCap.Size = New-Object System.Drawing.Size(190, 14)
         $lCap.Anchor = 'Top,Left,Right'
         $lCap.AutoEllipsis = $true
-        $lVal = New-Lbl '-' $Theme.text 9.25 18 $true
+        $lVal = New-Lbl '-' ([System.Drawing.Color]::FromArgb(244, 244, 248)) 10 22 $true
         $lVal.AutoSize = $false
-        $lVal.Location = New-Object System.Drawing.Point(10, 19)
-        $lVal.Size = New-Object System.Drawing.Size(180, 18)
+        $lVal.Location = New-Object System.Drawing.Point(0, 20)
+        $lVal.Size = New-Object System.Drawing.Size(190, 22)
         $lVal.Anchor = 'Top,Left,Right'
         $lVal.AutoEllipsis = $true
         $chip.Controls.Add($lCap)
@@ -1811,7 +2569,7 @@ function Show-HomePage {
         Set-Variable -Name $VarName -Value $lVal -Scope Script
     }
     New-KpiChip 0 'SERVER NAME'    'LblKpiServer' $false
-    New-KpiChip 1 'PORT (TCP+UDP)' 'LblKpiPort'   $false
+    New-KpiChip 1 'PORT (UDP/TCP)' 'LblKpiPort'   $false
     New-KpiChip 2 'VISIBILITY'     'LblKpiVis'    $false
     New-KpiChip 3 'GATEWAY STATUS' 'LblKpiGate'   $true
     $kpiGrid.ResumeLayout($false)
@@ -1861,17 +2619,10 @@ function Show-HomePage {
     Enable-DoubleBuffer $script:ConnContent
     $script:ConnContent.Location = New-Object System.Drawing.Point(0, 0)
     $script:ConnContent.AutoSize = $false
-    $script:ConnContent.BackColor = $Theme.card
-    $script:ConnContent.Padding = New-Object System.Windows.Forms.Padding(18, 12, 16, 12)
+    $script:ConnContent.BackColor = $Theme.bg
+    $script:ConnContent.Padding = New-Object System.Windows.Forms.Padding(0, 6, 0, 10)
     $script:ConnContent.Add_SizeChanged({ $this.Invalidate() })
-    $script:ConnContent.Add_Paint({
-        param($s, $e)
-        try {
-            $e.Graphics.DrawRectangle((Get-CachedPen $Theme.border 1), 0, 0, ($s.Width - 1), ($s.Height - 1))
-            $e.Graphics.DrawLine((Get-CachedPen $Theme.borderHi 1), 1, 0, ($s.Width - 2), 0)
-            $e.Graphics.FillRectangle((Get-CachedBrush $Theme.blue), 0, 12, 3, 20)
-        } catch { }
-    })
+    # Outer bounding box completely destroyed! Edgeless layout relying purely on space!
     $script:ConnCard.Controls.Add($script:ConnContent)
     $script:ConnCard.Add_Resize({ Layout-HomePage })
 
@@ -1882,7 +2633,7 @@ function Show-HomePage {
     $connTlp = New-Object System.Windows.Forms.TableLayoutPanel
     Enable-DoubleBuffer $connTlp
     $connTlp.SuspendLayout()
-    $connTlp.Location = New-Object System.Drawing.Point(18, 12)
+    $connTlp.Location = New-Object System.Drawing.Point(0, 6)
     $connTlp.AutoSize = $true
     $connTlp.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
     $connTlp.ColumnCount = 1
@@ -1894,7 +2645,7 @@ function Show-HomePage {
     $connTitle.Font = Get-CachedFont 'Segoe UI Semibold' 10.5 ([System.Drawing.FontStyle]::Bold)
     $connTitle.AutoSize = $true
     $connTitle.Anchor = 'Left'
-    $connTitle.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 6)
+    $connTitle.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 8)
     $r = $connTlp.RowCount; $connTlp.RowCount = $r + 1
     $null = $connTlp.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
     $connTlp.Controls.Add($connTitle, 0, $r)
@@ -1904,32 +2655,82 @@ function Show-HomePage {
         Enable-DoubleBuffer $rowP
         $rowP.SuspendLayout()
         $rowP.Anchor = 'Left,Right'
-        $rowP.Height = 34
-        $rowP.BackColor = $Theme.panel
-        $rowP.Margin = New-Object System.Windows.Forms.Padding(0, 2, 0, 2)
-        $rowP.Padding = New-Object System.Windows.Forms.Padding(10, 2, 6, 2)
+        $rowP.Height = 36
+        $rowP.BackColor = [System.Drawing.Color]::Transparent
+        $rowP.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 0)
+        $rowP.Padding = New-Object System.Windows.Forms.Padding(6, 2, 4, 2)
         $rowP.ColumnCount = 3
-        $null = $rowP.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 176)))
+        $null = $rowP.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 184)))
         $null = $rowP.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100)))
-        $null = $rowP.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 96)))
+        $null = $rowP.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 98)))
         $rowP.RowCount = 1
         $null = $rowP.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100)))
         $rowP.Add_Paint({
             param($s, $e)
             try {
-                $e.Graphics.DrawRectangle((Get-CachedPen $Theme.border 1), 0, 0, ($s.Width - 1), ($s.Height - 1))
+                $g = $e.Graphics
+                if ($s -and $s.AccessibleDescription -eq 'hover') {
+                    $hoverBrush = Get-CachedBrush ([System.Drawing.Color]::FromArgb(20, 255, 255, 255))
+                    $g.FillRectangle($hoverBrush, 2, 1, ($s.Width - 4), ($s.Height - 2))
+                }
+                # Ultra-thin, low-opacity internal divider (rgba(255, 255, 255, 0.05)) - the only lines allowed
+                $divPen = Get-CachedPen ([System.Drawing.Color]::FromArgb(13, 255, 255, 255)) 1
+                $g.DrawLine($divPen, 6, ($s.Height - 1), ($s.Width - 6), ($s.Height - 1))
+            } catch { }
+        })
+        $rowP.Add_MouseEnter({
+            try {
+                if ($this -and $this.AccessibleDescription -ne 'hover') {
+                    $this.AccessibleDescription = 'hover'
+                    $this.Invalidate($true)
+                }
+            } catch { }
+        })
+        $rowP.Add_MouseLeave({
+            try {
+                if ($this) {
+                    $pt = $this.PointToClient([System.Windows.Forms.Cursor]::Position)
+                    if (-not $this.ClientRectangle.Contains($pt)) {
+                        $this.AccessibleDescription = ''
+                        $this.Invalidate($true)
+                    }
+                }
             } catch { }
         })
 
-        $lTitle = New-Lbl $TitleText $Theme.textSec 8.5 26 $true
+        $childEnter = {
+            try {
+                $p = $this.Parent
+                if ($p -and $p.AccessibleDescription -ne 'hover') {
+                    $p.AccessibleDescription = 'hover'
+                    $p.Invalidate($true)
+                }
+            } catch { }
+        }
+        $childLeave = {
+            try {
+                $p = $this.Parent
+                if ($p) {
+                    $pt = $p.PointToClient([System.Windows.Forms.Cursor]::Position)
+                    if (-not $p.ClientRectangle.Contains($pt)) {
+                        $p.AccessibleDescription = ''
+                        $p.Invalidate($true)
+                    }
+                }
+            } catch { }
+        }
+
+        $lTitle = New-Lbl $TitleText ([System.Drawing.Color]::FromArgb(168, 168, 180)) 8.25 28 $true
         $lTitle.AutoSize = $false
         $lTitle.AutoEllipsis = $true
         $lTitle.Dock = 'Fill'
         $lTitle.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
         if ($TipText) { $script:Tip.SetToolTip($lTitle, $TipText) }
+        $lTitle.Add_MouseEnter($childEnter)
+        $lTitle.Add_MouseLeave($childLeave)
         $rowP.Controls.Add($lTitle, 0, 0)
 
-        $lbl = New-Lbl '' $Color 9 26 $Bold
+        $lbl = New-Lbl '' $Color 9 28 $Bold
         $lbl.AutoSize = $false
         $lbl.Dock = 'Fill'
         $lbl.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
@@ -1940,6 +2741,8 @@ function Show-HomePage {
             $lbl.Font = Get-CachedFont $script:MonoFontName 9 ([System.Drawing.FontStyle]::Regular)
         }
         if ($TipText) { $script:Tip.SetToolTip($lbl, $TipText) }
+        $lbl.Add_MouseEnter($childEnter)
+        $lbl.Add_MouseLeave($childLeave)
         $rowP.Controls.Add($lbl, 1, 0)
 
         $actBtn = New-Btn 'Copy IP' 'Copy this endpoint address or open its setup tool.' {
@@ -1951,13 +2754,15 @@ function Show-HomePage {
                 Show-FixPage
             } elseif ($val -eq '__REFRESH__') {
                 Start-CoreAction "param(`$Queue, `$State)`n`$script:Q = `$Queue`n`$State.Conn = Get-ConnectionInfo`nSay ""Addresses refreshed."" " 'live'
+            } elseif ($val -eq '__STREAMER_BLOCKED__') {
+                Add-Log "[NOTE] Clipboard copy blocked: Sensitive endpoint is masked while Streamer Privacy Mode is active."
             } elseif ($val) {
                 [System.Windows.Forms.Clipboard]::SetText($val)
                 Add-Log "[OK] Copied endpoint to clipboard: $val"
             }
         }
         $actBtn.Font = Get-CachedFont 'Segoe UI Semibold' 8 ([System.Drawing.FontStyle]::Regular)
-        $actBtn.Size = New-Object System.Drawing.Size(88, 24)
+        $actBtn.Size = New-Object System.Drawing.Size(90, 28)
         $actBtn.Anchor = 'Right'
         $rowP.Controls.Add($actBtn, 2, 0)
         $rowP.ResumeLayout($false)
@@ -1972,32 +2777,56 @@ function Show-HomePage {
 
     Add-EndpointRow "YOU  $dot  HOST PC"        'Use this loopback address in BeamNG on THIS computer to join your own server.'            'LblConnThis'   'RowConnThis'   'BtnConnThis'   $Theme.text  $false
     Add-EndpointRow 'HOME WIFI / LAN'          'Share this address with players connected to the same home WiFi or router.'              'LblConnLan'    'RowConnLan'    'BtnConnLan'    $Theme.text  $false
+    if ($script:StreamerMode -and $script:RowConnLan) {
+        $script:RowConnLan.Visible = $false
+    }
     Add-EndpointRow 'PUBLIC TUNNEL'            'Shareable tunnel address (FRP or Playit.gg) - friends can join without port forwarding.' 'LblConnTunnel' 'RowConnTunnel' 'BtnConnTunnel' $Theme.blue  $true
     Add-EndpointRow 'VIRTUAL LAN (VPN)'        'For friends connected to the same Radmin VPN, ZeroTier, or Hamachi network.'             'LblConnVpn'    'RowConnVpn'    'BtnConnVpn'    $Theme.green $false
     Add-EndpointRow 'TAILSCALE MESH'           'For friends connected to your Tailscale mesh network.'                                   'LblConnTail'   'RowConnTail'   'BtnConnTail'   $Theme.blue  $false
     Add-EndpointRow 'INTERNET (PUBLIC WAN)'    'Your direct public internet IP (requires router UPnP or manual port forwarding).'        'LblConnPub'    'RowConnPub'    'BtnConnPub'    $Theme.dim   $false
     Add-EndpointRow 'ROUTER PORT (UPNP)'       'Automatic router port forwarding status for direct internet connections.'                'LblConnRouter' 'RowConnRouter' 'BtnConnRouter' $Theme.dim   $false
 
-    # Styled Amber Callout Banner for TIP / Warning
+    # Styled Modern Semantic Callout Banner (Solid #291f00 dark amber fill, 10px rounded corners, ZERO border)
     $noteBox = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $noteBox
     $noteBox.Anchor = 'Left,Right'
     $noteBox.AutoSize = $false
-    $noteBox.Height = 34
-    $noteBox.BackColor = [System.Drawing.Color]::FromArgb(30, 24, 14)
-    $noteBox.Padding = New-Object System.Windows.Forms.Padding(14, 7, 12, 7)
-    $noteBox.Margin = New-Object System.Windows.Forms.Padding(0, 6, 0, 2)
+    $noteBox.Height = 38
+    $noteBox.BackColor = [System.Drawing.Color]::Transparent
+    $noteBox.Padding = New-Object System.Windows.Forms.Padding(14, 8, 14, 8)
+    $noteBox.Margin = New-Object System.Windows.Forms.Padding(0, 10, 0, 6)
     $noteBox.Add_SizeChanged({ $this.Invalidate() })
     $noteBox.Add_Paint({
         param($s, $e)
         try {
-            $e.Graphics.DrawRectangle((Get-CachedPen ([System.Drawing.Color]::FromArgb(120, 86, 22)) 1), 0, 0, ($s.Width - 1), ($s.Height - 1))
-            $e.Graphics.FillRectangle((Get-CachedBrush $Theme.yellow), 0, 0, 4, $s.Height)
+            $g = $e.Graphics
+            $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+            $w = $s.Width - 1
+            $h = $s.Height - 1
+            if ($w -le 4 -or $h -le 4) { return }
+            # Corner radius 10px, solid #291f00 dark amber background fill, ZERO border!
+            $path = Get-RoundedRectPath 0 0 $w $h 10
+            try {
+                $fillBrush = Get-CachedBrush ([System.Drawing.Color]::FromArgb(41, 31, 0))
+                $g.FillPath($fillBrush, $path)
+                # ZERO BORDER! Do NOT call DrawPath!
+            } finally { $path.Dispose() }
+
+            # Subtle inline info indicator glyph (borderless soft amber circle)
+            $badgeX = 12
+            $badgeY = [int](($s.Height - 18) / 2)
+            $badgePath = Get-RoundedRectPath $badgeX $badgeY 18 18 9
+            try {
+                $g.FillPath((Get-CachedBrush ([System.Drawing.Color]::FromArgb(68, 52, 6))), $badgePath)
+            } finally { $badgePath.Dispose() }
+            $fBadge = Get-CachedFont 'Segoe UI' 7.5 ([System.Drawing.FontStyle]::Bold)
+            $rBadge = New-Object System.Drawing.Rectangle($badgeX, $badgeY, 18, 18)
+            [System.Windows.Forms.TextRenderer]::DrawText($g, 'i', $fBadge, $rBadge, [System.Drawing.Color]::FromArgb(251, 191, 36), ([System.Windows.Forms.TextFormatFlags]::HorizontalCenter -bor [System.Windows.Forms.TextFormatFlags]::VerticalCenter))
         } catch { }
     })
     $script:ConnNoteBox = $noteBox
-    $script:LblConnNote = New-Lbl '' $Theme.yellow 8.5 18 $false
-    $script:LblConnNote.Location = New-Object System.Drawing.Point(14, 7)
+    $script:LblConnNote = New-Lbl '' ([System.Drawing.Color]::FromArgb(254, 215, 170)) 8.5 18 $false
+    $script:LblConnNote.Location = New-Object System.Drawing.Point(40, 9)
     $script:LblConnNote.AutoSize = $true
     $noteBox.Controls.Add($script:LblConnNote)
     $r = $connTlp.RowCount; $connTlp.RowCount = $r + 1
@@ -2021,6 +2850,8 @@ function Show-HomePage {
     Switch-ContentPage $p
     Refresh-Dashboard
     Layout-HomePage
+    if ($script:Content) { $script:Content.PerformLayout() }
+    $p.PerformLayout()
 }
 
 function Set-RowBtn($Btn, [string]$Text, [string]$TagVal) {
@@ -2028,8 +2859,15 @@ function Set-RowBtn($Btn, [string]$Text, [string]$TagVal) {
     $Btn.Tag = $TagVal
     if ($Btn.Text -ne $Text) {
         $Btn.Text = $Text
-        $Btn.Invalidate()
     }
+    if ($TagVal -eq '__STREAMER_BLOCKED__') {
+        $Btn.ForeColor = $Theme.dim
+        $Btn.FlatAppearance.BorderColor = $Theme.border
+    } else {
+        $Btn.ForeColor = $Theme.text
+        $Btn.FlatAppearance.BorderColor = $Theme.btnBorder
+    }
+    $Btn.Invalidate()
     if (-not $Btn.Visible) { $Btn.Visible = $true }
 }
 
@@ -2037,7 +2875,18 @@ function Refresh-Dashboard {
     if (-not $script:LblStatusBig) { return }
     $conn = $script:State.Conn
     $running = [bool]$script:State.Running
-    $port = if ($conn) { $conn.Port } else { (Get-ServerPort) }
+    $port = if ($script:State -and $script:State.Port -and $script:State.Port -gt 0) {
+        $script:State.Port
+    } elseif ($conn -and $conn.Port -and $conn.Port -gt 0) {
+        $conn.Port
+    } else {
+        $curPort = (Get-ServerPort)
+        if ($script:State) { $script:State.Port = $curPort }
+        $curPort
+    }
+    if ($script:State -and $script:State.Conn -and $port) {
+        $script:State.Conn.Port = $port
+    }
     $name = if ($script:State.ServerName) { $script:State.ServerName } else { 'K BNG M Server' }
     $isPrivate = Get-ServerPrivate
     $layoutChanged = $false
@@ -2062,10 +2911,11 @@ function Refresh-Dashboard {
 
     # Context-aware primary CTA styling on Copy Best IP
     if ($script:BtnCopy) {
-        $wantBg = if ($running) { $Theme.btnAct } else { $Theme.btn }
-        if ($script:BtnCopy.BackColor.ToArgb() -ne $wantBg.ToArgb()) {
+        $wantBg = if ($running) { [System.Drawing.Color]::FromArgb(48, 26, 14) } else { $Theme.btn }
+        $wantBorder = if ($running) { [System.Drawing.Color]::FromArgb(140, 255, 115, 29) } else { $Theme.btnBorder }
+        if ($script:BtnCopy.BackColor.ToArgb() -ne $wantBg.ToArgb() -or $script:BtnCopy.FlatAppearance.BorderColor.ToArgb() -ne $wantBorder.ToArgb()) {
             $script:BtnCopy.BackColor = $wantBg
-            $script:BtnCopy.FlatAppearance.BorderColor = if ($running) { $Theme.blue } else { $Theme.border }
+            $script:BtnCopy.FlatAppearance.BorderColor = $wantBorder
             $script:BtnCopy.ForeColor = if ($running) { [System.Drawing.Color]::White } else { $Theme.text }
             $script:BtnCopy.Invalidate()
         }
@@ -2129,11 +2979,17 @@ function Refresh-Dashboard {
     Set-RowBtn $script:BtnConnThis 'Copy IP' "127.0.0.1:$port"
 
     # 2. Local LAN (Home WiFi)
-    if ($conn -and $conn.LAN) {
+    if ($script:StreamerMode) {
+        if ($script:RowConnLan -and $script:RowConnLan.Visible) { $script:RowConnLan.Visible = $false; $layoutChanged = $true }
+        [void](Set-CtrlText $script:LblConnLan "$bul  ***.***.***.***:$port   (Same WiFi / Router - Hidden in Streamer Mode)" $Theme.dim)
+        Set-RowBtn $script:BtnConnLan 'Protected' '__STREAMER_BLOCKED__'
+    } elseif ($conn -and $conn.LAN) {
+        if ($script:RowConnLan -and -not $script:RowConnLan.Visible) { $script:RowConnLan.Visible = $true; $layoutChanged = $true }
         $lanCol = if ($running) { $Theme.green } else { $Theme.text }
         [void](Set-CtrlText $script:LblConnLan "$bul  $($conn.LAN):$port   (Same WiFi / Router)" $lanCol)
         Set-RowBtn $script:BtnConnLan 'Copy IP' "$($conn.LAN):$port"
     } else {
+        if ($script:RowConnLan -and -not $script:RowConnLan.Visible) { $script:RowConnLan.Visible = $true; $layoutChanged = $true }
         [void](Set-CtrlText $script:LblConnLan "$hol  Detecting local network adapter..." $Theme.dim)
         Set-RowBtn $script:BtnConnLan 'Detect' '__REFRESH__'
     }
@@ -2141,13 +2997,23 @@ function Refresh-Dashboard {
     # 3. Tunnel (FRP or Playit.gg)
     $playitAddress = Get-PlayitAddress
     if ($running -and $script:State.Frp) {
-        [void](Set-CtrlText $script:LblConnTunnel "$bul  $($script:State.Frp)   (FRP Public Tunnel)")
+        $frpDisp = if ($script:StreamerMode) { ($script:State.Frp -replace '\b\d{1,3}(\.\d{1,3}){3}\b', '***.***.***.***') } else { $script:State.Frp }
+        [void](Set-CtrlText $script:LblConnTunnel "$bul  $frpDisp   (FRP Public Tunnel)")
         if ($script:RowConnTunnel -and -not $script:RowConnTunnel.Visible) { $script:RowConnTunnel.Visible = $true; $layoutChanged = $true }
-        Set-RowBtn $script:BtnConnTunnel 'Copy IP' "$($script:State.Frp)"
+        if ($script:StreamerMode) {
+            Set-RowBtn $script:BtnConnTunnel 'Protected' '__STREAMER_BLOCKED__'
+        } else {
+            Set-RowBtn $script:BtnConnTunnel 'Copy IP' "$($script:State.Frp)"
+        }
     } elseif ($playitAddress) {
-        [void](Set-CtrlText $script:LblConnTunnel "$bul  $playitAddress   (Playit.gg Tunnel)")
+        $playitDisp = if ($script:StreamerMode) { ($playitAddress -replace '\b\d{1,3}(\.\d{1,3}){3}\b', '***.***.***.***') } else { $playitAddress }
+        [void](Set-CtrlText $script:LblConnTunnel "$bul  $playitDisp   (Playit.gg Tunnel)")
         if ($script:RowConnTunnel -and -not $script:RowConnTunnel.Visible) { $script:RowConnTunnel.Visible = $true; $layoutChanged = $true }
-        Set-RowBtn $script:BtnConnTunnel 'Copy IP' "$playitAddress"
+        if ($script:StreamerMode) {
+            Set-RowBtn $script:BtnConnTunnel 'Protected' '__STREAMER_BLOCKED__'
+        } else {
+            Set-RowBtn $script:BtnConnTunnel 'Copy IP' "$playitAddress"
+        }
     } else {
         if ($script:RowConnTunnel -and $script:RowConnTunnel.Visible) { $script:RowConnTunnel.Visible = $false; $layoutChanged = $true }
     }
@@ -2156,21 +3022,28 @@ function Refresh-Dashboard {
     $vpnLines = @()
     if ($conn) { $vpnLines = @($conn.Vpn | Where-Object { $_.Ip }) }
     if ($vpnLines.Count) {
-        $vpnText = (($vpnLines | ForEach-Object { "$($_.Name) $arr $($_.Ip):$port" }) -join '   ')
-        [void](Set-CtrlText $script:LblConnVpn "$bul  $vpnText" $Theme.green)
-        Set-RowBtn $script:BtnConnVpn 'Copy IP' "$($vpnLines[0].Ip):$port"
+        if ($script:StreamerMode) {
+            $vpnText = (($vpnLines | ForEach-Object { "$($_.Name) $arr ***.***.***.***:$port [PROTECTED]" }) -join '   ')
+            [void](Set-CtrlText $script:LblConnVpn "$bul  $vpnText" $Theme.blue)
+            Set-RowBtn $script:BtnConnVpn 'Protected' '__STREAMER_BLOCKED__'
+        } else {
+            $vpnText = (($vpnLines | ForEach-Object { "$($_.Name) $arr $($_.Ip):$port" }) -join '   ')
+            [void](Set-CtrlText $script:LblConnVpn "$bul  $vpnText" $Theme.green)
+            Set-RowBtn $script:BtnConnVpn 'Copy IP' "$($vpnLines[0].Ip):$port"
+        }
     } else {
         [void](Set-CtrlText $script:LblConnVpn "$hol  Standby   $dot   Radmin / ZeroTier / Hamachi" $Theme.dim)
         Set-RowBtn $script:BtnConnVpn 'Configure' '__NETWORK__'
     }
     if ($script:ConnVpnFlow) {
         $vpnSig = ($vpnLines | ForEach-Object { "$($_.Name):$($_.Ip):$port" }) -join '|'
+        $vpnSig += ":$($script:StreamerMode)"
         if ($script:ConnVpnFlow.Tag -ne $vpnSig) {
             $script:ConnVpnFlow.Tag = $vpnSig
             $script:ConnVpnFlow.SuspendLayout()
             foreach ($oldB in @($script:ConnVpnFlow.Controls)) { try { $oldB.Dispose() } catch { } }
             $script:ConnVpnFlow.Controls.Clear()
-            if ($vpnLines.Count -ge 2) {
+            if ($vpnLines.Count -ge 2 -and -not $script:StreamerMode) {
                 foreach ($v in $vpnLines) {
                     $b = New-CopyButton "Copy $($v.Name) IP" "Copy the $($v.Name) IP:port address ($($v.Ip):$port) - only for friends on the SAME $($v.Name) network." "$($v.Ip):$port" "$($v.Name) address $($v.Ip):$port"
                     $b.Size = New-Object System.Drawing.Size(150, 28)
@@ -2187,22 +3060,30 @@ function Refresh-Dashboard {
 
     # 5. Tailscale Mesh
     if ($conn -and $conn.Tailscale) {
-        [void](Set-CtrlText $script:LblConnTail "$bul  $($conn.Tailscale):$port   (Tailscale Mesh)" $Theme.blue)
-        Set-RowBtn $script:BtnConnTail 'Copy IP' "$($conn.Tailscale):$port"
+        if ($script:StreamerMode) {
+            [void](Set-CtrlText $script:LblConnTail "$bul  ***.***.***.***:$port   (Tailscale Mesh - Protected)" $Theme.blue)
+            Set-RowBtn $script:BtnConnTail 'Protected' '__STREAMER_BLOCKED__'
+        } else {
+            [void](Set-CtrlText $script:LblConnTail "$bul  $($conn.Tailscale):$port   (Tailscale Mesh)" $Theme.blue)
+            Set-RowBtn $script:BtnConnTail 'Copy IP' "$($conn.Tailscale):$port"
+        }
     } else {
         [void](Set-CtrlText $script:LblConnTail "$hol  Standby   $dot   Tailscale not running" $Theme.dim)
         Set-RowBtn $script:BtnConnTail 'Set Up' '__NETWORK__'
     }
 
     # 6. Public Internet (WAN)
-    $invText = if ($isPrivate) { 'Copy Invite (Private)' } else { 'Copy Invite' }
+    $invText = 'Copy Invite'
     if ($script:BtnInvite.Text -ne $invText) {
         $script:BtnInvite.Text = $invText
         $script:BtnInvite.Invalidate()
         $script:Tip.SetToolTip($script:BtnInvite, $(if ($isPrivate) { 'Your server is PRIVATE - friends cannot find it in the list. This copies the full invite message with the address and connect steps.' } else { 'Copy a ready-made invite message. For a public server friends can also just find it in the BeamMP list.' }))
     }
     $privNote = if ($isPrivate) { '   [PRIVATE]' } else { '   (Public WAN)' }
-    if ($conn -and $conn.Public) {
+    if ($script:StreamerMode) {
+        [void](Set-CtrlText $script:LblConnPub "$bul  ***.***.***.***:$port$privNote  [PROTECTED / STREAMER MODE]" $Theme.blue)
+        Set-RowBtn $script:BtnConnPub 'Protected' '__STREAMER_BLOCKED__'
+    } elseif ($conn -and $conn.Public) {
         [void](Set-CtrlText $script:LblConnPub "$bul  $($conn.Public):$port$privNote" $Theme.text)
         Set-RowBtn $script:BtnConnPub 'Copy IP' "$($conn.Public):$port"
     } else {
@@ -2234,6 +3115,7 @@ function Refresh-Dashboard {
     } else {
         $noteChanged = Set-CtrlText $script:LblConnNote "TIP: Do not click your own server in the public BeamMP list from this PC $em always use Direct Connect (127.0.0.1:$port)."
     }
+    if ($script:ConnContent) { $script:ConnContent.Invalidate() }
     if ($layoutChanged -or $noteChanged) {
         Layout-HomePage
     }
@@ -2247,15 +3129,26 @@ function Show-SettingsPage {
     $script:PageLayout = { Update-CardStackLayout }
     if ($script:SettingsPagePanel -and -not $script:SettingsPagePanel.IsDisposed) {
         $script:StackRefs = $script:SettingsStackRefs
-        Switch-ContentPage $script:SettingsPagePanel
-        Refresh-SettingsFields
-        Refresh-Dashboard
+        $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+        [Win32Chrome]::Suspend($hwnd)
+        try {
+            Switch-ContentPage $script:SettingsPagePanel
+            Refresh-SettingsFields
+            Update-CardStackLayout
+        } finally {
+            [Win32Chrome]::Resume($hwnd)
+        }
         return
     }
     $p = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $p
     $p.SuspendLayout()
     $p.Dock = 'Fill'
+    if ($script:Content -and $script:Content.ClientSize.Width -gt 200) {
+        $p.Size = $script:Content.ClientSize
+    } else {
+        $p.Size = New-Object System.Drawing.Size(844, 520)
+    }
     $p.BackColor = $Theme.bg
 
     $top = New-PageTop $p 'Settings' 'Everything in one scroll - most settings apply on the next server start.'
@@ -2276,27 +3169,38 @@ function Show-SettingsPage {
     # ---- Server identity ----
     $card = New-Card 'Server identity' 'How your server looks in the BeamMP list.'
     $script:TxtName = New-SettingsInput
-    $script:TxtName.Height = 26
+    $script:TxtName.Height = 32
     Add-Row $card 'Server name:' $script:TxtName
+
     $flRow = New-ButtonBar
     $script:TxtPlayers = New-SettingsInput
-    $script:TxtPlayers.Width = 90
-    $script:TxtPlayers.Height = 26
+    $script:TxtPlayers.Width = 84
+    $script:TxtPlayers.Height = 32
+    $script:TxtPlayers.Margin = New-Object System.Windows.Forms.Padding(0, 0, 8, 0)
+    $lblPlayers = New-Lbl 'players' $Theme.dim 9 32
+    $lblPlayers.Margin = New-Object System.Windows.Forms.Padding(0, 6, 20, 0)
+
     $script:TxtCars = New-SettingsInput
-    $script:TxtCars.Width = 90
-    $script:TxtCars.Height = 26
+    $script:TxtCars.Width = 84
+    $script:TxtCars.Height = 32
+    $script:TxtCars.Margin = New-Object System.Windows.Forms.Padding(0, 0, 8, 0)
+    $lblCars = New-Lbl 'max cars per player' $Theme.dim 9 32
+    $lblCars.Margin = New-Object System.Windows.Forms.Padding(0, 6, 0, 0)
+
     $flRow.Controls.Add($script:TxtPlayers)
-    $flRow.Controls.Add((New-Lbl 'players' $Theme.dim 9 20))
+    $flRow.Controls.Add($lblPlayers)
     $flRow.Controls.Add($script:TxtCars)
-    $flRow.Controls.Add((New-Lbl 'max cars per player' $Theme.dim 9 20))
+    $flRow.Controls.Add($lblCars)
     Add-Row $card 'Players / cars:' $flRow
+
     $script:TxtDescription = New-SettingsInput
     $script:TxtDescription.Multiline = $true
-    $script:TxtDescription.Height = 56
+    $script:TxtDescription.Height = 68
     $script:TxtDescription.ScrollBars = 'Vertical'
     Add-Row $card 'Description (optional):' $script:TxtDescription
+
     $script:TxtTags = New-SettingsInput
-    $script:TxtTags.Height = 26
+    $script:TxtTags.Height = 32
     Add-Row $card 'Tags, comma separated:' $script:TxtTags
     Add-RowNote $card 'Example tags: Freeroam,KBnG,BeamMP - they help players find your server in the list.' $Theme.dim | Out-Null
     $cards += $card
@@ -2357,7 +3261,7 @@ function Show-SettingsPage {
     # ---- Map ----
     $card = New-Card 'Map' 'What everyone plays on - applies on the next server start.'
     $script:TxtMapSearch = New-SettingsInput
-    $script:TxtMapSearch.Height = 26
+    $script:TxtMapSearch.Height = 32
     $script:TxtMapSearch.Add_TextChanged({ Refresh-MapListBox })
     Add-Row $card 'Search maps (type to filter):' $script:TxtMapSearch
     $script:CmbMaps = New-Object System.Windows.Forms.ComboBox
@@ -2433,12 +3337,116 @@ function Show-SettingsPage {
     Add-RowFull $card $script:ChkDebug
     $cards += $card
 
+    # ---- Streamer Privacy Mode ----
+    $card = New-Card 'Streamer Privacy Mode' 'Mask sensitive data during live broadcasting and recording.'
+    $script:ChkStreamerMode = New-Object System.Windows.Forms.CheckBox
+    $script:ChkStreamerMode.Text = 'Enable Streamer Privacy Mode (hides console & home WiFi/LAN; redacts WAN IP, AuthKey)'
+    $script:ChkStreamerMode.ForeColor = $Theme.green
+    $script:ChkStreamerMode.BackColor = $Theme.card
+    $script:ChkStreamerMode.Font = $rFont95
+    $script:ChkStreamerMode.Height = 26
+    $script:ChkStreamerMode.Checked = [bool]$script:StreamerMode
+    $script:ChkStreamerMode.Add_CheckedChanged({
+        if ($script:SuppressSettingEvents) { return }
+        Set-StreamerMode $this.Checked
+    })
+    Add-RowFull $card $script:ChkStreamerMode
+    Add-RowNote $card 'When active, the Activity Console drawer and Home WiFi/LAN endpoint are completely hidden, and WAN IPs, server keys, and local user file paths are replaced with *** across the Dashboard and Network tabs. A quick toggle is also always available in the top-right header.' $Theme.dim | Out-Null
+    $cards += $card
+
+    # ---- Advanced Server Settings (Collapsible Accordion) ----
+    $card = New-Card 'Advanced Server Settings' 'Bind IP, custom port, resource folder, and engine update reminders.'
+    $script:AdvancedControls = @()
+
+    $advTopBar = New-ButtonBar
+    $script:BtnToggleAdvanced = New-Btn $(if ($script:AdvancedExpanded) { 'v  Hide Advanced Settings' } else { '>  Show Advanced Settings (5 options)' }) 'Click to expand or collapse fine-grained server engine settings.' {
+        $script:AdvancedExpanded = -not [bool]$script:AdvancedExpanded
+        $script:BtnToggleAdvanced.Text = if ($script:AdvancedExpanded) { 'v  Hide Advanced Settings' } else { '>  Show Advanced Settings (5 options)' }
+        $script:BtnToggleAdvanced.ForeColor = if ($script:AdvancedExpanded) { $Theme.blue } else { [System.Drawing.Color]::White }
+        $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+        [Win32Chrome]::Suspend($hwnd)
+        try {
+            foreach ($ctrl in $script:AdvancedControls) {
+                $ctrl.Visible = $script:AdvancedExpanded
+            }
+            Update-CardStackLayout
+        } finally {
+            [Win32Chrome]::Resume($hwnd)
+        }
+    }
+    $script:BtnToggleAdvanced.Size = New-Object System.Drawing.Size(260, 32)
+    $script:BtnToggleAdvanced.BackColor = $Theme.panel
+    $advTopBar.Controls.Add($script:BtnToggleAdvanced)
+    Add-RowFull $card $advTopBar
+
+    # 1. Custom Listen Port
+    $flPort = New-ButtonBar
+    $flPort.Visible = [bool]$script:AdvancedExpanded
+    $script:TxtCustomPort = New-SettingsInput
+    $script:TxtCustomPort.Width = 90
+    $script:TxtCustomPort.Height = 32
+    $flPort.Controls.Add($script:TxtCustomPort)
+    $flPort.Controls.Add((New-Lbl 'default: 30814 (TCP + UDP listen port; range: 1024-65535)' $Theme.dim 9 20))
+    Add-Row $card 'Game listen port:' $flPort
+    $script:AdvancedControls += $flPort
+    $tAdv = $card.Tag
+    if ($tAdv.Controls.Count -ge 2) { $script:AdvancedControls += $tAdv.Controls[$tAdv.Controls.Count - 2]; $tAdv.Controls[$tAdv.Controls.Count - 2].Visible = [bool]$script:AdvancedExpanded }
+
+    # 2. Network Bind IP
+    $flBind = New-ButtonBar
+    $flBind.Visible = [bool]$script:AdvancedExpanded
+    $script:TxtBindIp = New-SettingsInput
+    $script:TxtBindIp.Width = 160
+    $script:TxtBindIp.Height = 32
+    $flBind.Controls.Add($script:TxtBindIp)
+    $flBind.Controls.Add((New-Lbl 'default: :: (dual-stack IPv6/IPv4; or 0.0.0.0 for IPv4)' $Theme.dim 9 20))
+    Add-Row $card 'Bind IP address (IP):' $flBind
+    $script:AdvancedControls += $flBind
+    if ($tAdv.Controls.Count -ge 2) { $script:AdvancedControls += $tAdv.Controls[$tAdv.Controls.Count - 2]; $tAdv.Controls[$tAdv.Controls.Count - 2].Visible = [bool]$script:AdvancedExpanded }
+
+    # 3. Resource Folder
+    $flRes = New-ButtonBar
+    $flRes.Visible = [bool]$script:AdvancedExpanded
+    $script:TxtResourceFolder = New-SettingsInput
+    $script:TxtResourceFolder.Width = 160
+    $script:TxtResourceFolder.Height = 32
+    $flRes.Controls.Add($script:TxtResourceFolder)
+    $flRes.Controls.Add((New-Lbl 'default: Resources (folder where synced mods reside)' $Theme.dim 9 20))
+    Add-Row $card 'Resource folder:' $flRes
+    $script:AdvancedControls += $flRes
+    if ($tAdv.Controls.Count -ge 2) { $script:AdvancedControls += $tAdv.Controls[$tAdv.Controls.Count - 2]; $tAdv.Controls[$tAdv.Controls.Count - 2].Visible = [bool]$script:AdvancedExpanded }
+
+    # 4. Hide Update Reminders
+    $script:ChkImScaredOfUpdates = New-Object System.Windows.Forms.CheckBox
+    $script:ChkImScaredOfUpdates.Text = 'Hide periodic update reminders in server console (ImScaredOfUpdates)'
+    $script:ChkImScaredOfUpdates.ForeColor = [System.Drawing.Color]::White
+    $script:ChkImScaredOfUpdates.BackColor = $Theme.card
+    $script:ChkImScaredOfUpdates.Font = $rFont9
+    $script:ChkImScaredOfUpdates.Height = 24
+    $script:ChkImScaredOfUpdates.Visible = [bool]$script:AdvancedExpanded
+    Add-RowFull $card $script:ChkImScaredOfUpdates
+    $script:AdvancedControls += $script:ChkImScaredOfUpdates
+
+    # 5. Update Reminder Frequency
+    $flRem = New-ButtonBar
+    $flRem.Visible = [bool]$script:AdvancedExpanded
+    $script:TxtUpdateReminder = New-SettingsInput
+    $script:TxtUpdateReminder.Width = 90
+    $script:TxtUpdateReminder.Height = 32
+    $flRem.Controls.Add($script:TxtUpdateReminder)
+    $flRem.Controls.Add((New-Lbl 'default: 30s (e.g., 30s, 5min, 1h, 1d)' $Theme.dim 9 20))
+    Add-Row $card 'Update reminder frequency:' $flRem
+    $script:AdvancedControls += $flRem
+    if ($tAdv.Controls.Count -ge 2) { $script:AdvancedControls += $tAdv.Controls[$tAdv.Controls.Count - 2]; $tAdv.Controls[$tAdv.Controls.Count - 2].Visible = [bool]$script:AdvancedExpanded }
+
+    $cards += $card
+
     # ---- Presets ----
     $card = New-Card 'Presets' 'Save a whole setup (settings + enabled mods) under a name, load it back later. Great for different game nights.'
     $preRow = New-ButtonBar
     $script:TxtPresetName = New-SettingsInput
     $script:TxtPresetName.Width = 200
-    $script:TxtPresetName.Height = 26
+    $script:TxtPresetName.Height = 32
     $preRow.Controls.Add($script:TxtPresetName)
     $preRow.Controls.Add((New-Lbl 'or pick one:' $Theme.dim 9 20))
     $script:CmbPresets = New-Object System.Windows.Forms.ComboBox
@@ -2465,18 +3473,24 @@ function Show-SettingsPage {
     Add-RowNote $card 'Presets are saved privately in the Server\Presets folder - they are not uploaded anywhere. Loading a preset restarts the server if it is running.' $Theme.dim | Out-Null
     $cards += $card
 
-    & $script:MountCards $cards $stack.Content
-    $p.ResumeLayout($false)
-    $script:SettingsStackRefs = $script:StackRefs
-    $script:SettingsPagePanel = $p
-    Switch-ContentPage $p
-    $script:SuppressSettingEvents = $true
-    $script:ChkLock.Checked = (Test-StaticIpLocked)
-    $script:SuppressSettingEvents = $false
-    Refresh-SettingsFields
-    Refresh-MapCombo
-    Refresh-PresetCombo
-    Refresh-Dashboard
+    $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+    [Win32Chrome]::Suspend($hwnd)
+    try {
+        & $script:MountCards $cards $stack.Content
+        $p.ResumeLayout($false)
+        $script:SettingsStackRefs = $script:StackRefs
+        $script:SettingsPagePanel = $p
+        Switch-ContentPage $p
+        $script:SuppressSettingEvents = $true
+        $script:ChkLock.Checked = (Test-StaticIpLocked)
+        $script:SuppressSettingEvents = $false
+        Refresh-SettingsFields
+        Refresh-MapCombo
+        Refresh-PresetCombo
+        Update-CardStackLayout
+    } finally {
+        [Win32Chrome]::Resume($hwnd)
+    }
 }
 
 function Get-AllConfigValues {
@@ -2510,6 +3524,14 @@ function Refresh-SettingsFields {
             $script:ChkLogChat.Checked = ($cfg['LogChat'] -match 'true|1')
             $script:ChkDebug.Checked = ($cfg['Debug'] -match 'true|1')
             $script:ChkInfoPacket.Checked = ($cfg['InformationPacket'] -match 'true|1')
+            $curPort = if ($script:State -and $script:State.Port) { [string]$script:State.Port } elseif ($cfg.ContainsKey('Port')) { $cfg['Port'] } else { '30814' }
+            if ($script:TxtCustomPort) { $script:TxtCustomPort.Text = $curPort }
+            if ($script:LblSettings3) { $script:LblSettings3.Text = "Port: $curPort  (change it automatically if it is ever busy)" }
+            if ($script:TxtBindIp) { $script:TxtBindIp.Text = if ($cfg.ContainsKey('IP')) { $cfg['IP'] } else { '::' } }
+            if ($script:TxtResourceFolder) { $script:TxtResourceFolder.Text = if ($cfg.ContainsKey('ResourceFolder')) { $cfg['ResourceFolder'] } else { 'Resources' } }
+            if ($script:ChkImScaredOfUpdates) { $script:ChkImScaredOfUpdates.Checked = ($cfg['ImScaredOfUpdates'] -match 'true|1') }
+            if ($script:TxtUpdateReminder) { $script:TxtUpdateReminder.Text = if ($cfg.ContainsKey('UpdateReminderTime')) { $cfg['UpdateReminderTime'] } else { '30s' } }
+            if ($script:ChkStreamerMode) { $script:ChkStreamerMode.Checked = [bool]$script:StreamerMode }
             $isPriv = ($cfg['Private'] -match 'true|1')
             $script:isPrivate = [bool]$isPriv
             $script:RadioPublic.Checked = -not $isPriv
@@ -2694,6 +3716,40 @@ function Save-Settings {
     if ($desc) { $vals['Description'] = '"' + $desc + '"' } else { $vals['Description'] = '""' }
     $tags = $script:TxtTags.Text.Trim().Replace('"', "'") -replace '[\x00-\x1F]', ' '
     if ($tags) { $vals['Tags'] = '"' + $tags + '"' } else { $vals['Tags'] = '""' }
+    # Advanced settings validation & persistence
+    if ($script:TxtCustomPort) {
+        $pVal = $script:TxtCustomPort.Text.Trim()
+        if ($pVal -match '^\d+$') {
+            $pNum = [int]$pVal
+            if ($pNum -ge 1024 -and $pNum -le 65535) {
+                $vals['Port'] = $pNum
+                $script:State.Port = $pNum
+                if ($script:State.Conn) { $script:State.Conn.Port = $pNum }
+                if ($script:LblSettings3) {
+                    $script:LblSettings3.Text = "Port: $pNum  (change it automatically if it is ever busy)"
+                }
+                Add-Log "[INFO] Game listen port set to $pNum (applies on next start)."
+            } else {
+                Add-Log '[WARN] Game port must be between 1024 and 65535 - leaving unchanged.'
+            }
+        }
+    }
+    if ($script:TxtBindIp) {
+        $bIp = $script:TxtBindIp.Text.Trim().Replace('"', '') -replace '[\x00-\x1F]', ''
+        if ($bIp) { $vals['IP'] = '"' + $bIp + '"' } else { $vals['IP'] = '"::"' }
+    }
+    if ($script:TxtResourceFolder) {
+        $rFold = $script:TxtResourceFolder.Text.Trim().Replace('"', '') -replace '[\x00-\x1F/\\\:]', ''
+        if ($rFold) { $vals['ResourceFolder'] = '"' + $rFold + '"' } else { $vals['ResourceFolder'] = '"Resources"' }
+    }
+    if ($script:ChkImScaredOfUpdates) {
+        $vals['ImScaredOfUpdates'] = $script:ChkImScaredOfUpdates.Checked.ToString().ToLower()
+    }
+    if ($script:TxtUpdateReminder) {
+        $uRem = $script:TxtUpdateReminder.Text.Trim().Replace('"', '') -replace '[\x00-\x1F]', ''
+        if ($uRem) { $vals['UpdateReminderTime'] = '"' + $uRem + '"' } else { $vals['UpdateReminderTime'] = '"30s"' }
+    }
+
     $vals['AllowGuests'] = $script:ChkAllowGuests.Checked.ToString().ToLower()
     $vals['LogChat'] = $script:ChkLogChat.Checked.ToString().ToLower()
     $vals['Debug'] = $script:ChkDebug.Checked.ToString().ToLower()
@@ -2794,14 +3850,26 @@ function Show-NetworkPage([bool]$ForceRefresh = $false) {
     $script:PageLayout = { Update-CardStackLayout }
     if (-not $ForceRefresh -and $script:NetworkPagePanel -and -not $script:NetworkPagePanel.IsDisposed) {
         $script:StackRefs = $script:NetworkStackRefs
-        Switch-ContentPage $script:NetworkPagePanel
-        Refresh-FrpFields
+        $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+        [Win32Chrome]::Suspend($hwnd)
+        try {
+            Switch-ContentPage $script:NetworkPagePanel
+            Refresh-FrpFields
+            Update-CardStackLayout
+        } finally {
+            [Win32Chrome]::Resume($hwnd)
+        }
         return
     }
     $p = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $p
     $p.SuspendLayout()
     $p.Dock = 'Fill'
+    if ($script:Content -and $script:Content.ClientSize.Width -gt 200) {
+        $p.Size = $script:Content.ClientSize
+    } else {
+        $p.Size = New-Object System.Drawing.Size(844, 520)
+    }
     $p.BackColor = $Theme.bg
 
     $top = New-PageTop $p 'Network' 'Everything about how friends reach you: FRP tunnel, VPNs and CGNAT.'
@@ -2826,17 +3894,17 @@ function Show-NetworkPage([bool]$ForceRefresh = $false) {
     })
     Add-RowFull $card $script:ChkFrp
     $script:TxtFrpServer = New-SettingsInput
-    $script:TxtFrpServer.Height = 26
+    $script:TxtFrpServer.Height = 32
     Add-Row $card 'FRP server address (hostname or IP):' $script:TxtFrpServer
     $frpRow = New-ButtonBar
     $script:TxtFrpPort = New-SettingsInput
     $script:TxtFrpPort.Width = 90
-    $script:TxtFrpPort.Height = 26
+    $script:TxtFrpPort.Height = 32
     $frpRow.Controls.Add($script:TxtFrpPort)
     $frpRow.Controls.Add((New-Lbl 'server port (almost always 7000)' $Theme.dim 9 20))
     Add-Row $card 'FRP server port:' $frpRow
     $script:TxtFrpToken = New-SettingsInput
-    $script:TxtFrpToken.Height = 26
+    $script:TxtFrpToken.Height = 32
     $script:TxtFrpToken.UseSystemPasswordChar = $true
     Add-Row $card 'FRP token (stays masked):' $script:TxtFrpToken
     Add-RowNote $card 'The frpc client is bundled with the app - it is extracted into Server\bin\frpc.exe automatically on first use, nothing to install. The runtime config with your token exists only while the tunnel runs and is deleted when it stops. Toggling saves immediately; the other fields save with the Save settings button on the Settings page. Not sure what address/port/token to type? Press the FRP setup guide button below.' $Theme.yellow | Out-Null
@@ -2857,6 +3925,7 @@ function Show-NetworkPage([bool]$ForceRefresh = $false) {
     Enable-DoubleBuffer $script:VpnRowsWrap
     $script:VpnRowsWrap.AutoSize = $false
     $script:VpnRowsWrap.Height = 252
+    $script:VpnRowsWrap.MinimumSize = New-Object System.Drawing.Size(0, 252)
     $script:VpnRowsWrap.BackColor = $Theme.card
     Add-RowFull $card $script:VpnRowsWrap
     $cards += $card
@@ -2871,13 +3940,13 @@ function Show-NetworkPage([bool]$ForceRefresh = $false) {
     Add-RowFull $card $cgnatBar
     $cards += $card
 
+    Refresh-VpnRows
+    Refresh-FrpFields
     & $script:MountCards $cards $stack.Content
     $p.ResumeLayout($false)
     $script:NetworkStackRefs = $script:StackRefs
     $script:NetworkPagePanel = $p
     Switch-ContentPage $p
-    Refresh-VpnRows
-    Refresh-FrpFields
     try { $script:Form.PerformLayout() } catch { }
 }
 
@@ -2936,7 +4005,7 @@ function Refresh-VpnRows {
         $rows = @()
         $apps = @(Get-InstalledVpns)
         $running = @(Get-VpnIps)
-        $srvPort = Get-ServerPort
+        $srvPort = if ($script:State -and $script:State.Port) { $script:State.Port } elseif ($conn -and $conn.Port) { $conn.Port } else { Get-ServerPort }
         foreach ($app in $apps) {
             $run = @($running | Where-Object { $_.Key -eq $app.Key })
             $rowPanel = New-Object System.Windows.Forms.Panel
@@ -2960,8 +4029,9 @@ function Refresh-VpnRows {
                 $state = 'NOT installed'
                 $color = $Theme.yellow
             } elseif ($run.Count -and $run[0].Ip) {
-                $state = "RUNNING  $dot  IP $($run[0].Ip)"
-                $color = $Theme.green
+                $dispVpnIp = if ($script:StreamerMode) { '***.***.***.***' } else { $run[0].Ip }
+                $state = "RUNNING  $dot  IP $dispVpnIp"
+                $color = if ($script:StreamerMode) { $Theme.blue } else { $Theme.green }
             } elseif ($run.Count) {
                 $state = "RUNNING  $dot  connecting (no VPN IP yet)"
                 $color = $Theme.yellow
@@ -2988,16 +4058,34 @@ function Refresh-VpnRows {
             $rowPanel.Controls.Add($btnFlow)
 
             if ($app.Installed -and $run.Count -and $run[0].Ip -and $app.Key -ne 'playit') {
-                $btnCopy = New-CopyButton 'Copy IP' "Copy the VPN address (IP:port) of $($app.Name) to your clipboard - paste it to your friends so they can direct-connect." "$($run[0].Ip):$srvPort" "VPN address of $($app.Name): $($run[0].Ip):$srvPort"
-                $btnCopy.Size = New-Object System.Drawing.Size(84, 30)
-                $btnFlow.Controls.Add($btnCopy)
+                if ($script:StreamerMode) {
+                    $btnCopy = New-Btn 'Protected' 'Streamer Privacy Mode: VPN IP is protected.' {
+                        Add-Log '[NOTE] Clipboard copy blocked: VPN endpoint is masked while Streamer Privacy Mode is active.'
+                    }
+                    $btnCopy.ForeColor = $Theme.dim
+                    $btnCopy.Size = New-Object System.Drawing.Size(84, 30)
+                    $btnFlow.Controls.Add($btnCopy)
+                } else {
+                    $btnCopy = New-CopyButton 'Copy IP' "Copy the VPN address (IP:port) of $($app.Name) to your clipboard - paste it to your friends so they can direct-connect." "$($run[0].Ip):$srvPort" "VPN address of $($app.Name): $($run[0].Ip):$srvPort"
+                    $btnCopy.Size = New-Object System.Drawing.Size(84, 30)
+                    $btnFlow.Controls.Add($btnCopy)
+                }
             }
             if ($app.Key -eq 'playit' -and $app.Installed) {
                 $address = Get-PlayitAddress
                 if ($address) {
-                    $btnCopy = New-CopyButton 'Copy Address' "Copy the Playit.gg tunnel address to your clipboard - paste it to your friends so they can direct-connect." "$address" "Playit.gg address: $address"
-                    $btnCopy.Size = New-Object System.Drawing.Size(110, 30)
-                    $btnFlow.Controls.Add($btnCopy)
+                    if ($script:StreamerMode) {
+                        $btnCopy = New-Btn 'Protected' 'Streamer Privacy Mode: Playit tunnel address is protected.' {
+                            Add-Log '[NOTE] Clipboard copy blocked: Tunnel address is masked while Streamer Privacy Mode is active.'
+                        }
+                        $btnCopy.ForeColor = $Theme.dim
+                        $btnCopy.Size = New-Object System.Drawing.Size(110, 30)
+                        $btnFlow.Controls.Add($btnCopy)
+                    } else {
+                        $btnCopy = New-CopyButton 'Copy Address' "Copy the Playit.gg tunnel address to your clipboard - paste it to your friends so they can direct-connect." "$address" "Playit.gg address: $address"
+                        $btnCopy.Size = New-Object System.Drawing.Size(110, 30)
+                        $btnFlow.Controls.Add($btnCopy)
+                    }
                 }
             }
             if ($app.Installed -and $run.Count) {
@@ -3025,7 +4113,9 @@ function Refresh-VpnRows {
         $btnAllRow.Controls.Add($btnAll)
         $rows += $btnAllRow
         for ($i = $rows.Count - 1; $i -ge 0; $i--) { $script:VpnRowsWrap.Controls.Add($rows[$i]) }
-        $script:VpnRowsWrap.Height = ($rows.Count * 42)
+        $wrapH = ($rows.Count * 42)
+        $script:VpnRowsWrap.Height = $wrapH
+        $script:VpnRowsWrap.MinimumSize = New-Object System.Drawing.Size(0, $wrapH)
     } finally {
         $script:VpnRowsWrap.ResumeLayout($true)
     }
@@ -3040,14 +4130,25 @@ function Show-FixPage {
     Set-ActiveNav $script:BtnFix
     $script:PageLayout = { Layout-FixRows }
     if ($script:FixPagePanel -and -not $script:FixPagePanel.IsDisposed) {
-        Switch-ContentPage $script:FixPagePanel
-        & $script:PageLayout
+        $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+        [Win32Chrome]::Suspend($hwnd)
+        try {
+            Switch-ContentPage $script:FixPagePanel
+            & $script:PageLayout
+        } finally {
+            [Win32Chrome]::Resume($hwnd)
+        }
         return
     }
     $p = New-Object System.Windows.Forms.Panel
     Enable-DoubleBuffer $p
     $p.SuspendLayout()
     $p.Dock = 'Fill'
+    if ($script:Content -and $script:Content.ClientSize.Width -gt 200) {
+        $p.Size = $script:Content.ClientSize
+    } else {
+        $p.Size = New-Object System.Drawing.Size(844, 520)
+    }
     $p.BackColor = $Theme.bg
     $p.Padding = New-Object System.Windows.Forms.Padding(12, 4, 12, 4)
 
@@ -3290,7 +4391,7 @@ function Layout-FixRows {
             $r.Row.Invalidate()
         }
         $totH = if ($script:FixRowsPanel) { $script:FixRowsPanel.PreferredSize.Height } else { 0 }
-        $script:FixRowsPanel.Size = New-Object System.Drawing.Size($w, [math]::Max(10, $totH))
+        $script:FixRowsPanel.Size = New-Object System.Drawing.Size($w, [math]::Max(10, ($totH + 48)))
         $curScrollY = if ($script:FixScrollBar) { & $script:FixScrollBar.GetScrollY } else { 0 }
         $script:FixRowsPanel.Location = New-Object System.Drawing.Point(0, -$curScrollY)
         if ($script:FixScrollBar) { & $script:FixScrollBar.Sync }
@@ -3506,9 +4607,15 @@ function Show-ModsPage {
     Set-ActiveNav $script:BtnMods
     $script:PageLayout = { Layout-Mods }
     if ($script:ModsPagePanel -and -not $script:ModsPagePanel.IsDisposed) {
-        Switch-ContentPage $script:ModsPagePanel
-        & $script:PageLayout
-        Populate-ModLists
+        $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+        [Win32Chrome]::Suspend($hwnd)
+        try {
+            Switch-ContentPage $script:ModsPagePanel
+            & $script:PageLayout
+            Populate-ModLists
+        } finally {
+            [Win32Chrome]::Resume($hwnd)
+        }
         return
     }
     $p = New-Object System.Windows.Forms.Panel
@@ -3739,7 +4846,14 @@ function Show-TransferPage {
     $script:PageLayout = { Update-CardStackLayout }
     if ($script:TransferPagePanel -and -not $script:TransferPagePanel.IsDisposed) {
         $script:StackRefs = $script:TransferStackRefs
-        Switch-ContentPage $script:TransferPagePanel
+        $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+        [Win32Chrome]::Suspend($hwnd)
+        try {
+            Switch-ContentPage $script:TransferPagePanel
+            Update-CardStackLayout
+        } finally {
+            [Win32Chrome]::Resume($hwnd)
+        }
         return
     }
     $p = New-Object System.Windows.Forms.Panel
@@ -4056,7 +5170,13 @@ function Show-GuidePage {
     Set-ActiveNav $script:BtnMore
     $script:PageLayout = $null
     if ($script:GuidePagePanel -and -not $script:GuidePagePanel.IsDisposed) {
-        Switch-ContentPage $script:GuidePagePanel
+        $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+        [Win32Chrome]::Suspend($hwnd)
+        try {
+            Switch-ContentPage $script:GuidePagePanel
+        } finally {
+            [Win32Chrome]::Resume($hwnd)
+        }
         return
     }
     $p = New-Object System.Windows.Forms.Panel
@@ -4214,8 +5334,15 @@ function Show-ExtraPage {
     $script:PageLayout = { Update-CardStackLayout }
     if ($script:ExtraPagePanel -and -not $script:ExtraPagePanel.IsDisposed) {
         $script:StackRefs = $script:ExtraStackRefs
-        Switch-ContentPage $script:ExtraPagePanel
-        Refresh-WinRows
+        $hwnd = if ($script:Content -and $script:Content.IsHandleCreated) { $script:Content.Handle } else { [IntPtr]::Zero }
+        [Win32Chrome]::Suspend($hwnd)
+        try {
+            Switch-ContentPage $script:ExtraPagePanel
+            Refresh-WinRows
+            Update-CardStackLayout
+        } finally {
+            [Win32Chrome]::Resume($hwnd)
+        }
         return
     }
     $p = New-Object System.Windows.Forms.Panel
@@ -4993,9 +6120,11 @@ function Stop-ServerFlow {
 }
 
 function Copy-ConnectionLine {
-    try { $conn = Get-ConnectionInfo -SkipRouterWan } catch { $conn = $script:State.Conn }
-    if (-not $conn) { $conn = $script:State.Conn }
-    $port = if ($conn) { $conn.Port } else { Get-ServerPort }
+    $conn = $script:State.Conn
+    if (-not $conn) {
+        $conn = [pscustomobject]@{ Port = (Get-ServerPort); LAN = (Get-LanIp); Tailscale = ''; Public = ''; Vpn = @(); Cgnat = $false }
+    }
+    $port = if ($script:State -and $script:State.Port -and $script:State.Port -gt 0) { $script:State.Port } elseif ($conn -and $conn.Port) { $conn.Port } else { Get-ServerPort }
     $line = "127.0.0.1:$port"
     if ($conn -and $conn.LAN) { $line = "$($conn.LAN):$port" }
     $vpnLines = @()
@@ -5005,7 +6134,8 @@ function Copy-ConnectionLine {
     if ($script:State.Running -and $script:State.Frp) { $line = $script:State.Frp }
     try {
         [System.Windows.Forms.Clipboard]::SetText($line)
-        Add-Log "[OK] Copied to clipboard: $line  (send this to your friends)"
+        $disp = if ($script:StreamerMode) { '***.***.***.***:' + $port } else { $line }
+        Add-Log "[OK] Copied best address to clipboard: $disp  (send this to your friends)"
     } catch {
         Add-Log "[ERROR] Could not copy to clipboard: $_"
     }
@@ -5014,9 +6144,11 @@ function Copy-ConnectionLine {
 # Copies a friendly full invite message (address + connect steps) - the easy way
 # to invite friends to a PRIVATE server (or any server).
 function Copy-Invite {
-    try { $conn = Get-ConnectionInfo -SkipRouterWan } catch { $conn = $script:State.Conn }
-    if (-not $conn) { $conn = $script:State.Conn }
-    $port = if ($conn) { $conn.Port } else { Get-ServerPort }
+    $conn = $script:State.Conn
+    if (-not $conn) {
+        $conn = [pscustomobject]@{ Port = (Get-ServerPort); LAN = (Get-LanIp); Tailscale = ''; Public = ''; Vpn = @(); Cgnat = $false }
+    }
+    $port = if ($script:State -and $script:State.Port -and $script:State.Port -gt 0) { $script:State.Port } elseif ($conn -and $conn.Port) { $conn.Port } else { Get-ServerPort }
     $addr = $null
     if ($conn) {
         $vpnLines = @($conn.Vpn | Where-Object { $_.Ip })
@@ -5027,15 +6159,16 @@ function Copy-Invite {
     }
     if ($script:State.Running -and $script:State.Frp) { $addr = $script:State.Frp }
     if (-not $addr) { $addr = '127.0.0.1' }
+    $targetAddr = if ($addr -match ':\d+$') { $addr } else { "$addr : $port" }
     $priv = Get-ServerPrivate
     $text = if ($priv) {
-        "Join my private BeamNG server!`n1) Open BeamNG -> More... -> BeamMP -> Direct Connect`n2) Address: $addr : $port`n3) Press Connect - done!"
+        "Join my private BeamNG server!`n1) Open BeamNG -> More... -> BeamMP -> Direct Connect`n2) Address: $targetAddr`n3) Press Connect - done!"
     } else {
-        "Join my BeamNG server! It is listed on BeamMP - search for it, or Direct Connect to: $addr : $port"
+        "Join my BeamNG server! It is listed on BeamMP - search for it, or Direct Connect to: $targetAddr"
     }
     try {
         [System.Windows.Forms.Clipboard]::SetText($text)
-        Add-Log "[OK] Invite copied - paste it to your friends."
+        Add-Log "[OK] Server invite copied to clipboard - paste it to your friends."
     } catch {
         Add-Log "[ERROR] Could not copy the invite: $_"
     }
@@ -5066,7 +6199,23 @@ Say "Diagnosis ready."
 
 function Show-DiagResult {
     if ($script:State.Diag) {
-        [System.Windows.Forms.MessageBox]::Show($script:State.Diag, 'Problem diagnosis', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
+        $diagText = $script:State.Diag
+        if ($script:StreamerMode -and (Get-Command 'Protect-StreamerText' -ErrorAction SilentlyContinue)) {
+            $pub = if ($script:State -and $script:State.Conn) { $script:State.Conn.Public } else { '' }
+            $key = Get-ConfigValue 'AuthKey'
+            $extraIps = @()
+            $lan = ''
+            if ($script:State -and $script:State.Conn) {
+                if ($script:State.Conn.LAN) {
+                    $lan = $script:State.Conn.LAN
+                    $extraIps += $lan
+                }
+                if ($script:State.Conn.Vpn) { $extraIps += @($script:State.Conn.Vpn | Where-Object { $_.Ip } | ForEach-Object { $_.Ip }) }
+                if ($script:State.Conn.Tailscale) { $extraIps += $script:State.Conn.Tailscale }
+            }
+            $diagText = Protect-StreamerText $diagText $true $pub $key $extraIps $lan
+        }
+        [System.Windows.Forms.MessageBox]::Show($diagText, 'Problem diagnosis', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
         $script:State.Diag = ''
     }
 }
@@ -5215,7 +6364,20 @@ $timerMain.Add_Tick({
             'tinstall' { Update-TransferInstallUi }
             'trefresh' { Populate-ClientModList }
             'tdel' { Update-TransferDeleteUi }
-            'settings' { $script:LblSettingsResult.Text = 'Settings saved.'; $script:LblSettingsResult.ForeColor = $Theme.green }
+            'settings' {
+                $script:LblSettingsResult.Text = 'Settings saved.'
+                $script:LblSettingsResult.ForeColor = $Theme.green
+                Refresh-SettingsFields
+                Refresh-Dashboard
+            }
+            'setport' {
+                $newPort = Get-ServerPort
+                $script:State.Port = $newPort
+                if ($script:State.Conn) { $script:State.Conn.Port = $newPort }
+                if ($script:LblSettingsResult) { $script:LblSettingsResult.Text = "Port changed to $newPort."; $script:LblSettingsResult.ForeColor = $Theme.green }
+                Refresh-SettingsFields
+                Refresh-Dashboard
+            }
             'update' { $script:LblSettingsResult.Text = $(if ($script:State.UpdateMsg) { "Update available: $($script:State.UpdateMsg)" } else { 'Checked.' }); $script:LblSettingsResult.ForeColor = $Theme.green }
             'setmap' {
                 if ($script:LblSettingsResult) { $script:LblSettingsResult.Text = 'Map applied.'; $script:LblSettingsResult.ForeColor = $Theme.green }
@@ -5420,6 +6582,27 @@ $script:Form.Add_KeyDown({
             'D' { Run-Diagnose; $e.SuppressKeyPress = $true }
             'C' { Copy-ConnectionLine; $e.SuppressKeyPress = $true }
         }
+    } elseif (-not $e.Alt) {
+        $handled = $false
+        switch ($e.KeyCode) {
+            'PageDown' {
+                if ([WheelFilter]::ScrollCallback) { & [WheelFilter]::ScrollCallback -240; $handled = $true }
+            }
+            'PageUp' {
+                if ([WheelFilter]::ScrollCallback) { & [WheelFilter]::ScrollCallback 240; $handled = $true }
+            }
+            'Down' {
+                if ($script:Form.ActiveControl -isnot [System.Windows.Forms.ListBox] -and $script:Form.ActiveControl -isnot [System.Windows.Forms.ComboBox]) {
+                    if ([WheelFilter]::ScrollCallback) { & [WheelFilter]::ScrollCallback -60; $handled = $true }
+                }
+            }
+            'Up' {
+                if ($script:Form.ActiveControl -isnot [System.Windows.Forms.ListBox] -and $script:Form.ActiveControl -isnot [System.Windows.Forms.ComboBox]) {
+                    if ([WheelFilter]::ScrollCallback) { & [WheelFilter]::ScrollCallback 60; $handled = $true }
+                }
+            }
+        }
+        if ($handled) { $e.SuppressKeyPress = $true }
     }
 })
 
@@ -5464,6 +6647,8 @@ $script:Form.Add_Shown({
     } else {
         Show-HomePage
     }
+    $script:Form.PerformLayout()
+    if ($script:PageLayout) { try { & $script:PageLayout } catch { } }
     if ($script:LicenseLocked) { Set-LicenseLock $true }
     try { [Win32Chrome]::ApplyModernWindow($script:Form.Handle) } catch { }
     # The window is fully painted at this point. All slow one-time work starts

@@ -1,3 +1,154 @@
+## v0.7.2.5 - Update 15: Standalone Beautiful Installer (K-BNG-M-Hoster-Setup.exe), Automated Packaging Pipeline & Integrated Uninstaller
+
+- **Standalone Windows Installer (`K-BNG-M-Hoster-Setup.exe`):**
+  - **Zero-Dependency Single Binary**: Bundles the complete application, server binaries, launcher, uninstaller, and assets into a lightweight ~3.7 MB standalone executable. Requires no external setup tools (Inno Setup, WiX, or 7-Zip).
+  - **Beautiful Dark Theme UI**: Built with a modern frameless dark window (`#0c0c10` / `#14141b`), fluid dragging via Win32 `WM_NCLBUTTONDOWN`, high-DPI awareness, and BeamMP orange accent styling.
+  - **Multi-Step Guided Flow**:
+    - **Step 1 (Configuration)**: Customizable install path (`%LocalAppData%\Programs\K-BNG-M-Hoster` per-user standard requiring zero UAC prompts), real-time drive space probe, and customizable shortcut preferences.
+    - **Step 2 (Extraction)**: Real-time progress bar with percentage readout and live file extraction logging running on an asynchronous background thread.
+    - **Step 3 (Completion)**: Emerald success badge and one-click "Launch Now" button.
+  - **Silent Install Support**: Fully supports unattended installation via `/quiet` or `/silent` command-line flags.
+
+- **Native Windows Shell & System Integration:**
+  - **Start Menu & Desktop Shortcuts**: Automatically creates Windows `.lnk` shortcuts with high-DPI icon binding and explicit `AppUserModelID ("Kinan.KBNGMHoster.App")`.
+  - **Windows Installed Apps Registration**: Registers directly in Windows **"Installed Apps" / "Programs and Features"** (`HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\K-BNG-M-Hoster`) with display name, version, publisher, icon, estimated size, and uninstall command.
+
+- **Dedicated Dark-Themed Uninstaller (`Uninstall.exe`):**
+  - **Safe Process Termination**: Automatically terminates running server and launcher processes before removal.
+  - **Data Protection Guard**: "Keep server configuration (ServerConfig.toml) and custom mods" is checked by default so player settings and vehicle/map mods are never deleted accidentally.
+  - **Clean System Removal**: Removes shortcuts, registry keys, and program files, with self-deleting deferred cleanup.
+
+- **Automated Build Scripts (`Build-Installer.ps1` & `build-installer.bat`):**
+  - Single-command build script compiling the entire distribution pipeline from source into `K-BNG-M-Hoster-Setup.exe`.
+
+## v0.7.2.4 - Update 14: Zero-Flicker Architecture, Native Taskbar Branding & Streamer Privacy Hardening
+
+- **Anti-Flicker Architecture & Atomic Transitions:**
+  - **Window & Container Hardware Clipping (`WS_CLIPCHILDREN`)**: Enforced native `WS_CLIPCHILDREN (0x02000000)` across `$script:Form` and all container panels, stopping parents from painting backgrounds underneath child controls during updates.
+  - **Atomic Redraw Suspension (`WM_SETREDRAW` / `RedrawWindow`)**: Integrated `[Win32Chrome]::Suspend` and `Resume` around tab navigation (`Switch-ContentPage`), card stack measurements (`Update-CardStackLayout`), home layout recalculations (`Layout-HomePage`), streamer mode state toggles, and accordion expansion. Windows buffers all changes off-screen and blits the finished frame in a single atomic composite pass.
+  - **Delta-Only Geometry Updates**: Guarded control bounds and dimensions (`SetBounds`) to only execute when values actually differ from current layout geometry, preventing redundant paint cycles.
+
+- **Native Application Taskbar Icon & AppUserModelID Branding:**
+  - **Explicit AppID Isolation**: Initialized `SetCurrentProcessExplicitAppUserModelID("Kinan.KBNGMHoster.App")` across both `Launcher.cs` and `Play_BeamMP.ps1`, completely detaching the application from the generic Windows PowerShell taskbar grouping.
+  - **Multi-Resolution Icon Binding**: Loaded `app.ico` into `$script:Form.Icon` and directly dispatched Win32 `WM_SETICON` (`ICON_SMALL` & `ICON_BIG`), displaying the official high-DPI emblem icon on the Windows Taskbar, Alt-Tab switcher, and window title bar.
+  - **Taskbar Minimize/Restore Support**: Stamped `WS_MINIMIZEBOX (0x00020000)` and `WS_SYSMENU (0x00080000)` on the custom dark frameless window styles, enabling natural Windows taskbar click-to-minimize and restore behaviors.
+
+- **Streamer Privacy Mode Console Drawer Collapse:**
+  - **Seamless Full-Height Workspace**: When Streamer Privacy Mode is toggled on, the 166px bottom Activity Console drawer (`$logPanel`) is completely hidden (`Visible = $false`), seamlessly giving all vertical space back to the dashboard content canvas without layout jitter.
+  - **Instant Drawer Restoration**: Disabling Streamer Mode immediately restores the console drawer (`Visible = $true`) with its smooth scrolling and controls intact.
+
+- **Complete Home WiFi / LAN Masking & Row Hiding:**
+  - **Matrix Row Hiding**: The "HOME WIFI / LAN" direct connect row is automatically collapsed and hidden from the Direct Connect Matrix when Streamer Mode is active, preventing accidental broadcast of local network topology.
+  - **Endpoint Copy Protection**: When Streamer Mode is active, LAN endpoint copy buttons are set to `'Protected'` (`__STREAMER_BLOCKED__`), blocking clipboard exposure.
+  - **Multi-Vector LAN IP Redaction**: Updated `Protect-StreamerText` in `HosterCore.ps1` to accept and sanitize the active LAN IP (`$LanIp`), ensuring local WiFi/router IPs (`192.168.x.x`, `10.x.x.x`) are masked with `***.***.***.***` across live log streaming, log history refreshes, and diagnosis report popups.
+
+## v0.7.2.3 - Update 13: Input Field Modernization, Material Polish & Native Standalone Launcher Executable
+
+- **Native Standalone Executable Launcher (`K-BNG-M-Hoster.exe`):**
+  - **Zero Console Flicker / Window Flashing**: Introduced a compiled native Windows subsystem GUI executable (`K-BNG-M-Hoster.exe`) at the root, completely replacing the legacy batch file launcher flicker with instantaneous startup.
+  - **Embedded High-DPI Application Icon**: Built with an embedded multi-resolution 256x256 dark zinc and orange emblem icon (`app.ico`), delivering an authentic desktop presence across File Explorer, Taskbar, and Start Menu.
+  - **Official Win32 Version Metadata**: Fully stamped with product metadata (v0.7.2.3, developer attribution, copyright, and product description).
+  - **Seamless Script Execution & Argument Forwarding**: Transparently bypasses Windows execution policy restrictions without prompting users and forwards all command-line arguments to the server engine.
+  - **Fail-Safe Extraction Guard**: Features an automatic native dialog prompt alerting users if files are launched from inside an unextracted zip archive.
+
+- **Soft Boundary Geometry & Recessed Material Fill (`apple-design` & `emil-design-eng`):**
+  - **Rounded Corner Geometry**: Eradicated legacy sharp 90-degree corners across all text inputs in Server Settings ("Server name", "Players / cars", "Description", "Tags", "Search maps", "Game listen port", "Bind IP", "Resource folder", "Update reminder", "Preset name", and FRP fields); upgraded with smooth 6px rounded corner geometry.
+  - **Recessed Dark Material Fill**: Replaced default input backgrounds with a deep recessed `#050508` material fill, cleanly distinguishing interactive regions from the `#111115` card background.
+  - **Subtle Perimeter Stroke**: Replaced stark high-contrast OS borders with ultra-low opacity 1px strokes (`#27272A` / `rgba(255, 255, 255, 0.08)`).
+
+- **Generous Internal Padding & Breathing Room:**
+  - Expanded internal padding across all single-line inputs to `8,5,8,5` and multiline inputs to `8,6,8,6`, eliminating uncomfortably tight text placement against control edges.
+  - Standardized input height to 32px for consistent visual rhythm across the card stack.
+
+- **Tactile Focus & Hover States:**
+  - Integrated dynamic hover feedback transitioning borders to `#3F3F46`.
+  - Implemented seamless focus states transitioning borders to accent blue (`#3B82F6`) with subtle background illumination (`#090910`) and high-contrast caret rendering.
+
+- **Custom Slim Dark Zinc Scrollbar (Description Multiline Overhaul):**
+  - Completely eliminated the bright default Windows system scrollbar on the multiline "Description (optional)" input box.
+  - Implemented a custom dark scrollbar ControlTemplate with a slim 8px width, completely transparent track background, and a 6px rounded dark zinc thumb (`#27272A`, highlighting to `#3F3F46` on hover).
+
+- **Harmonized Players / Cars Layout:**
+  - Redesigned the "Players / cars" inline layout with 84px numeric inputs and generous 20px label separation, ensuring clean vertical alignment and ample breathing room.
+
+## v0.7.2.2 - Update 12: Structural Edgeless Design Overhaul & Tactile Material Elevation
+
+- **Edgeless Design & Destruction of Legacy Boxes (`apple-design` & `emil-design-eng`):**
+  - **Outer Bounding Box Eradication**: Completely removed `BorderThickness` and outer card container borders from both the Hero Status Card (`$script:StatusCard`) and the Direct Connect Endpoints Matrix (`$script:ConnContent`), allowing data to sit cleanly on the canvas (`#09090b`).
+  - **Unsegregated KPI Telemetry Strip**: Eliminated individual bordered rectangle boxes from the 4 KPI metric chips ("SERVER NAME", "PORT (UDP/TCP)", "VISIBILITY", "GATEWAY STATUS"); layout is now structured purely through Margin, Padding, and high-contrast typography hierarchy.
+  - **Hairline Internal Row Dividers**: Enforced that the only lines rendered across the entire Dashboard are ultra-thin (1px), low-opacity (`rgba(255, 255, 255, 0.05)`) internal horizontal row dividers between matrix endpoints.
+
+- **Sidebar Definition & Tactile Button Borders:**
+  - **Subtle Surface Lift & Defined Hitboxes**: Re-applied a subtle `#111115` surface elevation with an ultra-thin 1px border (`rgba(255, 255, 255, 0.08)`) and 6px rounded corners across all inactive sidebar navigation items ("Server Settings", "Mod Manager", "Network & Tunnels", "Cloud Transfer", "Scan & Fix", "More Tools"), establishing unambiguous clickable hitboxes without reverting to legacy harsh UI boxes.
+  - **Active State Harmony & Glowing Accent**: Harmonized the active "Dashboard" button with a warm accent fill (`rgba(255, 115, 29, 0.14)`), a luminous glowing accent border (`rgba(255, 115, 29, 0.38)`), and floating warm amber shortcut indicators (`^H`).
+  - **Consistent Utility Buttons**: Aligned the bottom-left utility actions ("Open Folder", "Guide (^G)") with identical 6px rounded pill geometry and subtle 1px translucent borders.
+
+- **Layered Material Elevation (Tactile Top Buttons):**
+  - **Multi-Layered Drop Shadows**: Implemented dual-layer GDI+ drop shadows (soft ambient shadow `rgba(0, 0, 0, 0.16)` + crisp contact shadow `rgba(0, 0, 0, 0.30)`) on top action buttons ("Copy Best IP", "Copy Invite", "Diagnose", "Refresh") and matrix action buttons, physically lifting them off the `#09090b` canvas.
+  - **Elevated `#1c1c24` Surface & Top Specular Catch-Light**: Applied subtle translucent borders (`rgba(255, 255, 255, 0.10)`) and a 1px top specular catch-light line across button upper edges.
+  - **Tactile Depression Feedback**: Integrated dynamic 1px depression shifts and shadow collapse on click (`$state -eq 'down'`).
+
+- **Semantic Callout Rebuild ("TIP" Box):**
+  - **Border Elimination & Solid `#291f00` Fill**: Stripped the stark yellow outline completely in favor of a solid `#291f00` (dark amber) background fill.
+  - **Rounded Corner Geometry**: Increased corner radius to 10px with an ambient amber circular icon badge and softened warm amber typography (`#fed7aa`).
+
+## v0.7.2.1 - Update 11: Apple-Design UI Modernization, Runspace Latency Optimization & Dynamic Data-Binding Polish
+
+- **Sidebar Navigation Craft & Tactile Elevation:**
+  - **Modern Active Surface Fill**: Eliminated the legacy, harsh thin orange bounding box on the active navigation button; replaced with a subtle semi-transparent accent surface fill (`rgba(255, 115, 29, 0.12)`) and a sharp, solid left-edge indicator bar (`#FF731D`) adhering to Emil Kowalski and Apple Human Interface Guidelines.
+  - **Organically Softened Keyboard Shortcuts**: Stripped the rigid rectangular badge backgrounds behind shortcut indicators (`^H`, `^T`, `^M`, `^V`, `^U`, `^F`); shortcuts now float seamlessly with quiet zinc typography (`#696976`) that gracefully brightens upon hover and active states without visual clutter.
+
+- **Tactile Button & Edgeless Structural Hierarchy:**
+  - **Top Action Row Tactile Overhaul**: Redesigned "Copy Best IP", "Copy Invite", "Diagnose", and "Refresh" with soft-elevated `#1c1c24` surfaces, subtle `rgba(255, 255, 255, 0.08)` translucent perimeter borders, and smooth zero-jitter hover state transitions.
+  - **Edgeless Telemetry KPI Strip**: Stripped high-contrast solid borders and top specular lines from the 4 KPI metric chips ("SERVER NAME", "PORT (UDP/TCP)", "VISIBILITY", "GATEWAY STATUS") in favor of edgeless dark zinc surfaces (`#111116`) with ultra-thin, low-opacity dividers (`rgba(255, 255, 255, 0.05)`).
+  - **Edgeless Direct Connect Matrix**: Eradicated harsh outer bounding strokes around the endpoint routing table, achieving spatial balance through unified surface contrast and hairline internal row dividers (`rgba(255, 255, 255, 0.05)`).
+  - **Semantic Callout Polish**: Softened the warning/info box below the matrix by replacing its stark outline with a low-opacity amber surface fill (`rgba(245, 158, 11, 0.08)`), 8px rounded corners, and a borderless ambient amber indicator glyph.
+  - **Streamer Toggle Precision Shift**: Modernized the top-right "STREAMER: OFF / ON" toggle with distinct pill geometry, smooth tactile switch dot, and vibrant emerald shield color shifting upon activation.
+
+- **Asynchronous Runspace & Gateway Polling Optimization:**
+  - **Instant SSDP Discovery**: Optimized `Get-UpnpControlUrl` to terminate early upon receiving the primary Internet Gateway Device location (reducing discovery wait latency from 6,000ms to <1,800ms) with a 10-minute memory cache, preventing SSDP broadcast floods.
+  - **Multi-Endpoint Public IP Resolver**: Upgraded `Get-PublicIpCached` with multi-endpoint fallback resolution (`api.ipify.org`, `icanhazip.com`, `ifconfig.me`) and a tight 3s timeout with regex IPv4 validation, eliminating cold-start WAN polling stalls.
+  - **Zero UI-Thread Blocking on Copy**: Removed synchronous `Get-ConnectionInfo` execution from "Copy Best IP" and "Copy Invite" button handlers, reading exclusively from the asynchronous state cache for instantaneous, stutter-free clipboard actions.
+
+- **Data-Binding & WinForms Rendering Bug Eradication:**
+  - **Immediate Invalidation on Text Changes**: Enhanced `Set-CtrlText` to invoke deterministic `.Invalidate()` on both target controls and parent containers upon any text or color update, eliminating double-buffered rendering lag where dynamic endpoint changes required manual hover or window resizing.
+  - **Port State Synchronization**: Fixed state race condition where background connection probes could latch stale port values; `$script:State.Port` now enforces authoritative bidirectional synchronization across the KPI metric chip, matrix rows, and clipboard buffers.
+
+## v0.7.2.0 - Update 10: Advanced Settings Expansion & Streamer Mode Integration
+
+- **Dashboard Modernization & Command Center Craft:**
+  - **Tactile Button Overhaul**: Eradicated legacy heavy grey backgrounds across the top action row and matrix rows; implemented soft-elevated `#1c1c24` surfaces with subtle `rgba(255,255,255,0.08)` translucent borders and zero-jitter hover/press luminance states.
+  - **KPI Telemetry Breathing Room**: Expanded the 4-pill telemetry strip to 52px height with 10px inter-chip margins; established strict typographic hierarchy using muted Zinc-400 captions (`#888894`) while reserving high-contrast white and semantic colors purely for live telemetry values.
+  - **Direct Connect Matrix Visual Rhythm**: Standardized the 6-row routing table with a uniform 184px title column, strict monospaced Cascadia Mono status alignment, and standardized 90x26px right-aligned action buttons.
+  - **Modern Semantic Callout Banner**: Redesigned the harsh yellow TIP banner into a subtle, low-opacity warm amber surface fill (`#1c160c`) with soft 6px rounded corners, inline `[i]` badge glyph, and warm zinc-amber typography.
+  - **Precision Streamer Pill Toggle**: Evolved the top-right header button into a sleek pill-shaped toggle switch with tactile thumb indicator and luminous protective emerald shield styling when active.
+
+- **Streamer Privacy Mode:**
+  - One-click persistent header toggle (`$titleBar`) and dedicated card in Settings with glowing active indicator and tactile toggle feedback.
+  - Intercepts and masks sensitive data in real time: Public WAN IPs (`***.***.***.***`), Keymaster AuthKeys (`********************************`), and Windows local user file paths (`C:\Users\***`).
+  - Active across the Dashboard Direct Connect Matrix, Network VPN rows, and the Activity Console log stream with pre-render redaction.
+  - Clipboard copy protection prevents accidental pasting of sensitive endpoints during live broadcasts and recording sessions.
+
+- **Advanced Server Settings (Collapsible Accordion):**
+  - Smooth collapsible accordion container in Server Settings keeping the primary cards uncluttered and focused.
+  - Complete mapping of previously unexposed `ServerConfig.toml` variables:
+    - Custom Game Listen Port (`Port`, range 1024-65535).
+    - Network Bind IP (`IP`, default `::` dual-stack IPv6/IPv4 or `0.0.0.0`).
+    - Mod Resource Folder (`ResourceFolder`, default `Resources`).
+    - Hide Server Update Prompts (`ImScaredOfUpdates = true/false`).
+    - Update Reminder Frequency (`UpdateReminderTime`, default `30s`).
+
+- **Section-Aware TOML Serializer & Fallback Resilience:**
+  - Enhanced `Set-ServerConfig` intelligently routes keys to `[General]`, `[Misc]`, and `[FRP]` tables while preserving existing comments, indentation, and ordering.
+  - Fallback defaults for all fields prevent null-reference exceptions and crash-to-desktop scenarios on incomplete or legacy configurations.
+
+- **Activity Console Streamer Hook Fix:**
+  - Resolved an unassigned variable binding in `Add-LogBatch` where `$cleanLine` was not populated on normal log streams, restoring instant visibility for all server events, status updates, and diagnostic messages with correct timestamps and semantic colors.
+
+- **Dashboard Telemetry & Action Bar Alignment Fix:**
+  - Resolved `PORT (TCP+U...` truncation on standard and high-DPI displays by rebalancing KPI grid column styles (23% / 20% / 26% / 31%), modernizing the caption to `PORT (UDP/TCP)`, and optimizing value font sizing to prevent label ellipsis at all window sizes.
+  - Aligned the top action buttons (`Copy Best IP`, `Copy Invite`, `Diagnose`, `Refresh`) with uniform 28px height, 4px margins, and expanded card top/bottom padding (14px) eliminating vertical clipping and button misalignment.
+
 ## v0.7.1.1 - Update 9: Validation & input fixes
 
 - **No more false-positive validation errors:** the server key check no longer rejects
