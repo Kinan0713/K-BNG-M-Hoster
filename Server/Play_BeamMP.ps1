@@ -2669,8 +2669,8 @@ function Show-HomePage {
             param($s, $e)
             try {
                 $g = $e.Graphics
-                if ($s.AccessibleDescription -eq 'hover') {
-                    $hoverBrush = Get-CachedBrush ([System.Drawing.Color]::FromArgb(18, 255, 255, 255))
+                if ($s -and $s.AccessibleDescription -eq 'hover') {
+                    $hoverBrush = Get-CachedBrush ([System.Drawing.Color]::FromArgb(20, 255, 255, 255))
                     $g.FillRectangle($hoverBrush, 2, 1, ($s.Width - 4), ($s.Height - 2))
                 }
                 # Ultra-thin, low-opacity internal divider (rgba(255, 255, 255, 0.05)) - the only lines allowed
@@ -2678,23 +2678,47 @@ function Show-HomePage {
                 $g.DrawLine($divPen, 6, ($s.Height - 1), ($s.Width - 6), ($s.Height - 1))
             } catch { }
         })
-        $rowEnter = {
-            if ($rowP.AccessibleDescription -ne 'hover') {
-                $rowP.AccessibleDescription = 'hover'
-                $rowP.Invalidate()
-            }
-        }
-        $rowLeave = {
+        $rowP.Add_MouseEnter({
             try {
-                $pt = $rowP.PointToClient([System.Windows.Forms.Cursor]::Position)
-                if (-not $rowP.ClientRectangle.Contains($pt)) {
-                    $rowP.AccessibleDescription = ''
-                    $rowP.Invalidate()
+                if ($this -and $this.AccessibleDescription -ne 'hover') {
+                    $this.AccessibleDescription = 'hover'
+                    $this.Invalidate($true)
+                }
+            } catch { }
+        })
+        $rowP.Add_MouseLeave({
+            try {
+                if ($this) {
+                    $pt = $this.PointToClient([System.Windows.Forms.Cursor]::Position)
+                    if (-not $this.ClientRectangle.Contains($pt)) {
+                        $this.AccessibleDescription = ''
+                        $this.Invalidate($true)
+                    }
+                }
+            } catch { }
+        })
+
+        $childEnter = {
+            try {
+                $p = $this.Parent
+                if ($p -and $p.AccessibleDescription -ne 'hover') {
+                    $p.AccessibleDescription = 'hover'
+                    $p.Invalidate($true)
                 }
             } catch { }
         }
-        $rowP.Add_MouseEnter($rowEnter)
-        $rowP.Add_MouseLeave($rowLeave)
+        $childLeave = {
+            try {
+                $p = $this.Parent
+                if ($p) {
+                    $pt = $p.PointToClient([System.Windows.Forms.Cursor]::Position)
+                    if (-not $p.ClientRectangle.Contains($pt)) {
+                        $p.AccessibleDescription = ''
+                        $p.Invalidate($true)
+                    }
+                }
+            } catch { }
+        }
 
         $lTitle = New-Lbl $TitleText ([System.Drawing.Color]::FromArgb(168, 168, 180)) 8.25 28 $true
         $lTitle.AutoSize = $false
@@ -2702,8 +2726,8 @@ function Show-HomePage {
         $lTitle.Dock = 'Fill'
         $lTitle.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
         if ($TipText) { $script:Tip.SetToolTip($lTitle, $TipText) }
-        $lTitle.Add_MouseEnter($rowEnter)
-        $lTitle.Add_MouseLeave($rowLeave)
+        $lTitle.Add_MouseEnter($childEnter)
+        $lTitle.Add_MouseLeave($childLeave)
         $rowP.Controls.Add($lTitle, 0, 0)
 
         $lbl = New-Lbl '' $Color 9 28 $Bold
@@ -2717,8 +2741,8 @@ function Show-HomePage {
             $lbl.Font = Get-CachedFont $script:MonoFontName 9 ([System.Drawing.FontStyle]::Regular)
         }
         if ($TipText) { $script:Tip.SetToolTip($lbl, $TipText) }
-        $lbl.Add_MouseEnter($rowEnter)
-        $lbl.Add_MouseLeave($rowLeave)
+        $lbl.Add_MouseEnter($childEnter)
+        $lbl.Add_MouseLeave($childLeave)
         $rowP.Controls.Add($lbl, 1, 0)
 
         $actBtn = New-Btn 'Copy IP' 'Copy this endpoint address or open its setup tool.' {
@@ -6135,11 +6159,12 @@ function Copy-Invite {
     }
     if ($script:State.Running -and $script:State.Frp) { $addr = $script:State.Frp }
     if (-not $addr) { $addr = '127.0.0.1' }
+    $targetAddr = if ($addr -match ':\d+$') { $addr } else { "$addr : $port" }
     $priv = Get-ServerPrivate
     $text = if ($priv) {
-        "Join my private BeamNG server!`n1) Open BeamNG -> More... -> BeamMP -> Direct Connect`n2) Address: $addr : $port`n3) Press Connect - done!"
+        "Join my private BeamNG server!`n1) Open BeamNG -> More... -> BeamMP -> Direct Connect`n2) Address: $targetAddr`n3) Press Connect - done!"
     } else {
-        "Join my BeamNG server! It is listed on BeamMP - search for it, or Direct Connect to: $addr : $port"
+        "Join my BeamNG server! It is listed on BeamMP - search for it, or Direct Connect to: $targetAddr"
     }
     try {
         [System.Windows.Forms.Clipboard]::SetText($text)
