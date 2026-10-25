@@ -175,7 +175,11 @@ namespace KBnGMHoster.Packaging
                 SizeMode = PictureBoxSizeMode.Zoom,
                 BackColor = Color.Transparent
             };
-            if (this.Icon != null) picIcon.Image = this.Icon.ToBitmap();
+            Image appImg = LoadAppIconImage();
+            if (appImg != null)
+            {
+                picIcon.Image = appImg;
+            }
 
             Label lblApp = new Label
             {
@@ -827,12 +831,49 @@ namespace KBnGMHoster.Packaging
             Application.Exit();
         }
 
+        private static Image LoadAppIconImage()
+        {
+            try
+            {
+                Assembly asm = Assembly.GetExecutingAssembly();
+                using (Stream s = asm.GetManifestResourceStream("app.ico"))
+                {
+                    if (s == null) return null;
+                    byte[] bytes = new byte[s.Length];
+                    s.Read(bytes, 0, bytes.Length);
+
+                    for (int i = 0; i < bytes.Length - 8; i++)
+                    {
+                        if (bytes[i] == 0x89 && bytes[i + 1] == 0x50 && bytes[i + 2] == 0x4E && bytes[i + 3] == 0x47)
+                        {
+                            using (MemoryStream ms = new MemoryStream(bytes, i, bytes.Length - i))
+                            {
+                                using (Image raw = Image.FromStream(ms))
+                                {
+                                    return new Bitmap(raw);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
         [STAThread]
         public static void Main(string[] args)
         {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new InstallerForm(args));
+            try
+            {
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                Application.Run(new InstallerForm(args));
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Installer initialization error:\n\n" + ex.ToString(), "K BNG M Hoster Setup Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
     }
 }
