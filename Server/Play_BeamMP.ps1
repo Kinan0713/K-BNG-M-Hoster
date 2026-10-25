@@ -77,16 +77,6 @@ public class Win32Chrome {
         }
     }
 
-    public static void ApplyClipChildren(IntPtr hWnd) {
-        if (hWnd == IntPtr.Zero) return;
-        try {
-            int style = GetWindowLong(hWnd, -16);
-            if ((style & 0x02000000) == 0) {
-                SetWindowLong(hWnd, -16, style | 0x02000000);
-            }
-        } catch { }
-    }
-
     public static void ApplyModernWindow(IntPtr hWnd) {
         try {
             int dark = 1;
@@ -99,7 +89,6 @@ public class Win32Chrome {
             int style = GetWindowLong(hWnd, -16);
             style |= 0x00020000;
             style |= 0x00080000;
-            style |= 0x02000000;
             SetWindowLong(hWnd, -16, style);
         } catch { }
     }
@@ -272,16 +261,8 @@ $script:BrushCache = @{}
 $script:DblBufProp = [System.Windows.Forms.Control].GetProperty('DoubleBuffered', [System.Reflection.BindingFlags]'Instance,NonPublic')
 
 function Enable-DoubleBuffer($Ctrl) {
-    if (-not $Ctrl) { return }
-    if ($script:DblBufProp) {
+    if ($Ctrl -and $script:DblBufProp) {
         try { $script:DblBufProp.SetValue($Ctrl, $true, $null) } catch { }
-    }
-    if ($Ctrl.IsHandleCreated) {
-        [Win32Chrome]::ApplyClipChildren($Ctrl.Handle)
-    } else {
-        $Ctrl.Add_HandleCreated({
-            try { [Win32Chrome]::ApplyClipChildren($this.Handle) } catch { }
-        })
     }
 }
 
@@ -2362,7 +2343,7 @@ function Switch-ContentPage($NewPage) {
         }
         $NewPage.Visible = $true
         $NewPage.BringToFront()
-        $script:Content.ResumeLayout($false)
+        $script:Content.ResumeLayout($true)
         if ($script:PageLayout) {
             try { & $script:PageLayout } catch { }
         }
@@ -2397,8 +2378,6 @@ $script:Form.Add_Resize({
 # ---------------------------------------------------------------------------------------
 function Layout-HomePage {
     if (-not $script:HomePagePanel -or $script:HomePagePanel.IsDisposed) { return }
-    $hwnd = if ($script:HomePagePanel.IsHandleCreated) { $script:HomePagePanel.Handle } else { [IntPtr]::Zero }
-    [Win32Chrome]::Suspend($hwnd)
     try {
         $hpPadH = if ($script:HomePagePanel -and $script:HomePagePanel.Padding) {
             ($script:HomePagePanel.Padding.Left + $script:HomePagePanel.Padding.Right)
@@ -2412,7 +2391,7 @@ function Layout-HomePage {
         } else {
             844
         }
-        $cardW = [int][math]::Max(320, $cardW)
+        $cardW = [int][math]::Max(480, $cardW)
 
         if ($script:StatusCard -and $script:StatusTlp) {
             $stPadH = $script:StatusCard.Padding.Left + $script:StatusCard.Padding.Right
@@ -2462,9 +2441,6 @@ function Layout-HomePage {
             if ($script:HomeScrollBar) { & $script:HomeScrollBar.Sync }
         }
     } catch { Write-Log "[LAYOUT-ERROR] HOME $($_.Exception.Message)" }
-    finally {
-        [Win32Chrome]::Resume($hwnd)
-    }
 }
 
 function Show-HomePage {
@@ -2486,6 +2462,11 @@ function Show-HomePage {
     Enable-DoubleBuffer $p
     $p.SuspendLayout()
     $p.Dock = 'Fill'
+    if ($script:Content -and $script:Content.ClientSize.Width -gt 200) {
+        $p.Size = $script:Content.ClientSize
+    } else {
+        $p.Size = New-Object System.Drawing.Size(844, 520)
+    }
     $p.BackColor = $Theme.bg
     $p.Padding = New-Object System.Windows.Forms.Padding(16, 12, 16, 6)    # Hero Status Header (top) with Quick Action Bar + Full-Width KPI Metric Grid (Edgeless - Zero Outer Border)
     $script:StatusCard = New-Object System.Windows.Forms.Panel
@@ -2684,17 +2665,36 @@ function Show-HomePage {
         $null = $rowP.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 98)))
         $rowP.RowCount = 1
         $null = $rowP.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100)))
-        $rowP.Add_MouseEnter({ $this.BackColor = [System.Drawing.Color]::FromArgb(18, 255, 255, 255); $this.Invalidate() })
-        $rowP.Add_MouseLeave({ $this.BackColor = [System.Drawing.Color]::Transparent; $this.Invalidate() })
         $rowP.Add_Paint({
             param($s, $e)
             try {
                 $g = $e.Graphics
+                if ($s.AccessibleDescription -eq 'hover') {
+                    $hoverBrush = Get-CachedBrush ([System.Drawing.Color]::FromArgb(18, 255, 255, 255))
+                    $g.FillRectangle($hoverBrush, 2, 1, ($s.Width - 4), ($s.Height - 2))
+                }
                 # Ultra-thin, low-opacity internal divider (rgba(255, 255, 255, 0.05)) - the only lines allowed
                 $divPen = Get-CachedPen ([System.Drawing.Color]::FromArgb(13, 255, 255, 255)) 1
                 $g.DrawLine($divPen, 6, ($s.Height - 1), ($s.Width - 6), ($s.Height - 1))
             } catch { }
         })
+        $rowEnter = {
+            if ($rowP.AccessibleDescription -ne 'hover') {
+                $rowP.AccessibleDescription = 'hover'
+                $rowP.Invalidate()
+            }
+        }
+        $rowLeave = {
+            try {
+                $pt = $rowP.PointToClient([System.Windows.Forms.Cursor]::Position)
+                if (-not $rowP.ClientRectangle.Contains($pt)) {
+                    $rowP.AccessibleDescription = ''
+                    $rowP.Invalidate()
+                }
+            } catch { }
+        }
+        $rowP.Add_MouseEnter($rowEnter)
+        $rowP.Add_MouseLeave($rowLeave)
 
         $lTitle = New-Lbl $TitleText ([System.Drawing.Color]::FromArgb(168, 168, 180)) 8.25 28 $true
         $lTitle.AutoSize = $false
@@ -2702,6 +2702,8 @@ function Show-HomePage {
         $lTitle.Dock = 'Fill'
         $lTitle.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
         if ($TipText) { $script:Tip.SetToolTip($lTitle, $TipText) }
+        $lTitle.Add_MouseEnter($rowEnter)
+        $lTitle.Add_MouseLeave($rowLeave)
         $rowP.Controls.Add($lTitle, 0, 0)
 
         $lbl = New-Lbl '' $Color 9 28 $Bold
@@ -2715,6 +2717,8 @@ function Show-HomePage {
             $lbl.Font = Get-CachedFont $script:MonoFontName 9 ([System.Drawing.FontStyle]::Regular)
         }
         if ($TipText) { $script:Tip.SetToolTip($lbl, $TipText) }
+        $lbl.Add_MouseEnter($rowEnter)
+        $lbl.Add_MouseLeave($rowLeave)
         $rowP.Controls.Add($lbl, 1, 0)
 
         $actBtn = New-Btn 'Copy IP' 'Copy this endpoint address or open its setup tool.' {
@@ -2822,6 +2826,8 @@ function Show-HomePage {
     Switch-ContentPage $p
     Refresh-Dashboard
     Layout-HomePage
+    if ($script:Content) { $script:Content.PerformLayout() }
+    $p.PerformLayout()
 }
 
 function Set-RowBtn($Btn, [string]$Text, [string]$TagVal) {
@@ -3114,6 +3120,11 @@ function Show-SettingsPage {
     Enable-DoubleBuffer $p
     $p.SuspendLayout()
     $p.Dock = 'Fill'
+    if ($script:Content -and $script:Content.ClientSize.Width -gt 200) {
+        $p.Size = $script:Content.ClientSize
+    } else {
+        $p.Size = New-Object System.Drawing.Size(844, 520)
+    }
     $p.BackColor = $Theme.bg
 
     $top = New-PageTop $p 'Settings' 'Everything in one scroll - most settings apply on the next server start.'
@@ -3830,6 +3841,11 @@ function Show-NetworkPage([bool]$ForceRefresh = $false) {
     Enable-DoubleBuffer $p
     $p.SuspendLayout()
     $p.Dock = 'Fill'
+    if ($script:Content -and $script:Content.ClientSize.Width -gt 200) {
+        $p.Size = $script:Content.ClientSize
+    } else {
+        $p.Size = New-Object System.Drawing.Size(844, 520)
+    }
     $p.BackColor = $Theme.bg
 
     $top = New-PageTop $p 'Network' 'Everything about how friends reach you: FRP tunnel, VPNs and CGNAT.'
@@ -4104,6 +4120,11 @@ function Show-FixPage {
     Enable-DoubleBuffer $p
     $p.SuspendLayout()
     $p.Dock = 'Fill'
+    if ($script:Content -and $script:Content.ClientSize.Width -gt 200) {
+        $p.Size = $script:Content.ClientSize
+    } else {
+        $p.Size = New-Object System.Drawing.Size(844, 520)
+    }
     $p.BackColor = $Theme.bg
     $p.Padding = New-Object System.Windows.Forms.Padding(12, 4, 12, 4)
 
@@ -6075,10 +6096,6 @@ function Stop-ServerFlow {
 }
 
 function Copy-ConnectionLine {
-    if ($script:StreamerMode) {
-        Add-Log "[NOTE] Clipboard copy blocked: Sensitive endpoint is masked while Streamer Privacy Mode is active."
-        return
-    }
     $conn = $script:State.Conn
     if (-not $conn) {
         $conn = [pscustomobject]@{ Port = (Get-ServerPort); LAN = (Get-LanIp); Tailscale = ''; Public = ''; Vpn = @(); Cgnat = $false }
@@ -6093,7 +6110,8 @@ function Copy-ConnectionLine {
     if ($script:State.Running -and $script:State.Frp) { $line = $script:State.Frp }
     try {
         [System.Windows.Forms.Clipboard]::SetText($line)
-        Add-Log "[OK] Copied to clipboard: $line  (send this to your friends)"
+        $disp = if ($script:StreamerMode) { '***.***.***.***:' + $port } else { $line }
+        Add-Log "[OK] Copied best address to clipboard: $disp  (send this to your friends)"
     } catch {
         Add-Log "[ERROR] Could not copy to clipboard: $_"
     }
@@ -6102,10 +6120,6 @@ function Copy-ConnectionLine {
 # Copies a friendly full invite message (address + connect steps) - the easy way
 # to invite friends to a PRIVATE server (or any server).
 function Copy-Invite {
-    if ($script:StreamerMode) {
-        Add-Log "[NOTE] Clipboard copy blocked: Server invite is protected while Streamer Privacy Mode is active."
-        return
-    }
     $conn = $script:State.Conn
     if (-not $conn) {
         $conn = [pscustomobject]@{ Port = (Get-ServerPort); LAN = (Get-LanIp); Tailscale = ''; Public = ''; Vpn = @(); Cgnat = $false }
@@ -6129,7 +6143,7 @@ function Copy-Invite {
     }
     try {
         [System.Windows.Forms.Clipboard]::SetText($text)
-        Add-Log "[OK] Invite copied - paste it to your friends."
+        Add-Log "[OK] Server invite copied to clipboard - paste it to your friends."
     } catch {
         Add-Log "[ERROR] Could not copy the invite: $_"
     }
@@ -6608,6 +6622,8 @@ $script:Form.Add_Shown({
     } else {
         Show-HomePage
     }
+    $script:Form.PerformLayout()
+    if ($script:PageLayout) { try { & $script:PageLayout } catch { } }
     if ($script:LicenseLocked) { Set-LicenseLock $true }
     try { [Win32Chrome]::ApplyModernWindow($script:Form.Handle) } catch { }
     # The window is fully painted at this point. All slow one-time work starts
