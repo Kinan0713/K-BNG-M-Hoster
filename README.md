@@ -19,7 +19,7 @@
 ## 🚀 Quick Start (30 seconds)
 
 1. **Extract** the ZIP to any folder.
-2. **Double-click `Start_Here.bat`** — a window opens. That's it.
+2. **Double-click `K-BNG-M-Hoster.exe`** (or `Start_Here.bat`) — the window opens instantly with zero console flicker. That's it.
 3. First time: accept the license, then paste your **BeamMP key** — your server starts automatically.
 4. Send your friends the address shown on the window (press **Ctrl+C** or the **Copy IP** button).
 

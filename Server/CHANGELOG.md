@@ -1,4 +1,11 @@
-## v0.7.2.3 - Update 13: Input Field Modernization & Material Polish (Server Settings)
+## v0.7.2.3 - Update 13: Input Field Modernization, Material Polish & Native Standalone Launcher Executable
+
+- **Native Standalone Executable Launcher (`K-BNG-M-Hoster.exe`):**
+  - **Zero Console Flicker / Window Flashing**: Introduced a compiled native Windows subsystem GUI executable (`K-BNG-M-Hoster.exe`) at the root, completely replacing the legacy batch file launcher flicker with instantaneous startup.
+  - **Embedded High-DPI Application Icon**: Built with an embedded multi-resolution 256x256 dark zinc and orange emblem icon (`app.ico`), delivering an authentic desktop presence across File Explorer, Taskbar, and Start Menu.
+  - **Official Win32 Version Metadata**: Fully stamped with product metadata (v0.7.2.3, developer attribution, copyright, and product description).
+  - **Seamless Script Execution & Argument Forwarding**: Transparently bypasses Windows execution policy restrictions without prompting users and forwards all command-line arguments to the server engine.
+  - **Fail-Safe Extraction Guard**: Features an automatic native dialog prompt alerting users if files are launched from inside an unextracted zip archive.
 
 - **Soft Boundary Geometry & Recessed Material Fill (`apple-design` & `emil-design-eng`):**
   - **Rounded Corner Geometry**: Eradicated legacy sharp 90-degree corners across all text inputs in Server Settings ("Server name", "Players / cars", "Description", "Tags", "Search maps", "Game listen port", "Bind IP", "Resource folder", "Update reminder", "Preset name", and FRP fields); upgraded with smooth 6px rounded corner geometry.
